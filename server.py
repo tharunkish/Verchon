@@ -49,6 +49,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Application lifecycle events
+@app.on_event("startup")
+def startup_event():
+    """Eagerly launch local Qwen model on boot if active provider is local/qwen."""
+    if local_llm.get_active_provider() == "qwen":
+        print("\n" + "=" * 60)
+        print(" [AI Engine] Eagerly booting Local Qwen 3.5 4B server...")
+        print("=" * 60)
+        local_llm.start_local_server()
+
 # Shutdown handler to clean up local LLM worker
 @app.on_event("shutdown")
 def shutdown_event():
@@ -365,8 +375,14 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
     # ROUTE 1: Local Qwen 3.5 4B Engine
     if active_provider == "qwen":
         try:
+            print(f"\n[AI Pipeline] Synthesizing research dossier for {clean_sym} via Local Qwen 3.5 4B...")
+            print(f"  [1/3] Running deterministic candidate analysis (Fundamentals + Technicals)...")
             cand_data = ra.analyze_candidate(formatted_sym)
+            
+            print(f"  [2/3] Querying local Qwen engine on port 8085 (prompting with full context)...")
             rep_md = local_llm.generate_qwen_stock_dossier(formatted_sym, cand_data)
+            
+            print(f"  [3/3] Parsing Markdown into structured cards (Thesis, Invalidation, Contradictions, Questions)...")
             stock_dossier = ai_parser.parse_stock_ai_section(clean_sym, rep_md)
 
             if not stock_dossier:
@@ -380,6 +396,7 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
             diagnostics = [{"step": "local_qwen_dossier", "model": "Huihui-Qwen3.5-4B-Abliterated", "status": "SUCCESS"}]
             AI_REPORT_CACHE["diagnostics"] = diagnostics
+            print(f"[AI Pipeline] Successfully completed research dossier for {clean_sym}.\n")
 
             return serialize_for_json({
                 "ticker": formatted_sym,

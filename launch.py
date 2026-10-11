@@ -43,11 +43,12 @@ def main():
     threading.Thread(target=wait_and_open_browser, daemon=True).start()
 
     print("\n  [✓] Starting server engine...")
+    print("  [✓] Local AI Model: Huihui-Qwen3.5-4B (Auto-boots with Verchon)")
     print("  [!] Close this window or press Ctrl+C to exit and stop the server.\n")
     print("=" * 65 + "\n")
 
     import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="warning")
+    uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="info")
 
 if __name__ == "__main__":
     main()

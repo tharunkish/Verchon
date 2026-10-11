@@ -84,12 +84,16 @@ def start_local_server() -> bool:
         for attempt in range(30):
             time.sleep(0.5)
             if is_server_healthy():
+                print(f"  [✓] Local Qwen server ready at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
+                print(f"  [✓] Model: {os.path.basename(MODEL_PATH)} | Context: 8192 tokens")
                 logging.info(f"Local Qwen server successfully online at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
                 return True
 
+        print("  [✗] Local Qwen server process started, but healthcheck timed out.")
         logging.error("Local Qwen server process started, but healthcheck timed out.")
         return False
     except Exception as e:
+        print(f"  [✗] Failed to launch local llama-server: {e}")
         logging.error(f"Failed to launch local llama-server: {e}")
         return False
 
@@ -100,9 +104,11 @@ def stop_local_server():
 
     if _server_process is not None:
         try:
+            print(f"  [*] Shutting down local Qwen server (pid {_server_process.pid})...")
             logging.info(f"Shutting down local Qwen server (pid {_server_process.pid})...")
             _server_process.terminate()
             _server_process.wait(timeout=3)
+            print("  [✓] Local Qwen server shutdown complete. Memory freed.")
         except Exception:
             try:
                 _server_process.kill()
@@ -146,7 +152,7 @@ def set_active_provider(provider: str) -> str:
 def query_local_qwen(
     prompt: str,
     system_prompt: Optional[str] = None,
-    max_tokens: int = 1024,
+    max_tokens: int = 1500,
     temperature: float = 0.2,
 ) -> str:
     """
@@ -154,6 +160,7 @@ def query_local_qwen(
     Returns plain string text (extracts reasoning and content cleanly).
     """
     if not is_server_healthy():
+        print("  [*] Local Qwen server is offline. Starting server process...")
         success = start_local_server()
         if not success:
             raise RuntimeError("Local Qwen 3.5 server is not available.")
@@ -170,6 +177,10 @@ def query_local_qwen(
         "temperature": temperature,
         "stream": False,
     }
+
+    t_start = time.time()
+    prompt_len = len(prompt)
+    print(f"  [→] [Local Qwen] Processing query (Prompt: ~{prompt_len} chars, Max Tokens: {max_tokens})...")
 
     try:
         res = requests.post(
@@ -188,8 +199,19 @@ def query_local_qwen(
         if not content.strip() and msg.get("reasoning_content"):
             content = msg.get("reasoning_content")
 
+        elapsed = time.time() - t_start
+        usage = data.get("usage", {})
+        comp_tokens = usage.get("completion_tokens", "N/A")
+        total_tokens = usage.get("total_tokens", "N/A")
+        timings = data.get("timings", {})
+        tok_sec = round(timings.get("predicted_per_second", 0), 1)
+
+        print(f"  [✓] [Local Qwen] Generation complete in {elapsed:.2f}s | Output: {comp_tokens} tokens ({tok_sec} tok/s) | Total: {total_tokens} tokens")
+
         return content.strip()
     except Exception as e:
+        elapsed = time.time() - t_start
+        print(f"  [✗] [Local Qwen] Query error after {elapsed:.2f}s: {e}")
         logging.error(f"Error querying local Qwen model: {e}")
         raise
 
