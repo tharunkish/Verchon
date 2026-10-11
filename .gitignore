@@ -1,0 +1,27 @@
+# Virtual environment & Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables & secrets (CRUCIAL)
+.env
+*.env
+
+# Cache & logs
+.screener_cache/
+.history/
+*.log
+
+# Node & Frontend build
+frontend/node_modules/
+frontend/dist/
+node_modules/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
