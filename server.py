@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 import aianalysis as ai
 import ai_parser
 import improvedfundanalysis as ifa
+import local_llm
 import marketregime as mr
 import paper_store as ps
 import resultanalysis as ra
@@ -48,6 +49,32 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Shutdown handler to clean up local LLM worker
+@app.on_event("shutdown")
+def shutdown_event():
+    local_llm.stop_local_server()
+
+class AIProviderSettings(BaseModel):
+    provider: str = Field(default="qwen", description="'qwen' or 'gemini'")
+
+@app.get("/api/settings/ai-provider")
+def get_ai_provider_setting() -> Dict[str, Any]:
+    return {
+        "provider": local_llm.get_active_provider(),
+        "local_available": local_llm.is_local_model_available(),
+        "local_running": local_llm.is_server_healthy(),
+        "model_path": local_llm.MODEL_PATH,
+    }
+
+@app.post("/api/settings/ai-provider")
+def set_ai_provider_setting(req: AIProviderSettings) -> Dict[str, Any]:
+    updated = local_llm.set_active_provider(req.provider)
+    return {
+        "provider": updated,
+        "local_available": local_llm.is_local_model_available(),
+        "local_running": local_llm.is_server_healthy(),
+    }
+
 # Enable CORS for Vite frontend (running on port 3000 or 5173)
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +83,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # =====================================================================
@@ -225,8 +253,8 @@ def run_deterministic_scan(req: ScanRequest) -> Dict[str, Any]:
 @app.post("/api/ai-report")
 def run_ai_research_report(req: AIReportRequest) -> Dict[str, Any]:
     """
-    Explicitly triggers the two-stage Gemini AI research pipeline
-    for candidate analysis, caches parsed structured dossiers, and returns report.
+    Explicitly triggers the AI research pipeline (routed to Local Qwen or Cloud Gemini).
+    Caches parsed structured dossiers, and returns report.
     """
     try:
         candidate_list: Optional[List[Dict[str, str]]] = None
@@ -235,6 +263,35 @@ def run_ai_research_report(req: AIReportRequest) -> Dict[str, Any]:
             candidate_list = [{"name": t.strip().upper(), "ticker": t.strip().upper()} for t in req.tickers if t.strip()]
             tickers_list = [t.strip().upper() for t in req.tickers if t.strip()]
 
+        active_provider = local_llm.get_active_provider()
+
+        # ROUTE 1: Local Qwen 3.5 4B (Offline & Unlimited)
+        if active_provider == "qwen":
+            regime_obj = None
+            try:
+                regime_obj = mr.fetch_market_regime()
+            except Exception:
+                pass
+
+            cand_items = [{"ticker": t, "current_price": "N/A", "score": 75} for t in tickers_list]
+            t0 = time.time()
+            rep_md = local_llm.generate_qwen_market_briefing(cand_items, regime_obj)
+            elapsed = round(time.time() - t0, 2)
+
+            AI_REPORT_CACHE["report_markdown"] = rep_md
+            AI_REPORT_CACHE["finalist_tickers"] = tickers_list
+            AI_REPORT_CACHE["updated_at"] = datetime.now().isoformat()
+
+            return serialize_for_json({
+                "elapsed_seconds": elapsed,
+                "stage1_result": {"provider": "local_qwen_3.5_4b"},
+                "finalist_tickers": tickers_list,
+                "report_markdown": rep_md,
+                "structured": {"executive_summary": rep_md},
+                "diagnostics": [{"step": "local_qwen_synthesis", "model": "Huihui-Qwen3.5-4B-Abliterated", "status": "SUCCESS"}],
+            })
+
+        # ROUTE 2: Cloud Google Gemini Cascade
         pipeline_result = ai.run_ai_research_pipeline(
             candidates=candidate_list,
             stage1_model=req.stage1_model or ai.STAGE1_MODEL_DEFAULT,
@@ -270,7 +327,16 @@ def run_ai_research_report(req: AIReportRequest) -> Dict[str, Any]:
 
 @app.get("/api/ai-diagnostics")
 def get_ai_diagnostics() -> Dict[str, Any]:
-    """Returns real-time Gemini model execution, denial, and fallback diagnostic traces."""
+    """Returns real-time model execution, denial, and fallback diagnostic traces."""
+    active_provider = local_llm.get_active_provider()
+    if active_provider == "qwen":
+        return serialize_for_json({
+            "diagnostics": [{
+                "step": "local_inference",
+                "model": "Huihui-Qwen3.5-4B-Abliterated (Local)",
+                "status": "ONLINE" if local_llm.is_server_healthy() else "OFFLINE",
+            }]
+        })
     return serialize_for_json({
         "diagnostics": ai.get_recent_diagnostics()
     })
@@ -279,8 +345,8 @@ def get_ai_diagnostics() -> Dict[str, Any]:
 @app.post("/api/ai-dossier/{ticker}")
 def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
     """
-    Generates or retrieves an on-demand structured Gemini AI Dossier specifically for one stock.
-    Executes Stage 2 reasoning and returns structured executive cards (thesis, risks, questions, confirmations).
+    Generates or retrieves an on-demand structured AI Dossier specifically for one stock.
+    Routes to Local Qwen 3.5 4B or Cloud Gemini depending on active user setting.
     """
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     formatted_sym = ta.format_nse_ticker(clean_sym)
@@ -294,8 +360,40 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             "diagnostics": AI_REPORT_CACHE.get("diagnostics", []),
         })
 
+    active_provider = local_llm.get_active_provider()
+
+    # ROUTE 1: Local Qwen 3.5 4B Engine
+    if active_provider == "qwen":
+        try:
+            cand_data = ra.analyze_candidate(formatted_sym)
+            rep_md = local_llm.generate_qwen_stock_dossier(formatted_sym, cand_data)
+            stock_dossier = ai_parser.parse_stock_ai_section(clean_sym, rep_md)
+
+            if not stock_dossier:
+                stock_dossier = {
+                    "raw_section": rep_md,
+                    "thesis": [f"Local Qwen qualitative assessment generated for {clean_sym}."],
+                    "risks": {"setup_invalidation": "Break below recent swing support."},
+                }
+
+            AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
+            AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
+            diagnostics = [{"step": "local_qwen_dossier", "model": "Huihui-Qwen3.5-4B-Abliterated", "status": "SUCCESS"}]
+            AI_REPORT_CACHE["diagnostics"] = diagnostics
+
+            return serialize_for_json({
+                "ticker": formatted_sym,
+                "cached": False,
+                "dossier": stock_dossier,
+                "raw_markdown": rep_md,
+                "diagnostics": diagnostics,
+            })
+        except Exception as qwen_err:
+            print(f"[!] Local Qwen stock dossier error: {qwen_err}")
+            raise HTTPException(status_code=500, detail=f"Local Qwen error: {qwen_err}")
+
+    # ROUTE 2: Cloud Google Gemini Pipeline
     try:
-        # Run targeted 2-stage pipeline for this candidate
         pipeline_result = ai.run_ai_research_pipeline(
             candidates=[{"name": clean_sym, "ticker": formatted_sym}],
             verbose=False,
@@ -319,6 +417,7 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate AI dossier for {ticker}: {e}")
+
 
 
 @app.get("/api/stocks/{ticker}")
