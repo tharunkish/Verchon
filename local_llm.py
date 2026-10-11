@@ -216,7 +216,7 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
     system_prompt = (
         "You are a Senior Quantitative Equity Analyst at an elite Indian swing trading desk. "
         "Analyze the provided stock metrics and generate a concise, institutional-grade research dossier. "
-        "Strictly adhere to the requested markdown format. Do not use filler or generic disclaimers."
+        "Write full, concrete sentences based on the data. NEVER output bracketed placeholders or template tags like [Reason]."
     )
 
     prompt = f"""
@@ -226,25 +226,25 @@ Analyze {clean_sym} ({sector}):
 - Active Setup: {strategy_name}
 - Valuation P/E: {pe}x | 3Y Sales Growth: {sales_growth}%
 
-Generate a structured dossier adhering EXACTLY to this markdown layout:
+Generate a structured dossier adhering to this exact markdown layout. Fill in every bullet with real, concrete swing trading analysis based on the numbers above:
 
-### [{clean_sym}]
+### {clean_sym}
 - **Why it entered the shortlist**:
-  - [Specific technical or momentum reason]
-  - [Secondary structural or volume reason]
+  - State the technical or momentum catalyst based on the setup {strategy_name}.
+  - Note the structural posture relative to moving averages (₹{price} vs 50DMA ₹{dma50}).
 - **Key evidence**:
-  - [Evidence from trend posture and moving averages]
-  - [Evidence from valuation or earnings growth]
+  - Explain the trend strength or moving average alignment.
+  - Explain the valuation context (P/E {pe}x, sales growth {sales_growth}%).
 - **Main risk**:
-  - [Exact price level or condition that invalidates this trade setup]
-  - [Broader sector or market deterioration risk]
+  - Specify the exact technical invalidation level (e.g. below 50 DMA ₹{dma50}).
+  - Note the market or sector headwind risk.
 - **Observable conditions that strengthen**:
-  - [Bullish confirmation signal to watch for]
+  - Name the bullish volume or breakout price action confirming momentum.
 - **Observable conditions that weaken**:
-  - [Early warning sign to exit or skip]
+  - Name the breakdown or volume exhaustion signal to exit early.
 """
 
-    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=750, temperature=0.2)
+    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1500, temperature=0.3)
 
 
 def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:
@@ -281,7 +281,7 @@ Provide an Executive Research Briefing with:
 ## 3. Risk & Capital Guardrails (Specific stop loss and cash management advice)
 """
 
-    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=900, temperature=0.3)
+    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1800, temperature=0.3)
 
 
 
