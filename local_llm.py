@@ -62,7 +62,7 @@ def start_local_server() -> bool:
     cmd = [
         BINARY_PATH,
         "-m", MODEL_PATH,
-        "-c", "4096",
+        "-c", "8192",
         "--port", str(LOCAL_SERVER_PORT),
         "--host", "127.0.0.1",
     ]
@@ -197,54 +197,98 @@ def query_local_qwen(
 def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> str:
     """
     Generate an institutional qualitative dossier for a single stock using local Qwen.
-    Formats the markdown section so ai_parser can extract structured cards.
+    Formats the markdown section so ai_parser extracts ALL dashboard cards:
+    - Why it entered the shortlist (Thesis)
+    - Key evidence (Empirical fundamentals + technicals)
+    - Recent Announcements & Filings
+    - Important contradiction
+    - Research risks / unresolved issues (Setup Invalidation, Trend Deterioration, Fundamental Risk)
+    - Research questions
+    - What would strengthen the thesis
+    - What would weaken the thesis
     """
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     tech = candidate_data.get("technicals", {})
     fund = candidate_data.get("fundamentals", {})
-    strat = candidate_data.get("technicals", {}).get("Strategy_Evaluation", {})
+    strat = tech.get("Strategy_Evaluation", {})
     trend = tech.get("Trend_Analysis", {})
+    momo = tech.get("Momentum_Analysis", {})
+    vol = tech.get("Volume_Analysis", {})
     
     price = trend.get("Current_Price", "N/A")
     dma50 = trend.get("50_DMA", "N/A")
     dma200 = trend.get("200_DMA", "N/A")
+    dma50_dist = trend.get("Dist_50_DMA_%", "N/A")
+    dma200_dist = trend.get("Dist_200_DMA_%", "N/A")
     strategy_name = strat.get("primary_strategy", "Swing Momentum")
+    setup_status = strat.get("status", "Active")
+    stop_price = strat.get("stop_loss", trend.get("50_DMA", "N/A"))
+    
     sector = fund.get("sector", "NSE Equity")
-    pe = fund.get("valuation", {}).get("pe", "N/A")
+    industry = fund.get("industry", "N/A")
+    val = fund.get("valuation", {})
+    pe = val.get("pe", "N/A")
+    pe_5y_median = val.get("historical_pe_median_5y", "N/A")
+    pb = val.get("pb", "N/A")
     sales_growth = fund.get("growth", {}).get("sales_growth_3yr", "N/A")
+    roe = fund.get("profitability", {}).get("roe", "N/A")
+    
+    positives = fund.get("positives", [])
+    red_flags = [f.get("name") if isinstance(f, dict) else str(f) for f in fund.get("red_flags", [])]
+    existing_questions = fund.get("questions", [])
+    announcements = fund.get("recent_announcements", [])
+    
+    ann_summary = "None recent."
+    if announcements:
+        ann_items = [f"{a.get('date', '')}: {a.get('title', '')}" for a in announcements[:3]]
+        ann_summary = "; ".join(ann_items)
 
     system_prompt = (
-        "You are a Senior Quantitative Equity Analyst at an elite Indian swing trading desk. "
-        "Analyze the provided stock metrics and generate a concise, institutional-grade research dossier. "
-        "Write full, concrete sentences based on the data. NEVER output bracketed placeholders or template tags like [Reason]."
+        "You are an Elite Institutional Swing Trading Strategist for Indian Equities (NSE). "
+        "You synthesize quantitative fundamentals, technical momentum, and risk boundaries into a publication-grade research dossier. "
+        "Write articulate, professional, information-dense complete sentences. "
+        "Do NOT output generic placeholders, brackets, or conversational preamble."
     )
 
     prompt = f"""
-Analyze {clean_sym} ({sector}):
-- Current Price: ₹{price}
-- 50 DMA: ₹{dma50} | 200 DMA: ₹{dma200}
-- Active Setup: {strategy_name}
-- Valuation P/E: {pe}x | 3Y Sales Growth: {sales_growth}%
+Analyze {clean_sym} ({sector} | {industry}):
+- Price: ₹{price} | 50 DMA: ₹{dma50} ({dma50_dist}% dist) | 200 DMA: ₹{dma200} ({dma200_dist}% dist)
+- Active Setup: {strategy_name} (Status: {setup_status}, Guardrail Invalidation Level: ₹{stop_price})
+- Fundamentals: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
+- Positive Drivers: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
+- Potential Watch-outs: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
+- Recent Filings: {ann_summary}
+- Key Seed Questions: {'; '.join(existing_questions[:2]) if existing_questions else 'Concall guidance sustainability'}
 
-Generate a structured dossier adhering to this exact markdown layout. Fill in every bullet with real, concrete swing trading analysis based on the numbers above:
+Generate the research dossier adhering EXACTLY to this markdown layout so our visual parser maps each card:
 
 ### {clean_sym}
 - **Why it entered the shortlist**:
-  - State the technical or momentum catalyst based on the setup {strategy_name}.
-  - Note the structural posture relative to moving averages (₹{price} vs 50DMA ₹{dma50}).
+  - Write 1 detailed sentence explaining the technical catalyst and structural momentum from {strategy_name} with ₹{price} vs 50 DMA ₹{dma50}.
+  - Write 1 detailed sentence on why the business quality and fundamentals support a 2-7 day swing window.
 - **Key evidence**:
-  - Explain the trend strength or moving average alignment.
-  - Explain the valuation context (P/E {pe}x, sales growth {sales_growth}%).
-- **Main risk**:
-  - Specify the exact technical invalidation level (e.g. below 50 DMA ₹{dma50}).
-  - Note the market or sector headwind risk.
-- **Observable conditions that strengthen**:
-  - Name the bullish volume or breakout price action confirming momentum.
-- **Observable conditions that weaken**:
-  - Name the breakdown or volume exhaustion signal to exit early.
+  - Detail the technical price structure, moving average slope, and volume confirmation relative to ₹{dma200}.
+  - Detail the valuation profile with P/E {pe}x (vs 5Y median {pe_5y_median}x), ROE {roe}%, and sales growth {sales_growth}%.
+- **Recent Announcements & Filings**:
+  - Summarize the recent corporate filings ({ann_summary}) and their relevance to trading posture.
+- **Important contradiction**:
+  - Evidence: Detail any divergence between fundamental valuation ({pe}x) and near-term price momentum or sector headwinds.
+  - Interpretation: Explain what market participants are weighing in this setup.
+  - Why it matters: Explain how this contradiction affects swing risk/reward.
+  - What would resolve it: Specify what price or earnings confirmation will resolve this tension.
+- **Research risks / unresolved issues**:
+  - Setup Invalidation: Exact exit level below ₹{stop_price} that terminates the trade thesis.
+  - Trend Deterioration: Sustained close below 50 DMA ₹{dma50} or 200 DMA ₹{dma200} turning slope negative.
+  - Research / Fundamental Risk: Key operational, commodity, or corporate governance risk for this sector.
+- **Research questions**:
+  - Formulate 2 rigorous, decision-relevant questions regarding upcoming quarterly results, margins, or institutional flow that a trader must track.
+- **What would strengthen the thesis**:
+  - Detail the precise volume expansion and breakout confirmation above ₹{price} needed to add size.
+- **What would weaken the thesis**:
+  - Detail the early distribution volume or lower-high breakdown signal that warrants an immediate risk-off exit.
 """
 
-    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1500, temperature=0.3)
+    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=2200, temperature=0.3)
 
 
 def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:
