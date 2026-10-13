@@ -62,11 +62,11 @@ def start_local_server() -> bool:
     cmd = [
         BINARY_PATH,
         "-m", MODEL_PATH,
-        "-c", "8192",
+        "-c", "4096",
         "-ngl", "99",
         "--device", "Vulkan0",
         "-t", "6",
-        "--reasoning-budget", "64",
+        "--reasoning-budget", "0",
         "--port", str(LOCAL_SERVER_PORT),
         "--host", "127.0.0.1",
     ]
@@ -89,7 +89,7 @@ def start_local_server() -> bool:
             time.sleep(0.5)
             if is_server_healthy():
                 print(f"  [OK] Local Qwen server ready at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
-                print(f"  [OK] Model: {os.path.basename(MODEL_PATH)} | Context: 8192 tokens | GPU Offload: Vulkan0 (100% layers)")
+                print(f"  [OK] Model: {os.path.basename(MODEL_PATH)} | Context: 4096 tokens | GPU: Vulkan0 (100% layers offloaded)")
                 logging.info(f"Local Qwen server successfully online at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
                 return True
 
@@ -156,7 +156,7 @@ def set_active_provider(provider: str) -> str:
 def query_local_qwen(
     prompt: str,
     system_prompt: Optional[str] = None,
-    max_tokens: int = 1500,
+    max_tokens: int = 700,
     temperature: float = 0.2,
 ) -> str:
     """
@@ -191,7 +191,7 @@ def query_local_qwen(
             f"{LOCAL_SERVER_URL}/v1/chat/completions",
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=120,
+            timeout=240,
         )
         res.raise_for_status()
         data = res.json()
@@ -314,7 +314,7 @@ Generate the research dossier adhering EXACTLY to this markdown layout so our vi
   - Detail the early distribution volume or lower-high breakdown signal that warrants an immediate risk-off exit.
 """
 
-    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1000, temperature=0.3)
+    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=900, temperature=0.3)
 
 
 def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:

@@ -71,10 +71,10 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
         "resolution": "",
     }
     if contra_text:
-        e_m = re.search(r"Evidence\*?:\s*(.*?)(?=(?:\n\s*[-*•]\s*\*?Interpretation|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
-        i_m = re.search(r"Interpretation\*?:\s*(.*?)(?=(?:\n\s*[-*•]\s*\*?Why it matters|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
-        w_m = re.search(r"Why it matters\*?:\s*(.*?)(?=(?:\n\s*[-*•]\s*\*?What would resolve|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
-        r_m = re.search(r"What would resolve it\*?:\s*(.*?)$", contra_text, re.DOTALL | re.IGNORECASE)
+        e_m = re.search(r"(?:\*+\s*)?Evidence(?:\*+)?:\s*(.*?)(?=(?:\n\s*[-*•]?\s*\*+Interpretation|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
+        i_m = re.search(r"(?:\*+\s*)?Interpretation(?:\*+)?:\s*(.*?)(?=(?:\n\s*[-*•]?\s*\*+Why it matters|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
+        w_m = re.search(r"(?:\*+\s*)?Why it matters(?:\*+)?:\s*(.*?)(?=(?:\n\s*[-*•]?\s*\*+What would resolve|\Z))", contra_text, re.DOTALL | re.IGNORECASE)
+        r_m = re.search(r"(?:\*+\s*)?What would resolve(?:\s*it)?(?:\*+)?:\s*(.*?)$", contra_text, re.DOTALL | re.IGNORECASE)
         if e_m: contradiction["evidence"] = e_m.group(1).strip().strip("-*• ")
         if i_m: contradiction["interpretation"] = i_m.group(1).strip().strip("-*• ")
         if w_m: contradiction["why_it_matters"] = w_m.group(1).strip().strip("-*• ")
@@ -88,9 +88,9 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
         "fundamental_risk": "",
     }
     if risks_text:
-        si_m = re.search(r"Setup Invalidation\*?:\s*(.*?)(?=(?:\n\s*[-*•]\s*\*?Trend Deterioration|\Z))", risks_text, re.DOTALL | re.IGNORECASE)
-        td_m = re.search(r"Trend Deterioration\*?:\s*(.*?)(?=(?:\n\s*[-*•]\s*\*?Research|\Z))", risks_text, re.DOTALL | re.IGNORECASE)
-        fr_m = re.search(r"(?:Research|Fundamental Risk)\*?:\s*(.*?)$", risks_text, re.DOTALL | re.IGNORECASE)
+        si_m = re.search(r"(?:\*+\s*)?Setup Invalidation(?:\*+)?:\s*(.*?)(?=(?:\n\s*[-*•]?\s*\*+Trend Deterioration|\Z))", risks_text, re.DOTALL | re.IGNORECASE)
+        td_m = re.search(r"(?:\*+\s*)?Trend Deterioration(?:\*+)?:\s*(.*?)(?=(?:\n\s*[-*•]?\s*\*+(?:Research|Fundamental)|\Z))", risks_text, re.DOTALL | re.IGNORECASE)
+        fr_m = re.search(r"(?:\*+\s*)?(?:Research\s*/\s*Fundamental Risk|Fundamental Risk|Research Risk)(?:\*+)?:\s*(.*?)$", risks_text, re.DOTALL | re.IGNORECASE)
         if si_m: risks["setup_invalidation"] = si_m.group(1).strip().strip("-*• ")
         if td_m: risks["trend_deterioration"] = td_m.group(1).strip().strip("-*• ")
         if fr_m: risks["fundamental_risk"] = fr_m.group(1).strip().strip("-*• ")
