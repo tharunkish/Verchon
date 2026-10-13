@@ -432,6 +432,10 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             "raw_markdown": rep_md,
             "diagnostics": diagnostics,
         })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate AI dossier for {ticker}: {e}")
+
+
 class StockChatRequest(BaseModel):
     message: str
     history: List[Dict[str, str]] = []
