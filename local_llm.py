@@ -63,6 +63,10 @@ def start_local_server() -> bool:
         BINARY_PATH,
         "-m", MODEL_PATH,
         "-c", "8192",
+        "-ngl", "99",
+        "--device", "Vulkan0",
+        "-t", "6",
+        "--reasoning-budget", "64",
         "--port", str(LOCAL_SERVER_PORT),
         "--host", "127.0.0.1",
     ]
@@ -84,16 +88,16 @@ def start_local_server() -> bool:
         for attempt in range(30):
             time.sleep(0.5)
             if is_server_healthy():
-                print(f"  [✓] Local Qwen server ready at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
-                print(f"  [✓] Model: {os.path.basename(MODEL_PATH)} | Context: 8192 tokens")
+                print(f"  [OK] Local Qwen server ready at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
+                print(f"  [OK] Model: {os.path.basename(MODEL_PATH)} | Context: 8192 tokens | GPU Offload: Vulkan0 (100% layers)")
                 logging.info(f"Local Qwen server successfully online at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
                 return True
 
-        print("  [✗] Local Qwen server process started, but healthcheck timed out.")
+        print("  [FAIL] Local Qwen server process started, but healthcheck timed out.")
         logging.error("Local Qwen server process started, but healthcheck timed out.")
         return False
     except Exception as e:
-        print(f"  [✗] Failed to launch local llama-server: {e}")
+        print(f"  [FAIL] Failed to launch local llama-server: {e}")
         logging.error(f"Failed to launch local llama-server: {e}")
         return False
 
@@ -108,7 +112,7 @@ def stop_local_server():
             logging.info(f"Shutting down local Qwen server (pid {_server_process.pid})...")
             _server_process.terminate()
             _server_process.wait(timeout=3)
-            print("  [✓] Local Qwen server shutdown complete. Memory freed.")
+            print("  [OK] Local Qwen server shutdown complete. Memory freed.")
         except Exception:
             try:
                 _server_process.kill()
@@ -180,7 +184,7 @@ def query_local_qwen(
 
     t_start = time.time()
     prompt_len = len(prompt)
-    print(f"  [→] [Local Qwen] Processing query (Prompt: ~{prompt_len} chars, Max Tokens: {max_tokens})...")
+    print(f"  [->] [Local Qwen] Processing query (Prompt: ~{prompt_len} chars, Max Tokens: {max_tokens})...")
 
     try:
         res = requests.post(
@@ -206,12 +210,12 @@ def query_local_qwen(
         timings = data.get("timings", {})
         tok_sec = round(timings.get("predicted_per_second", 0), 1)
 
-        print(f"  [✓] [Local Qwen] Generation complete in {elapsed:.2f}s | Output: {comp_tokens} tokens ({tok_sec} tok/s) | Total: {total_tokens} tokens")
+        print(f"  [OK] [Local Qwen] Generation complete in {elapsed:.2f}s | Output: {comp_tokens} tokens ({tok_sec} tok/s) | Total: {total_tokens} tokens")
 
         return content.strip()
     except Exception as e:
         elapsed = time.time() - t_start
-        print(f"  [✗] [Local Qwen] Query error after {elapsed:.2f}s: {e}")
+        print(f"  [FAIL] [Local Qwen] Query error after {elapsed:.2f}s: {e}")
         logging.error(f"Error querying local Qwen model: {e}")
         raise
 
@@ -310,7 +314,7 @@ Generate the research dossier adhering EXACTLY to this markdown layout so our vi
   - Detail the early distribution volume or lower-high breakdown signal that warrants an immediate risk-off exit.
 """
 
-    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=2200, temperature=0.3)
+    return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1000, temperature=0.3)
 
 
 def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:
