@@ -48,7 +48,13 @@ def main():
     print("=" * 65 + "\n")
 
     import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="info")
+    import local_llm
+
+    try:
+        uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="info")
+    finally:
+        print("\n  [*] Shutting down Verchon services and releasing AI model VRAM...")
+        local_llm.stop_local_server()
 
 if __name__ == "__main__":
     main()

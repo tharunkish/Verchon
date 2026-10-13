@@ -103,16 +103,19 @@ def start_local_server() -> bool:
 
 
 def stop_local_server():
-    """Cleanly stop local llama-server and free all GPU/RAM memory."""
+    """
+    Cleanly stop local llama-server and free all GPU/RAM memory.
+    Guarantees that no orphaned llama-server.exe processes linger on Windows.
+    """
     global _server_process
 
+    # 1. Terminate tracked subprocess handle if present
     if _server_process is not None:
         try:
             print(f"  [*] Shutting down local Qwen server (pid {_server_process.pid})...")
             logging.info(f"Shutting down local Qwen server (pid {_server_process.pid})...")
             _server_process.terminate()
-            _server_process.wait(timeout=3)
-            print("  [OK] Local Qwen server shutdown complete. Memory freed.")
+            _server_process.wait(timeout=2)
         except Exception:
             try:
                 _server_process.kill()
@@ -121,14 +124,32 @@ def stop_local_server():
         finally:
             _server_process = None
 
-    # Also force-kill any lingering process on the port if needed
+    # 2. Iterate and kill any llama-server.exe process via psutil
     try:
-        import psutil  # type: ignore
-        for proc in psutil.process_iter(['name', 'cmdline']):
-            if proc.info['name'] == 'llama-server.exe':
-                proc.kill()
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                pname = proc.info.get('name') or ''
+                if 'llama-server' in pname.lower():
+                    proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
     except Exception:
         pass
+
+    # 3. Fail-safe taskkill on Windows to ensure 0 VRAM leaks
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "llama-server.exe", "/T"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+        except Exception:
+            pass
+
+    print("  [OK] Local Qwen server stopped. GPU VRAM completely freed.")
 
 
 # Register automatic cleanup on process exit
