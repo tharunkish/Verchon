@@ -432,8 +432,34 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             "raw_markdown": rep_md,
             "diagnostics": diagnostics,
         })
+class StockChatRequest(BaseModel):
+    message: str
+    history: List[Dict[str, str]] = []
+
+@app.post("/api/ai-chat/{ticker}")
+def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, Any]:
+    """
+    Interactive Q&A chat endpoint for a specific stock.
+    Grounds local Qwen on candidate fundamentals & technicals.
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    formatted_sym = ta.format_nse_ticker(clean_sym)
+
+    try:
+        cand_data = ra.analyze_candidate(formatted_sym)
+        reply = local_llm.chat_with_stock(
+            ticker=formatted_sym,
+            candidate_data=cand_data,
+            chat_history=req.history,
+            user_message=req.message,
+        )
+        return serialize_for_json({
+            "ticker": formatted_sym,
+            "reply": reply,
+        })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate AI dossier for {ticker}: {e}")
+        print(f"[!] Stock chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

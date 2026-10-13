@@ -12,7 +12,9 @@ import {
   RefreshCw,
   Terminal,
   XCircle,
-  X
+  X,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 
 function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
@@ -117,6 +119,10 @@ export default function AIDossierCard({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDevConsole, setShowDevConsole] = useState(false);
   const [liveDiagnostics, setLiveDiagnostics] = useState(diagnostics);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     if (diagnostics && diagnostics.length > 0) {
@@ -135,6 +141,38 @@ export default function AIDossierCard({
       }
     } catch {
       // Ignore network errors on diagnostics polling
+    }
+  };
+
+  const handleSendChatMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userText = chatInput.trim();
+    const newHistory = [...chatMessages, { role: 'user', content: userText }];
+    setChatMessages(newHistory);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`/api/ai-chat/${ticker}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userText,
+          history: chatMessages,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages([...newHistory, { role: 'assistant', content: data.reply || 'No response.' }]);
+      } else {
+        setChatMessages([...newHistory, { role: 'assistant', content: 'Error communicating with AI model.' }]);
+      }
+    } catch (err) {
+      setChatMessages([...newHistory, { role: 'assistant', content: `Network error: ${err.message}` }]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -338,6 +376,18 @@ export default function AIDossierCard({
               <span>Refresh</span>
             </button>
             <button
+              onClick={() => setChatOpen(!chatOpen)}
+              className={`flex items-center space-x-1.5 rounded border px-2.5 py-1 font-mono text-[11px] transition ${
+                chatOpen
+                  ? 'border-purple-600/60 bg-purple-950/40 text-purple-300'
+                  : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+              }`}
+              title="Interactive conversation about this stock"
+            >
+              <MessageSquare className="h-3 w-3 text-purple-400" />
+              <span>{chatOpen ? 'Hide Chat' : 'Chat with Stock'}</span>
+            </button>
+            <button
               onClick={() => setShowFullRaw(!showFullRaw)}
               className="flex items-center space-x-1.5 rounded border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[11px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
             >
@@ -527,6 +577,79 @@ export default function AIDossierCard({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 3. Interactive Stock Chat Interface */}
+      {chatOpen && (
+        <div className="border-t border-zinc-800/80 bg-zinc-950/80 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-purple-300 font-mono text-xs font-semibold">
+              <MessageSquare className="h-4 w-4" />
+              <span>TALK WITH {ticker} (POWERED BY QWEN 3.5 4B)</span>
+            </div>
+            <button
+              onClick={() => setChatMessages([])}
+              className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition"
+            >
+              Clear chat
+            </button>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto space-y-2 mb-3 pr-1 text-xs font-sans">
+            {chatMessages.length === 0 ? (
+              <div className="rounded border border-dashed border-zinc-800 p-3 text-center text-[11px] text-zinc-500 font-mono">
+                Ask anything about {ticker}—e.g. "What is the primary risk?", "Is the P/E justified?", "What confirms an entry tomorrow?"
+              </div>
+            ) : (
+              chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-lg p-2.5 leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-purple-950/50 text-purple-200 border border-purple-800/50'
+                        : 'bg-zinc-900/80 text-zinc-200 border border-zinc-800'
+                    }`}
+                  >
+                    <div className="text-[9px] font-mono font-bold mb-1 opacity-60">
+                      {msg.role === 'user' ? 'YOU' : `${ticker} RESEARCH ANALYST`}
+                    </div>
+                    <div>{msg.content}</div>
+                  </div>
+                </div>
+              ))
+            )}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="rounded-lg bg-zinc-900/80 p-2.5 text-xs text-purple-400 border border-zinc-800 flex items-center space-x-2">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSendChatMessage} className="flex items-center space-x-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={`Ask a question about ${ticker}...`}
+              disabled={chatLoading}
+              className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:border-purple-600 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || chatLoading}
+              className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-500 disabled:opacity-40 transition flex items-center space-x-1"
+            >
+              <Send className="h-3 w-3" />
+              <span>Send</span>
+            </button>
+          </form>
         </div>
       )}
       </div>

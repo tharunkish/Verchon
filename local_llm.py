@@ -241,6 +241,87 @@ def query_local_qwen(
         raise
 
 
+def chat_with_stock(
+    ticker: str,
+    candidate_data: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    user_message: str,
+) -> str:
+    """
+    Interactive Q&A chat for a specific stock.
+    Injects the stock's full technicals, fundamentals, and dossier context
+    as system grounding, then appends conversation history and the user's question.
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    tech = candidate_data.get("technicals", {})
+    fund = candidate_data.get("fundamentals", {})
+    strat = tech.get("Strategy_Evaluation", {})
+    trend = tech.get("Trend_Analysis", {})
+    val = fund.get("valuation", {})
+    
+    price = trend.get("Current_Price", "N/A")
+    dma50 = trend.get("50_DMA", "N/A")
+    dma200 = trend.get("200_DMA", "N/A")
+    strategy_name = strat.get("primary_strategy", "Swing Momentum")
+    stop_price = strat.get("stop_loss", trend.get("50_DMA", "N/A"))
+    pe = val.get("pe", "N/A")
+    pe_5y = val.get("historical_pe_median_5y", "N/A")
+    sales_growth = fund.get("growth", {}).get("sales_growth_3yr", "N/A")
+    positives = fund.get("positives", [])
+    red_flags = [f.get("name") if isinstance(f, dict) else str(f) for f in fund.get("red_flags", [])]
+
+    system_prompt = (
+        f"You are the senior trading analyst defending the thesis on {clean_sym} on an Indian equity swing desk.\n"
+        f"Live Context for {clean_sym}:\n"
+        f"- Price: ₹{price} | 50 DMA: ₹{dma50} | 200 DMA: ₹{dma200}\n"
+        f"- Setup: {strategy_name} (Stop Loss / Guardrail: ₹{stop_price})\n"
+        f"- Valuation: P/E {pe}x (5Y Median: {pe_5y}x) | 3Y Sales Growth: {sales_growth}%\n"
+        f"- Positives: {', '.join(positives[:3]) if positives else 'None specified'}\n"
+        f"- Watch-outs: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}\n\n"
+        "Guidelines:\n"
+        "- Answer the trader's question directly, clearly, and concisely in 2-4 sentences.\n"
+        "- Ground your answer strictly in the technical levels, moving averages, and fundamentals above.\n"
+        "- Be realistic about risk; do not give blind promotional advice."
+    )
+
+    if not is_server_healthy():
+        start_local_server()
+
+    # Build multi-turn messages array
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history[-6:]:  # Keep recent turns
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {
+        "model": "qwen3.5-4b-abliterated",
+        "messages": messages,
+        "max_tokens": 400,
+        "temperature": 0.2,
+        "stream": False,
+    }
+
+    t_start = time.time()
+    try:
+        res = requests.post(
+            f"{LOCAL_SERVER_URL}/v1/chat/completions",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=120,
+        )
+        res.raise_for_status()
+        data = res.json()
+        choice = data.get("choices", [{}])[0]
+        msg = choice.get("message", {})
+        content = msg.get("content") or msg.get("reasoning_content") or ""
+        elapsed = time.time() - t_start
+        print(f"  [OK] [Chat with {clean_sym}] Answered in {elapsed:.2f}s")
+        return content.strip()
+    except Exception as e:
+        print(f"  [FAIL] [Chat with {clean_sym}] Error: {e}")
+        return f"Unable to answer right now: {e}"
+
+
 def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> str:
     """
     Generate an institutional qualitative dossier for a single stock using local Qwen.
