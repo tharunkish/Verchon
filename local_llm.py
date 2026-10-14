@@ -13,6 +13,7 @@ import signal
 import subprocess
 import time
 from typing import Any, Dict, List, Optional
+import re
 import requests
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -366,17 +367,37 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
     existing_questions = fund.get("questions", [])
     announcements = fund.get("recent_announcements", [])
     
-    # Ingest corporate event radar
+    # Ingest corporate event radar & distill short-form news
     import event_engine
     corp_radar = event_engine.fetch_corporate_radar(clean_sym, recent_announcements=announcements)
     next_earnings = corp_radar.get("next_earnings_date") or "Unannounced"
     days_to_earnings = corp_radar.get("days_to_earnings")
+    risk_badge = corp_radar.get("event_risk_badge", "MONITOR")
     earnings_warning = f"Q2/Q3 Results in {days_to_earnings} days ({next_earnings})" if days_to_earnings is not None else f"Earnings Date: {next_earnings}"
     
-    ann_summary = "None recent."
-    if announcements:
-        ann_items = [f"{a.get('date', '')}: {a.get('title', '')}" for a in announcements[:3]]
-        ann_summary = "; ".join(ann_items)
+    # Format high-signal short-form corporate announcements
+    distilled_filings = []
+    if days_to_earnings is not None:
+        if days_to_earnings <= 14:
+            distilled_filings.append(f"Upcoming Earnings: {days_to_earnings} days away on {next_earnings} (HIGH EVENT RISK)")
+        else:
+            distilled_filings.append(f"Upcoming Earnings: {days_to_earnings} days away on {next_earnings} (Safe Holding Window)")
+
+    for a in announcements[:4]:
+        cat_info = event_engine.classify_filing_category(a.get("title", ""), a.get("description", ""))
+        category = cat_info.get("category", "GENERAL")
+        dt = a.get("date", "").strip()
+        
+        desc = a.get("description", "").strip()
+        title = a.get("title", "").strip()
+        cleaned_title = re.sub(r"^Announcement under Regulation 30 \(LODR\)[-–—\s]*", "", title, flags=re.IGNORECASE).strip()
+        filing_text = desc if desc else cleaned_title
+        if filing_text:
+            if len(filing_text) > 120:
+                filing_text = filing_text[:117] + "..."
+            distilled_filings.append(f"[{dt}] {category}: {filing_text}")
+
+    ann_distilled_text = "; ".join(distilled_filings) if distilled_filings else "No high-impact corporate filings or upcoming earnings within 30 days."
 
     system_prompt = (
         "You are an Elite Institutional Bear Thesis Strategist and Risk Devil's Advocate for Indian Equities (NSE). "
@@ -394,7 +415,7 @@ Analyze {clean_sym} ({sector} | {industry}):
 - Valuation & Quality: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
 - Positive Drivers: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
 - Red Flags / Audit Alerts: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
-- Recent Filings / Announcements: {ann_summary}
+- Distilled Corporate Radar & Filings: {ann_distilled_text}
 - Key Seed Questions: {'; '.join(existing_questions[:2]) if existing_questions else 'Concall guidance sustainability'}
 
 Generate the research dossier adhering EXACTLY to this markdown layout so our visual parser maps each card:
@@ -406,8 +427,9 @@ Generate the research dossier adhering EXACTLY to this markdown layout so our vi
 - **Key evidence**:
   - Detail the technical price structure, moving average slope, and volume confirmation relative to ₹{dma200}.
   - Detail the valuation profile with P/E {pe}x (vs 5Y median {pe_5y_median}x), ROE {roe}%, and sales growth {sales_growth}%.
-- **Recent Announcements & Filings**:
-  - Summarize the recent corporate filings ({ann_summary}) and their relevance to trading posture.
+- **Corporate Catalysts & Filings**:
+  - Write 1 concise sentence highlighting the operational significance of recent filings ({ann_distilled_text}).
+  - Write 1 concise sentence on how the earnings event window ({earnings_warning}) affects position holding strategy.
 - **Important contradiction**:
   - Evidence: Act as the Devil's Advocate. Detail the starkest contradiction between the bullish chart and the business/valuation reality (P/E {pe}x vs 5Y median {pe_5y_median}x or sector headwinds).
   - Interpretation: Explain what naive retail bulls are missing that institutional sellers might exploit.

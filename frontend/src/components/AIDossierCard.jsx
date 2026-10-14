@@ -318,6 +318,7 @@ export default function AIDossierCard({
   const {
     thesis = [],
     key_evidence = [],
+    announcements = [],
     contradiction = {},
     risks = {},
     research_questions = [],
@@ -449,6 +450,27 @@ export default function AIDossierCard({
               </ul>
             </div>
           </div>
+
+          {/* Corporate Catalysts & Distilled Regulation 30 Filings */}
+          {announcements && announcements.length > 0 && (
+            <div className="rounded-lg border border-cyan-950/60 bg-cyan-950/15 p-4 text-xs font-mono">
+              <div className="mb-2 flex items-center justify-between text-cyan-400 font-semibold">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>CORPORATE CATALYSTS & REGULATION 30 FILINGS (SHORT-FORM)</span>
+                </div>
+                <span className="text-[10px] text-zinc-500 font-normal">AI Event Synthesis</span>
+              </div>
+              <ul className="space-y-1.5 text-xs text-zinc-300 font-sans">
+                {announcements.map((item, idx) => (
+                  <li key={idx} className="flex items-start space-x-2">
+                    <span className="text-cyan-400 font-bold font-mono">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* B. Invalidation & Deterioration Triggers (Red Box) */}
           <div className="rounded-lg border border-rose-950/60 bg-rose-950/15 p-4 font-mono text-xs">
