@@ -6,6 +6,7 @@ import SettingsModal from './components/SettingsModal';
 import ScannerTab from './tabs/ScannerTab';
 import PortfolioTab from './tabs/PortfolioTab';
 import DeepDiveTab from './tabs/DeepDiveTab';
+import NewsTab from './tabs/NewsTab';
 import NeoScannerTab from './tabs/neo/NeoScannerTab';
 import NeoPortfolioTab from './tabs/neo/NeoPortfolioTab';
 import NeoDeepDiveTab from './tabs/neo/NeoDeepDiveTab';
@@ -51,7 +52,7 @@ export default function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam && ['scanner', 'portfolio', 'deepdive'].includes(tabParam.toLowerCase())) {
+      if (tabParam && ['scanner', 'portfolio', 'deepdive', 'news'].includes(tabParam.toLowerCase())) {
         return tabParam.toLowerCase();
       }
       return localStorage.getItem('verchon_active_tab') || 'scanner';
@@ -248,6 +249,8 @@ export default function App() {
         setActiveTab('portfolio');
       } else if (e.key === '3') {
         setActiveTab('deepdive');
+      } else if (e.key === '4') {
+        setActiveTab('news');
       }
 
       // Candidate Cycling with J (next) and K (prev) when candidates exist
@@ -544,6 +547,16 @@ export default function App() {
             onLogPaperTrade={handleAddPaperPosition}
             onOpenTradeModal={handleOpenTradeModal}
             themeMode={themeMode}
+          />
+        )}
+
+        {/* Corporate News & Events Radar Tab */}
+        {activeTab === 'news' && (
+          <NewsTab
+            onSelectStock={(ticker) => {
+              setSelectedTicker(ticker);
+              setActiveTab('deepdive');
+            }}
           />
         )}
       </main>

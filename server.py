@@ -463,8 +463,44 @@ def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, An
         })
     except Exception as e:
         print(f"[!] Stock chat error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/news-hub")
+def get_news_hub_data() -> Dict[str, Any]:
+    """
+    Returns aggregated corporate filings, upcoming earnings radar,
+    and live market news feed for Tab 4.
+    """
+    try:
+        filings = event_engine.get_aggregate_corporate_announcements(limit=40)
+        market_news = event_engine.fetch_market_news_feed(limit=25)
 
+        # Build upcoming earnings radar across popular screened stocks
+        sample_tickers = ["PNB", "REDINGTON", "HAL", "TECHM", "TCS", "ICICIBANK", "SBIN", "BEL", "ADANIPORTS", "MOTHERSON"]
+        upcoming_earnings = []
+        for t in sample_tickers:
+            radar = event_engine.fetch_corporate_radar(f"{t}.NS")
+            if radar.get("next_earnings_date"):
+                upcoming_earnings.append({
+                    "ticker": f"{t}.NS",
+                    "next_earnings_date": radar.get("next_earnings_date"),
+                    "days_to_earnings": radar.get("days_to_earnings"),
+                    "badge": radar.get("event_risk_badge"),
+                    "status": radar.get("event_risk_status"),
+                    "reason": radar.get("event_risk_reason"),
+                    "past_surprises": radar.get("past_earnings_track_record", [])[:2],
+                })
+
+        # Sort upcoming earnings by days remaining
+        upcoming_earnings.sort(key=lambda x: x.get("days_to_earnings") if x.get("days_to_earnings") is not None else 999)
+
+        return serialize_for_json({
+            "upcoming_earnings": upcoming_earnings,
+            "recent_filings": filings,
+            "market_news": market_news,
+            "updated_at": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        print(f"[!] News Hub error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/stocks/{ticker}")

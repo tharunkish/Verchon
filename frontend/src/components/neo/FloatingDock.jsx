@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Layers, Briefcase, Search, Settings, Command } from 'lucide-react';
+import { Layers, Briefcase, Search, Settings, Command, Radio } from 'lucide-react';
 
 function DockItem({ mouseX, icon: Icon, label, hotkey, active, onClick }) {
   const ref = useRef(null);
@@ -60,6 +60,7 @@ export default function FloatingDock({
     { id: 'scanner', label: 'Market Scanner', icon: Layers, hotkey: '1' },
     { id: 'portfolio', label: 'Paper Vault', icon: Briefcase, hotkey: '2' },
     { id: 'deepdive', label: 'Deep Dive & Setup', icon: Search, hotkey: '3' },
+    { id: 'news', label: 'Corporate Radar & News', icon: Radio, hotkey: '4' },
   ];
 
   return (

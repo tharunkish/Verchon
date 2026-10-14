@@ -154,6 +154,19 @@ export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK
           <span>3. Stock Deep Dive & Strategy Rules</span>
           <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">3</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('news')}
+          className={`flex items-center space-x-2 border-b-2 px-4 py-2 font-mono text-xs font-medium transition ${
+            activeTab === 'news'
+              ? 'border-rose-500 text-rose-100 shadow-[0_1px_12px_rgba(225,29,72,0.35)]'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Activity className="h-3.5 w-3.5" />
+          <span>4. Corporate Radar & News Hub</span>
+          <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">4</span>
+        </button>
       </div>
     </header>
   );
