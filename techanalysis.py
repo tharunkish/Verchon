@@ -50,36 +50,51 @@ def prefetch_batch_ohlcv(tickers: List[str], benchmark: str = "^NSEI", period: s
     all_symbols = list(dict.fromkeys(formatted_symbols + [bench_sym]))
 
     try:
-        data = yf.download(
-            tickers=all_symbols,
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            group_by="ticker"
-        )
-        if data.empty:
-            return
+        # Chunk requests into groups of 60 tickers to keep yfinance downloads fast, stable, and avoid rate limits
+        chunk_size = 60
+        for i in range(0, len(all_symbols), chunk_size):
+            chunk_symbols = all_symbols[i:i + chunk_size]
+            data = yf.download(
+                tickers=chunk_symbols,
+                period=period,
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                group_by="ticker"
+            )
+            if data.empty:
+                continue
 
-        # Handle benchmark first
-        if isinstance(data.columns, pd.MultiIndex):
-            try:
-                bench_df = pd.DataFrame({"Close": data[bench_sym]["Close"]}).dropna()
-                _BATCH_OHLCV_CACHE[bench_sym] = bench_df
-            except KeyError:
-                pass
-
-            for sym in formatted_symbols:
+            # If only 1 ticker in chunk, data columns are single-level
+            if not isinstance(data.columns, pd.MultiIndex):
+                single_sym = chunk_symbols[0]
                 try:
                     df = pd.DataFrame({
-                        "Open": data[sym]["Open"],
-                        "High": data[sym]["High"],
-                        "Low": data[sym]["Low"],
-                        "Close": data[sym]["Close"],
-                        "Volume": data[sym]["Volume"]
+                        "Open": data["Open"],
+                        "High": data["High"],
+                        "Low": data["Low"],
+                        "Close": data["Close"],
+                        "Volume": data["Volume"]
                     }).dropna()
                     if not df.empty:
-                        _BATCH_OHLCV_CACHE[sym] = df
+                        _BATCH_OHLCV_CACHE[single_sym] = df
+                except Exception:
+                    pass
+                continue
+
+            # MultiIndex columns for multiple tickers
+            for sym in chunk_symbols:
+                try:
+                    if sym in data.columns.levels[0]:
+                        df = pd.DataFrame({
+                            "Open": data[sym]["Open"],
+                            "High": data[sym]["High"],
+                            "Low": data[sym]["Low"],
+                            "Close": data[sym]["Close"],
+                            "Volume": data[sym]["Volume"]
+                        }).dropna()
+                        if not df.empty:
+                            _BATCH_OHLCV_CACHE[sym] = df
                 except KeyError:
                     continue
     except Exception:

@@ -87,10 +87,11 @@ export default function NeoScannerTab({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 { id: 'fast3', label: '⚡ 3-Stock Test', desc: 'ICICI, TCS, IDEA', limit: 3 },
-                { id: 'nifty50', label: '📈 Nifty 50', desc: 'Elite Bluechips', limit: 15 },
-                { id: 'niftynext50', label: '🚀 Next 50', desc: 'High Growth', limit: 20 },
-                { id: 'nifty200', label: '🌐 Nifty 200', desc: 'Broad Universe', limit: 25 },
-                { id: 'niftymidcap50', label: '💎 Midcap 50', desc: 'Alpha Gems', limit: 20 },
+                { id: 'nifty50', label: '📈 Nifty 50', desc: 'Elite Bluechips', limit: 50 },
+                { id: 'nifty100', label: '🚀 Nifty 100', desc: 'Top 100 Quality', limit: 100 },
+                { id: 'niftymidcap100', label: '💎 Midcap 100', desc: 'High Alpha', limit: 100 },
+                { id: 'nifty500', label: '🌐 Nifty 500', desc: 'Full Institutional 500', limit: 500 },
+                { id: 'niftytotalmarket', label: '🔥 Total Market 750', desc: 'Micro/Small/Mid/Large', limit: 750 },
               ].map((uni) => (
                 <button
                   key={uni.id}
@@ -119,11 +120,11 @@ export default function NeoScannerTab({
                   <input
                     type="number"
                     min="3"
-                    max="50"
+                    max="1000"
                     value={limitCount}
                     onChange={(e) => setLimitCount(e.target.value)}
                     disabled={loadingScan}
-                    className="w-8 bg-transparent font-mono font-bold text-cyan-300 outline-none"
+                    className="w-12 bg-transparent font-mono font-bold text-cyan-300 outline-none"
                   />
                 </div>
               )}

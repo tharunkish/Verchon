@@ -55,9 +55,12 @@ def fetch_nse_index_universe(index_name: str = "nifty100") -> List[Dict[str, str
     url_map = {
         "nifty50": "https://archives.nseindia.com/content/indices/ind_nifty50list.csv",
         "nifty100": "https://archives.nseindia.com/content/indices/ind_nifty100list.csv",
+        "nifty200": "https://archives.nseindia.com/content/indices/ind_nifty200list.csv",
         "nifty500": "https://archives.nseindia.com/content/indices/ind_nifty500list.csv",
         "niftymidcap100": "https://archives.nseindia.com/content/indices/ind_niftymidcap100list.csv",
         "niftysmallcap100": "https://archives.nseindia.com/content/indices/ind_niftysmallcap100list.csv",
+        "niftymidcap50": "https://archives.nseindia.com/content/indices/ind_niftymidcap50list.csv",
+        "niftytotalmarket": "https://archives.nseindia.com/content/indices/ind_niftytotalmarket_list.csv",
     }
     target_url = url_map.get(clean_idx, url_map["nifty100"])
 
@@ -748,8 +751,12 @@ def prefetch_screener_universe(tickers: List[str], max_workers: int = 8, verbose
     if verbose:
         print(f"[*] Batch scraping Screener fundamentals for {len(uncached)} uncached stocks ({max_workers} parallel workers)...")
 
+    import random
+
     def _worker(t: str) -> None:
         try:
+            # Polite micro-jitter to prevent burst concurrency spikes
+            time.sleep(random.uniform(0.05, 0.25))
             scrape_screener_data(t)
         except Exception:
             pass
