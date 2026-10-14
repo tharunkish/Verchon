@@ -3,6 +3,7 @@ import { Search, Shield, AlertTriangle, ArrowUpRight, ArrowDownRight, Briefcase,
 import CanvasChart from '../components/CanvasChart';
 import RuleChecklist from '../components/RuleChecklist';
 import AIDossierCard from '../components/AIDossierCard';
+import CorporateRadarCard from '../components/CorporateRadarCard';
 import NeoDeepDiveTab from './neo/NeoDeepDiveTab';
 import { normalizeTicker } from '../App';
 
@@ -256,7 +257,12 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
             errorMessage={aiError}
           />
 
-          {/* 4. Strategy Pass/Fail Rule Breakdown & Technical Grid */}
+          {/* 4. Institutional Corporate Radar & Earnings Gate */}
+          {data && data.corporate_radar && (
+            <CorporateRadarCard radar={data.corporate_radar} />
+          )}
+
+          {/* 5. Strategy Pass/Fail Rule Breakdown & Technical Grid */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <RuleChecklist rules={data.rule_breakdown || []} />
 
