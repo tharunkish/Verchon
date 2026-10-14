@@ -372,48 +372,49 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
         ann_summary = "; ".join(ann_items)
 
     system_prompt = (
-        "You are an Elite Institutional Swing Trading Strategist for Indian Equities (NSE). "
-        "You synthesize quantitative fundamentals, technical momentum, and risk boundaries into a publication-grade research dossier. "
-        "Write articulate, professional, information-dense complete sentences. "
-        "Do NOT output generic placeholders, brackets, or conversational preamble."
+        "You are an Elite Institutional Bear Thesis Strategist and Risk Devil's Advocate for Indian Equities (NSE). "
+        "Your mission is NOT to cheerlead or regurgitate obvious bullish points. "
+        "Your sole job is to aggressively stress-test the proposed 3-week to 2-month swing setup, identify the exact blind spots, "
+        "surface critical fundamental contradictions, and tell the trader why this trade could fail before they risk real money. "
+        "Write articulate, professional, information-dense complete sentences without conversational preamble."
     )
 
     prompt = f"""
 Analyze {clean_sym} ({sector} | {industry}):
 - Price: ₹{price} | 50 DMA: ₹{dma50} ({dma50_dist}% dist) | 200 DMA: ₹{dma200} ({dma200_dist}% dist)
-- Active Setup: {strategy_name} (Status: {setup_status}, Guardrail Invalidation Level: ₹{stop_price})
-- Fundamentals: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
+- Proposed Setup: {strategy_name} (Status: {setup_status}, Guardrail Stop Level: ₹{stop_price})
+- Valuation & Quality: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
 - Positive Drivers: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
-- Potential Watch-outs: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
-- Recent Filings: {ann_summary}
+- Red Flags / Audit Alerts: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
+- Recent Filings / Announcements: {ann_summary}
 - Key Seed Questions: {'; '.join(existing_questions[:2]) if existing_questions else 'Concall guidance sustainability'}
 
 Generate the research dossier adhering EXACTLY to this markdown layout so our visual parser maps each card:
 
 ### {clean_sym}
 - **Why it entered the shortlist**:
-  - Write 1 detailed sentence explaining the technical catalyst and structural momentum from {strategy_name} with ₹{price} vs 50 DMA ₹{dma50}.
-  - Write 1 detailed sentence on why the business quality and fundamentals support a 2-7 day swing window.
+  - Write 1 sentence acknowledging the technical setup ({strategy_name} at ₹{price} vs 50 DMA ₹{dma50}).
+  - Write 1 sentence on the business context for a 3-week to 2-month swing window.
 - **Key evidence**:
   - Detail the technical price structure, moving average slope, and volume confirmation relative to ₹{dma200}.
   - Detail the valuation profile with P/E {pe}x (vs 5Y median {pe_5y_median}x), ROE {roe}%, and sales growth {sales_growth}%.
 - **Recent Announcements & Filings**:
   - Summarize the recent corporate filings ({ann_summary}) and their relevance to trading posture.
 - **Important contradiction**:
-  - Evidence: Detail any divergence between fundamental valuation ({pe}x) and near-term price momentum or sector headwinds.
-  - Interpretation: Explain what market participants are weighing in this setup.
-  - Why it matters: Explain how this contradiction affects swing risk/reward.
-  - What would resolve it: Specify what price or earnings confirmation will resolve this tension.
+  - Evidence: Act as the Devil's Advocate. Detail the starkest contradiction between the bullish chart and the business/valuation reality (P/E {pe}x vs 5Y median {pe_5y_median}x or sector headwinds).
+  - Interpretation: Explain what naive retail bulls are missing that institutional sellers might exploit.
+  - Why it matters: Explain how this contradiction could trigger a sudden breakdown or trap buyers.
+  - What would resolve it: Specify what concrete earnings beat or breakout volume must happen to prove the bears wrong.
 - **Research risks / unresolved issues**:
-  - Setup Invalidation: Exact exit level below ₹{stop_price} that terminates the trade thesis.
-  - Trend Deterioration: Sustained close below 50 DMA ₹{dma50} or 200 DMA ₹{dma200} turning slope negative.
-  - Research / Fundamental Risk: Key operational, commodity, or corporate governance risk for this sector.
+  - Setup Invalidation: The hard mathematical exit below ₹{stop_price} that kills the trade immediately.
+  - Trend Deterioration: The danger signal if price loses the 50 DMA ₹{dma50} or 200 DMA ₹{dma200}.
+  - Research / Fundamental Risk: The #1 fundamental bear catalyst (e.g. debt, working capital stretch, margin squeeze, or governance concern).
 - **Research questions**:
-  - Formulate 2 rigorous, decision-relevant questions regarding upcoming quarterly results, margins, or institutional flow that a trader must track.
+  - Formulate 2 sharp, skeptical questions the trader must investigate in concall transcripts or notes to accounts before entering.
 - **What would strengthen the thesis**:
-  - Detail the precise volume expansion and breakout confirmation above ₹{price} needed to add size.
+  - Specify the precise volume expansion and breakout confirmation above ₹{price} required to invalidate the bear case.
 - **What would weaken the thesis**:
-  - Detail the early distribution volume or lower-high breakdown signal that warrants an immediate risk-off exit.
+  - Detail the early distribution volume or lower-high breakdown pattern that confirms the bear case is playing out.
 """
 
     return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=900, temperature=0.3)
