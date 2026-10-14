@@ -366,6 +366,13 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
     existing_questions = fund.get("questions", [])
     announcements = fund.get("recent_announcements", [])
     
+    # Ingest corporate event radar
+    import event_engine
+    corp_radar = event_engine.fetch_corporate_radar(clean_sym, recent_announcements=announcements)
+    next_earnings = corp_radar.get("next_earnings_date") or "Unannounced"
+    days_to_earnings = corp_radar.get("days_to_earnings")
+    earnings_warning = f"Q2/Q3 Results in {days_to_earnings} days ({next_earnings})" if days_to_earnings is not None else f"Earnings Date: {next_earnings}"
+    
     ann_summary = "None recent."
     if announcements:
         ann_items = [f"{a.get('date', '')}: {a.get('title', '')}" for a in announcements[:3]]
@@ -383,6 +390,7 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
 Analyze {clean_sym} ({sector} | {industry}):
 - Price: ₹{price} | 50 DMA: ₹{dma50} ({dma50_dist}% dist) | 200 DMA: ₹{dma200} ({dma200_dist}% dist)
 - Proposed Setup: {strategy_name} (Status: {setup_status}, Guardrail Stop Level: ₹{stop_price})
+- Corporate Actions & Calendar: {earnings_warning} | Ex-Dividend: {corp_radar.get('ex_dividend_date') or 'N/A'}
 - Valuation & Quality: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
 - Positive Drivers: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
 - Red Flags / Audit Alerts: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}

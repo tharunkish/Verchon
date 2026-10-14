@@ -21,9 +21,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-# Import base engines (100% authoritative and unmodified)
 import aianalysis as ai
 import ai_parser
+import event_engine
 import improvedfundanalysis as ifa
 import local_llm
 import marketregime as mr
@@ -571,6 +571,10 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
         # Check if AI dossier is available in cache
         cached_ai = AI_REPORT_CACHE["dossiers"].get(clean_sym) or AI_REPORT_CACHE["dossiers"].get(formatted_sym)
 
+        # 4. Institutional Corporate Actions & Earnings Radar
+        announcements = candidate_dossier.get("fundamentals", {}).get("recent_announcements", [])
+        corporate_radar = event_engine.fetch_corporate_radar(formatted_sym, recent_announcements=announcements)
+
         return serialize_for_json({
             "ticker": formatted_sym,
             "dossier": candidate_dossier,
@@ -580,6 +584,7 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
                 "dma_200": dma_200_line,
             },
             "rule_breakdown": rule_breakdown,
+            "corporate_radar": corporate_radar,
             "ai_dossier": cached_ai,
         })
     except Exception as e:

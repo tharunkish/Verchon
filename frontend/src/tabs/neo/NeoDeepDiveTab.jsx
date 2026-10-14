@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import CanvasChart from '../../components/CanvasChart';
 import AIDossierCard from '../../components/AIDossierCard';
+import CorporateRadarCard from '../../components/CorporateRadarCard';
 import RuleChecklist from '../../components/RuleChecklist';
 import NumberTicker from '../../components/neo/NumberTicker';
 import BorderBeam from '../../components/neo/BorderBeam';
@@ -185,7 +186,14 @@ export default function NeoDeepDiveTab({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. QUANTITATIVE RULES & TECHNICAL HEALTH MATRIX                          */}
+      {/* 4. INSTITUTIONAL CORPORATE RADAR & EARNINGS GATE                          */}
+      {/* ========================================================================= */}
+      {data && data.corporate_radar && (
+        <CorporateRadarCard radar={data.corporate_radar} />
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. QUANTITATIVE RULES & TECHNICAL HEALTH MATRIX                          */}
       {/* ========================================================================= */}
       {data && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
