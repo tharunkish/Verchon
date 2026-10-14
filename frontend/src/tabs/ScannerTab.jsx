@@ -95,9 +95,11 @@ export default function ScannerTab({
               className="rounded-lg border border-zinc-800 bg-zinc-900/90 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-700 focus:border-rose-500"
             >
               <option value="fast3">⚡ 3-Stock Fast Test (ICICI, TCS, IDEA)</option>
-              <option value="nifty100">Nifty 100 Index</option>
               <option value="nifty50">Nifty 50 Index</option>
+              <option value="nifty100">Nifty 100 Index</option>
               <option value="niftymidcap100">Nifty Midcap 100</option>
+              <option value="nifty500">Nifty 500 Index (500 Stocks)</option>
+              <option value="niftytotalmarket">Total Market Index (750 Stocks)</option>
             </select>
           </div>
 
@@ -116,7 +118,10 @@ export default function ScannerTab({
               <option value="10">10 Stocks</option>
               <option value="25">25 Stocks</option>
               <option value="50">50 Stocks</option>
-              <option value="100">100 Stocks (Full Universe)</option>
+              <option value="100">100 Stocks</option>
+              <option value="250">250 Stocks</option>
+              <option value="500">500 Stocks (Full Nifty 500)</option>
+              <option value="750">750 Stocks (Total Market)</option>
             </select>
           </div>
 
