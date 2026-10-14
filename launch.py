@@ -73,6 +73,17 @@ def main():
     import uvicorn
     import local_llm
 
+    # Register Windows console close handler (X button) to guarantee VRAM release
+    if os.name == "nt":
+        import ctypes
+        def _console_ctrl_handler(ctrl_type):
+            print(f"\n  [*] Terminal closing signal ({ctrl_type}) detected. Releasing GPU VRAM...")
+            local_llm.stop_local_server()
+            return False  # Pass to default handler to close window
+
+        _handler = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_ulong)(_console_ctrl_handler)
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(_handler, True)
+
     try:
         uvicorn.run("server:app", host="127.0.0.1", port=8000, log_level="info")
     finally:

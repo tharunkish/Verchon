@@ -59,6 +59,15 @@ export default function SystemRestartModal({ isOpen, onClose }) {
     }, 1500);
   };
 
+  const handleUnloadAIOnly = async () => {
+    try {
+      await fetch('/api/ai/unload', { method: 'POST' });
+      onClose();
+    } catch (e) {
+      console.warn('Failed to unload AI:', e);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -127,22 +136,33 @@ export default function SystemRestartModal({ isOpen, onClose }) {
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-5 flex items-center justify-end space-x-3 pt-2">
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="rounded-xl border border-white/10 bg-zinc-900 px-4 py-2 font-mono text-xs text-zinc-300 hover:bg-zinc-800 transition"
+                  onClick={handleUnloadAIOnly}
+                  title="Frees 4.3 GB VRAM immediately while leaving web server running"
+                  className="rounded-xl border border-purple-500/40 bg-purple-950/40 px-3 py-2 font-mono text-[11px] font-semibold text-purple-300 hover:bg-purple-900/60 transition flex items-center space-x-1.5"
                 >
-                  Cancel
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span>Free VRAM Only</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleTriggerRestart}
-                  className="inline-flex items-center space-x-2 rounded-xl border border-rose-500/50 bg-rose-600 px-4 py-2 font-mono text-xs font-bold text-white shadow-lg shadow-rose-950/60 hover:bg-rose-500 transition"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Restart Everything Now</span>
-                </button>
+                <div className="flex items-center space-x-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-xl border border-white/10 bg-zinc-900 px-3.5 py-2 font-mono text-xs text-zinc-300 hover:bg-zinc-800 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTriggerRestart}
+                    className="inline-flex items-center space-x-2 rounded-xl border border-rose-500/50 bg-rose-600 px-4 py-2 font-mono text-xs font-bold text-white shadow-lg shadow-rose-950/60 hover:bg-rose-500 transition"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Restart Everything</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

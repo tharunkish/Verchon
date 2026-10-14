@@ -755,8 +755,18 @@ def close_paper_trade(req: PaperPositionCloseRequest) -> Dict[str, Any]:
 
 
 # =====================================================================
-# SYSTEM RESTART & HEALTH ENDPOINTS
+# SYSTEM RESTART, HEALTH & AI LIFECYCLE ENDPOINTS
 # =====================================================================
+
+@app.post("/api/ai/unload")
+def unload_ai_model_endpoint() -> Dict[str, Any]:
+    """Manually unloads local Qwen 3.5 AI model from GPU VRAM."""
+    try:
+        local_llm.stop_local_server()
+        return {"status": "unloaded", "message": "Local Qwen 3.5 stopped. GPU VRAM completely freed."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to unload AI model: {e}")
+
 
 @app.get("/api/system/health")
 def system_health_check() -> Dict[str, Any]:

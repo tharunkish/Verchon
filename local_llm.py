@@ -43,10 +43,66 @@ def is_server_healthy() -> bool:
         return False
 
 
+# Windows Job Object handle to guarantee child process termination on exit
+_job_object = None
+
+def _init_windows_job():
+    global _job_object
+    if os.name != "nt" or _job_object is not None:
+        return _job_object
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class LI(ctypes.Structure):
+            _fields_ = [
+                ('PerProcessUserTimeLimit', wintypes.LARGE_INTEGER),
+                ('PerJobUserTimeLimit', wintypes.LARGE_INTEGER),
+                ('LimitFlags', wintypes.DWORD),
+                ('MinimumWorkingSetSize', ctypes.c_size_t),
+                ('MaximumWorkingSetSize', ctypes.c_size_t),
+                ('ActiveProcessLimit', wintypes.DWORD),
+                ('Affinity', ctypes.c_size_t),
+                ('PriorityClass', wintypes.DWORD),
+                ('SchedulingClass', wintypes.DWORD),
+            ]
+
+        class IO(ctypes.Structure):
+            _fields_ = [
+                ('R', ctypes.c_uint64),
+                ('W', ctypes.c_uint64),
+                ('O', ctypes.c_uint64),
+                ('Rb', ctypes.c_uint64),
+                ('Wb', ctypes.c_uint64),
+                ('Ob', ctypes.c_uint64),
+            ]
+
+        class EX(ctypes.Structure):
+            _fields_ = [
+                ('B', LI),
+                ('I', IO),
+                ('PML', ctypes.c_size_t),
+                ('JML', ctypes.c_size_t),
+                ('PPML', ctypes.c_size_t),
+                ('PJML', ctypes.c_size_t),
+            ]
+
+        job = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+        info = EX()
+        info.B.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        ctypes.windll.kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info))
+        _job_object = job
+    except Exception as e:
+        logging.warning(f"Could not initialize Windows Job Object: {e}")
+    return _job_object
+
+
 def start_local_server() -> bool:
     """
     Launch llama-server.exe in headless background mode (no visible console window).
     Auto-fits layers into GPU VRAM.
+    Tied to a Windows Job Object so if parent Python/launch process dies for ANY reason,
+    the Windows OS kernel automatically terminates llama-server.exe immediately.
     """
     global _server_process
 
@@ -84,6 +140,16 @@ def start_local_server() -> bool:
             stderr=subprocess.DEVNULL,
             creationflags=creationflags,
         )
+
+        # Bind to Windows Job Object so Windows kernel auto-kills it on parent termination
+        if os.name == "nt":
+            job = _init_windows_job()
+            if job and _server_process:
+                try:
+                    import ctypes
+                    ctypes.windll.kernel32.AssignProcessToJobObject(job, int(_server_process._handle))
+                except Exception as je:
+                    logging.warning(f"Notice assigning llama-server to Job Object: {je}")
 
         # Poll health for up to 15 seconds
         for attempt in range(30):
