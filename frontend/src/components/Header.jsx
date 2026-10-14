@@ -1,7 +1,7 @@
 import React from 'react';
-import { Activity, ShieldAlert, ShieldCheck, AlertTriangle, Layers, Briefcase, Search, Command, Settings } from 'lucide-react';
+import { Activity, ShieldAlert, ShieldCheck, AlertTriangle, Layers, Briefcase, Search, Command, Settings, RotateCcw } from 'lucide-react';
 
-export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK, onOpenSettings, themeMode }) {
+export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK, onOpenSettings, onOpenRestartModal, themeMode }) {
   const regimeName = regime?.regime || 'LOADING';
   const regimeScore = regime?.regime_score ?? 'N/A';
   const price = regime?.current_price ? `₹${regime.current_price.toLocaleString('en-IN')}` : 'N/A';
@@ -83,7 +83,7 @@ export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK
           )}
         </div>
 
-        {/* Right: Connectivity Status, Command K, and Settings */}
+        {/* Right: Connectivity Status, Command K, Settings, and Restart */}
         <div className="flex items-center space-x-2.5">
           <div className="flex items-center space-x-1.5 rounded border border-white/[0.08] bg-zinc-900/60 px-2 py-0.5 font-mono text-[10px]">
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${regime ? 'bg-emerald-400' : 'bg-rose-400 animate-pulse'}`} />
@@ -110,6 +110,15 @@ export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK
           >
             <Settings className="h-3.5 w-3.5" />
             <span className="font-mono text-[10px]">Theme</span>
+          </button>
+
+          <button
+            onClick={onOpenRestartModal}
+            title="Completely restart server and local AI engine"
+            className="flex items-center space-x-1.5 rounded-lg border border-rose-500/30 bg-rose-950/40 px-2.5 py-1 text-xs text-rose-300 hover:border-rose-500/70 hover:bg-rose-900/60 transition shadow-sm"
+          >
+            <RotateCcw className="h-3 w-3" />
+            <span className="font-mono text-[10px] font-semibold">Restart</span>
           </button>
         </div>
       </div>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Terminal, Palette, Monitor, Zap, Shield, Check } from 'lucide-react';
+import { X, Sparkles, Terminal, Palette, Monitor, Zap, Shield, Check, RotateCcw } from 'lucide-react';
 
 export default function SettingsModal({
   isOpen,
   onClose,
   themeMode,
   setThemeMode,
+  onOpenRestartModal,
 }) {
   const [aiProvider, setAiProvider] = useState(() => {
     try {
@@ -209,13 +210,22 @@ export default function SettingsModal({
             </div>
           </div>
 
-          {/* System Info & Persistence Indicator */}
+          {/* System Info & Persistence Indicator + Quick Reboot */}
           <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] text-zinc-400 flex items-center justify-between">
             <span className="flex items-center space-x-2">
               <Shield className="h-3.5 w-3.5 text-emerald-400" />
               <span>Settings auto-persist in localStorage & backend</span>
             </span>
-            <span className="font-mono text-[10px] text-cyan-400">Qwen 3.5 Ready</span>
+            <button
+              onClick={() => {
+                onClose();
+                if (onOpenRestartModal) onOpenRestartModal();
+              }}
+              className="flex items-center space-x-1.5 rounded-lg border border-rose-500/30 bg-rose-950/40 px-2.5 py-1 font-mono text-[10px] text-rose-300 hover:bg-rose-900/60 hover:border-rose-500/70 transition"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Restart System</span>
+            </button>
           </div>
 
           {/* Close Action */}

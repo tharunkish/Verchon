@@ -755,6 +755,76 @@ def close_paper_trade(req: PaperPositionCloseRequest) -> Dict[str, Any]:
 
 
 # =====================================================================
+# SYSTEM RESTART & HEALTH ENDPOINTS
+# =====================================================================
+
+@app.get("/api/system/health")
+def system_health_check() -> Dict[str, Any]:
+    """Lightweight health probe used by frontend during system reboot polling."""
+    return {
+        "status": "online",
+        "timestamp": time.time(),
+        "active_ai_provider": local_llm.get_active_provider(),
+    }
+
+
+@app.post("/api/system/restart")
+def restart_entire_system() -> Dict[str, Any]:
+    """
+    Completely restarts the Verchon server engine, releases port 8000 & 8085,
+    stops local Qwen model (freeing GPU VRAM), and boots a fresh process.
+    """
+    import threading
+    import subprocess
+
+    def _execute_delayed_restart():
+        time.sleep(0.6)  # Allow HTTP response to be flushed to browser client
+        print("\n" + "=" * 65)
+        print("  [SYSTEM] Received 1-Click Complete Restart Command from UI")
+        print("  [SYSTEM] Shutting down Local Qwen 3.5 AI and releasing GPU memory...")
+        print("=" * 65)
+
+        try:
+            local_llm.stop_local_server()
+        except Exception as e:
+            print(f"  [!] Notice during AI stop: {e}")
+
+        # Clear in-memory caches
+        AI_REPORT_CACHE["macro_backdrop"] = ""
+        AI_REPORT_CACHE["cross_comparison"] = ""
+        AI_REPORT_CACHE["dossiers"].clear()
+        AI_REPORT_CACHE["diagnostics"].clear()
+
+        # Spawn a brand new launch.py process that waits for this PID to release port 8000
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        launch_script = os.path.join(base_dir, "launch.py")
+        old_pid = os.getpid()
+
+        print(f"  [SYSTEM] Spawning fresh launch.py supervisor (waiting for PID {old_pid})...")
+
+        try:
+            subprocess.Popen(
+                [sys.executable, launch_script, "--wait-for-pid", str(old_pid), "--no-browser"],
+                cwd=base_dir,
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True,
+            )
+        except Exception as spawn_err:
+            print(f"  [!] Failed to spawn new launch instance: {spawn_err}")
+
+        print("  [SYSTEM] Terminating previous server process. Port 8000 freed.\n")
+        os._exit(0)
+
+    threading.Thread(target=_execute_delayed_restart, daemon=True).start()
+
+    return {
+        "status": "restarting",
+        "message": "Complete system restart initiated. Local AI & server rebooting.",
+        "old_pid": os.getpid(),
+    }
+
+
+# =====================================================================
 # 4. STATIC FRONTEND MOUNTING & ENTRYPOINT
 # =====================================================================
 

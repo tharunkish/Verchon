@@ -14,6 +14,7 @@ import FloatingDock from './components/neo/FloatingDock';
 import DynamicIsland from './components/neo/DynamicIsland';
 import AuroraBackground from './components/neo/AuroraBackground';
 import OrderExecutionModal from './components/OrderExecutionModal';
+import SystemRestartModal from './components/SystemRestartModal';
 import { useToast } from './components/Toast';
 
 export function normalizeTicker(input) {
@@ -38,6 +39,7 @@ export default function App() {
 
   const [themeMode, setThemeModeState] = useState(getInitialTheme);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
 
   const setThemeMode = (mode) => {
     setThemeModeState(mode);
@@ -455,6 +457,7 @@ export default function App() {
           openPositionsCount={paperPositions.filter((p) => p.status === 'OPEN').length}
           unrealizedPnl={paperAccount?.open_unrealized_pnl || 0}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenRestartModal={() => setIsRestartModalOpen(true)}
         />
       )}
 
@@ -466,6 +469,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           onOpenCommandK={() => setIsCommandKOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenRestartModal={() => setIsRestartModalOpen(true)}
           themeMode={themeMode}
         />
       )}
@@ -568,6 +572,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenCommandK={() => setIsCommandKOpen(true)}
+          onOpenRestartModal={() => setIsRestartModalOpen(true)}
         />
       )}
 
@@ -596,6 +601,13 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         themeMode={themeMode}
         setThemeMode={setThemeMode}
+        onOpenRestartModal={() => setIsRestartModalOpen(true)}
+      />
+
+      {/* 1-Click Complete System & AI Engine Restart Modal */}
+      <SystemRestartModal
+        isOpen={isRestartModalOpen}
+        onClose={() => setIsRestartModalOpen(false)}
       />
     </div>
   );

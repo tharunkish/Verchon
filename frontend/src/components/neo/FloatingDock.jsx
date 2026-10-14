@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { Layers, Briefcase, Search, Settings, Command, Radio } from 'lucide-react';
+import { Layers, Briefcase, Search, Settings, Command, Radio, RotateCcw } from 'lucide-react';
 
 function DockItem({ mouseX, icon: Icon, label, hotkey, active, onClick }) {
   const ref = useRef(null);
@@ -53,6 +53,7 @@ export default function FloatingDock({
   setActiveTab,
   onOpenSettings,
   onOpenCommandK,
+  onOpenRestartModal,
 }) {
   const mouseX = useMotionValue(Infinity);
 
@@ -105,6 +106,16 @@ export default function FloatingDock({
           hotkey="S"
           active={false}
           onClick={onOpenSettings}
+        />
+
+        {/* 1-Click System Restart */}
+        <DockItem
+          mouseX={mouseX}
+          icon={RotateCcw}
+          label="Restart System"
+          hotkey="R"
+          active={false}
+          onClick={onOpenRestartModal}
         />
       </motion.div>
     </div>

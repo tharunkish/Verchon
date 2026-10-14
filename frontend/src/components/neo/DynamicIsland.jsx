@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ShieldAlert, AlertTriangle, Activity, Sparkles, ChevronDown, Zap, Globe2, Compass } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, AlertTriangle, Activity, Sparkles, ChevronDown, Zap, Globe2, Compass, RotateCcw } from 'lucide-react';
 import NumberTicker from './NumberTicker';
 
 export default function DynamicIsland({
@@ -12,6 +12,7 @@ export default function DynamicIsland({
   openPositionsCount = 0,
   unrealizedPnl = 0,
   onOpenSettings,
+  onOpenRestartModal,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -141,6 +142,18 @@ export default function DynamicIsland({
                   <div className="font-mono font-extrabold text-emerald-400 mt-1">HYPER-8000</div>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenRestartModal) onOpenRestartModal();
+                }}
+                className="mt-2.5 flex w-full items-center justify-center space-x-1.5 rounded-xl border border-rose-500/30 bg-rose-950/40 py-1.5 font-mono text-[11px] text-rose-300 hover:bg-rose-900/60 hover:border-rose-500/60 transition"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>Restart Verchon System & AI</span>
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
