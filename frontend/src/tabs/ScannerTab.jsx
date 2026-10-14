@@ -13,8 +13,20 @@ export default function ScannerTab({
   onGenerateAIReport,
 }) {
   const [filterPriority, setFilterPriority] = useState('ALL');
-  const [universeSelect, setUniverseSelect] = useState('fast3');
-  const [limitCount, setLimitCount] = useState(3);
+  const [universeSelect, setUniverseSelect] = useState(() => {
+    try {
+      return localStorage.getItem('verchon_scanner_universe') || 'nifty100';
+    } catch {
+      return 'nifty100';
+    }
+  });
+  const [limitCount, setLimitCount] = useState(() => {
+    try {
+      return Number(localStorage.getItem('verchon_scanner_limit')) || 100;
+    } catch {
+      return 100;
+    }
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [scanElapsed, setScanElapsed] = useState(0);
   const [aiElapsed, setAiElapsed] = useState(0);
@@ -88,6 +100,9 @@ export default function ScannerTab({
               onChange={(e) => {
                 const val = e.target.value;
                 setUniverseSelect(val);
+                try {
+                  localStorage.setItem('verchon_scanner_universe', val);
+                } catch {}
                 if (val === 'fast3') {
                   setLimitCount(3);
                 }
@@ -107,7 +122,13 @@ export default function ScannerTab({
             <label className="mb-1 block font-mono text-[10px] text-zinc-400">CANDIDATE LIMIT</label>
             <select
               value={universeSelect === 'fast3' ? 3 : limitCount}
-              onChange={(e) => setLimitCount(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setLimitCount(val);
+                try {
+                  localStorage.setItem('verchon_scanner_limit', val);
+                } catch {}
+              }}
               disabled={universeSelect === 'fast3'}
               title={universeSelect === 'fast3' ? 'Fast Test universe is locked to 3 stocks' : 'Select candidate limit'}
               className={`rounded-lg border border-zinc-800 bg-zinc-900/90 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-700 focus:border-rose-500 ${
