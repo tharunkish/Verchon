@@ -19,10 +19,10 @@ import requests
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # Paths and configuration
-GEMMA_MODEL_PATH = r"D:\lmmodels\gemma-2-9b-it-Q4_K_M.gguf"
-QWEN_MODEL_PATH = r"D:\lmmodels\Huihui-Qwen3.5-4B-abliterated.Q4_K_M.gguf"
-# Default to Google Gemma 2 9B for high-intelligence institutional research
-MODEL_PATH = GEMMA_MODEL_PATH if os.path.exists(GEMMA_MODEL_PATH) else QWEN_MODEL_PATH
+CODER_7B_MODEL_PATH = r"D:\lmmodels\qwen2.5-coder-7b-instruct-q3_k_m.gguf"
+QWEN_4B_MODEL_PATH = r"D:\lmmodels\Huihui-Qwen3.5-4B-abliterated.Q4_K_M.gguf"
+# Default to Qwen 2.5 Coder 7B (Q3_K_M) - 100% GPU VRAM fit & elite logic
+MODEL_PATH = CODER_7B_MODEL_PATH if os.path.exists(CODER_7B_MODEL_PATH) else QWEN_4B_MODEL_PATH
 BINARY_PATH = r"D:\lmmodels\llama-cuda-bin\llama-server.exe"
 LOCAL_SERVER_PORT = 8085
 LOCAL_SERVER_URL = f"http://127.0.0.1:{LOCAL_SERVER_PORT}"
@@ -117,22 +117,20 @@ def start_local_server() -> bool:
         logging.info(f"Local Qwen server already running and healthy at {LOCAL_SERVER_URL}.")
         return True
 
-    is_gemma = "gemma" in MODEL_PATH.lower()
-    ngl = 26 if is_gemma else 99
-    model_name = "Google Gemma 2 9B" if is_gemma else "Qwen 3.5 4B"
+    model_name = "Qwen 2.5 Coder 7B" if "coder" in MODEL_PATH.lower() else "Qwen 3.5 4B"
 
-    logging.info(f"Starting headless local {model_name} server on port {LOCAL_SERVER_PORT} (GPU offload: {ngl} layers)...")
+    logging.info(f"Starting headless local {model_name} server on port {LOCAL_SERVER_PORT} (GPU offload: 100% layers in VRAM)...")
 
     cmd = [
         BINARY_PATH,
         "-m", MODEL_PATH,
         "-c", "4096",
-        "-ngl", str(ngl),
+        "-ngl", "99",
         "-t", "6",
         "--port", str(LOCAL_SERVER_PORT),
         "--host", "127.0.0.1",
     ]
-    if not is_gemma:
+    if "3.5" in MODEL_PATH.lower():
         cmd.extend(["--reasoning", "off", "--reasoning-format", "none", "--reasoning-budget", "0"])
 
     try:
