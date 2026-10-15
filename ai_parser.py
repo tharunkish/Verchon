@@ -130,7 +130,10 @@ def parse_subfields(text: str, field_map: Dict[str, List[str]]) -> Dict[str, str
             pat = rf"(?:^|\n)\s*[-*•#\d.]*\s*\**\s*(?:{alias_pat})[\s:*]*\**\s*[:\-–—]?\s*(.*?)$"
         m = re.search(pat, text, re.DOTALL | re.IGNORECASE)
         if m:
-            result[key] = m.group(1).strip().strip("-*• ")
+            val = m.group(1).strip().strip("-*• ")
+            # If bleeding into a subsequent major markdown header, truncate at the boundary
+            val = re.split(r"\n\s*[-*•#\d.]*\s*\*\*[A-Z]", val)[0].strip()
+            result[key] = val
     return result
 
 
