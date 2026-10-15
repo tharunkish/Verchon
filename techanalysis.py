@@ -1424,10 +1424,6 @@ def evaluate_liquidity_sweep(df: pd.DataFrame, trend_info: dict, trend_qual: boo
         res["truth_table"] = truth_table
         return res
 
-    res["setup_detected"] = True
-    res["state"] = "SETUP_FORMING"
-    res["sweep_low"] = round(curr_low, 2)
-
     # Step 2: Reclaim condition (Close >= Support Floor)
     reclaimed = curr_close >= support_level
     truth_table.append(StrategyPredicate(
@@ -1440,10 +1436,15 @@ def evaluate_liquidity_sweep(df: pd.DataFrame, trend_info: dict, trend_qual: boo
     ).to_dict())
 
     if not reclaimed:
+        res["setup_detected"] = False
         res["state"] = "BREAKDOWN_UNCONFIRMED"
         res["rejection_reason"] = "FAILED_TO_RECLAIM_SUPPORT"
         res["truth_table"] = truth_table
         return res
+
+    res["setup_detected"] = True
+    res["state"] = "SETUP_FORMING"
+    res["sweep_low"] = round(curr_low, 2)
 
     # Step 3: Candle confirmation (Green candle or absorption lower tail)
     lower_shadow = min(curr_close, curr_open) - curr_low
@@ -1483,7 +1484,27 @@ def evaluate_liquidity_sweep(df: pd.DataFrame, trend_info: dict, trend_qual: boo
         res["truth_table"] = truth_table
         return res
 
-    # Step 5: Stop placement & Risk calculation
+    # Step 5: Extension check (prevent buying extended bounces into overhead resistance)
+    rebound_pct = ((curr_close - curr_low) / curr_low) * 100
+    res["rebound_from_sweep_pct"] = round(rebound_pct, 2)
+    not_extended = rebound_pct <= 3.8
+    truth_table.append(StrategyPredicate(
+        name="sweep_rebound_not_extended",
+        description="Rebound from sweep low <= 3.8% (entry not chased)",
+        observed=f"{rebound_pct:.2f}%",
+        required="<= 3.8%",
+        passed=not_extended,
+        failure_reason=None if not_extended else f"EXTENDED_FROM_SWEEP_LOW (+{rebound_pct:.1f}% from sweep low ₹{curr_low:.2f})"
+    ).to_dict())
+
+    if not not_extended:
+        res["state"] = "EXTENDED_FROM_SWEEP"
+        res["signal_triggered"] = False
+        res["rejection_reason"] = f"EXTENDED_FROM_SWEEP_LOW (+{rebound_pct:.1f}%)"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 6: Stop placement & Risk calculation
     stop_price = round(curr_low * 0.995, 2)
     risk_pct = round(((curr_close - stop_price) / curr_close) * 100, 2)
 
@@ -1786,8 +1807,14 @@ def evaluate_rubber_band_snapback(df: pd.DataFrame, trend_info: dict, trend_qual
 
     # Step 1: Structural trend condition
     curr_50 = float(close.rolling(50).mean().iloc[-1])
+    d200_info = trend_info.get("Moving_Averages", {}).get("DMA_200") if isinstance(trend_info, dict) else None
     dma_200 = close.rolling(200).mean()
-    curr_200 = float(dma_200.iloc[-1]) if (len(close) >= 200 and pd.notna(dma_200.iloc[-1])) else curr_50
+    if d200_info and isinstance(d200_info, (int, float)):
+        curr_200 = float(d200_info)
+    elif len(close) >= 200 and pd.notna(dma_200.iloc[-1]):
+        curr_200 = float(dma_200.iloc[-1])
+    else:
+        curr_200 = curr_50
 
     is_structural_uptrend = (curr_close >= curr_200 * 0.97) or (curr_50 >= curr_200)
     truth_table.append(StrategyPredicate(
@@ -2061,8 +2088,14 @@ def evaluate_all_strategies(df: pd.DataFrame, trend_info: dict, momo_info: dict)
         primary_name = forming_strategies[0]
         primary_strat = all_strategies[primary_name]
     else:
-        primary_name = priority_order[0]
-        primary_strat = all_strategies[primary_name]
+        primary_name = "NO_ACTIVE_SETUP"
+        primary_strat = {
+            "strategy_name": "NO_ACTIVE_SETUP",
+            "state": "NO_SETUP",
+            "signal_triggered": False,
+            "setup_detected": False,
+            "invalidation_reason": "No active structural swing setup formed",
+        }
 
     # Compute default position sizing preview based on primary strategy if signal triggered
     pos_preview = {}
@@ -2076,7 +2109,7 @@ def evaluate_all_strategies(df: pd.DataFrame, trend_info: dict, momo_info: dict)
         "trend_qualified": trend_qual,
         "trend_failed_reasons": trend_reasons,
         "trend_truth_table": trend_tt,
-        "primary_strategy": primary_name if (triggered_strategies or forming_strategies) else None,
+        "primary_strategy": primary_name,
         "matching_strategies": triggered_strategies if triggered_strategies else forming_strategies,
         "active_strategy_result": primary_strat,
         "all_strategy_results": all_strategies,

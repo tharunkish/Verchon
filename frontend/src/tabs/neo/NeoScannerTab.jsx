@@ -13,6 +13,7 @@ import NumberTicker from '../../components/neo/NumberTicker';
 export default function NeoScannerTab({
   candidates = [],
   loadingScan = false,
+  regime = null,
   onRunScan,
   onSelectCandidate,
   onOpenTradeModal,
@@ -27,6 +28,9 @@ export default function NeoScannerTab({
   const [limitCount, setLimitCount] = useState(3);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const regimeScore = regime?.regime_score ?? (regime?.regime === 'HOSTILE' ? 16 : 85);
+  const isHostile = (regime?.regime === 'HOSTILE') || (regimeScore < 30);
 
   // Fetch portfolio sector exposure for diversification engine
   useEffect(() => {
@@ -229,37 +233,58 @@ export default function NeoScannerTab({
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.1 }}
-          className="relative lg:col-span-3 flex flex-col justify-between overflow-hidden rounded-3xl border border-indigo-500/20 bg-[#0a0f28]/75 p-6 backdrop-blur-3xl shadow-[0_8px_32px_rgba(99,102,241,0.06)] ring-1 ring-white/10"
+          className={`relative lg:col-span-3 flex flex-col justify-between overflow-hidden rounded-3xl border transition-colors ${
+            isHostile
+              ? 'border-rose-500/30 bg-[#160b18]/80 shadow-[0_8px_32px_rgba(244,63,94,0.08)] ring-rose-500/20'
+              : 'border-indigo-500/20 bg-[#0a0f28]/75 shadow-[0_8px_32px_rgba(99,102,241,0.06)] ring-white/10'
+          } p-6 backdrop-blur-3xl ring-1`}
         >
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Compass className="h-4 w-4 text-indigo-400" />
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-indigo-300">
+                <Compass className={`h-4 w-4 ${isHostile ? 'text-rose-400' : 'text-indigo-400'}`} />
+                <h3 className={`text-xs font-extrabold uppercase tracking-wider ${isHostile ? 'text-rose-300' : 'text-indigo-300'}`}>
                   Regime Radar
                 </h3>
               </div>
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-400 border border-emerald-500/30">
-                ACTIVE
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold border ${
+                isHostile
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+              }`}>
+                {regime?.regime || (isHostile ? 'HOSTILE' : 'ACTIVE')}
               </span>
             </div>
 
             <div className="mt-4 flex items-baseline justify-between">
-              <div className="text-2xl font-black tracking-tight text-white">SUPPORTIVE</div>
-              <div className="text-xs font-mono font-bold text-emerald-400">Score 85/100</div>
+              <div className="text-2xl font-black tracking-tight text-white">
+                {regime?.regime || (isHostile ? 'HOSTILE' : 'SUPPORTIVE')}
+              </div>
+              <div className={`text-xs font-mono font-bold ${isHostile ? 'text-rose-400' : 'text-emerald-400'}`}>
+                Score {regimeScore}/100
+              </div>
             </div>
             <p className="text-[11px] text-zinc-400 mt-1">
-              Favorable swing conditions. Pullback & breakout setups permitted.
+              {isHostile
+                ? 'Hostile trend conditions. Death cross active. 50% sizing recommended.'
+                : 'Favorable swing conditions. Pullback & breakout setups permitted.'}
             </p>
           </div>
 
           <div className="mt-4 space-y-2 border-t border-white/5 pt-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Trend Strength</span>
-              <span className="font-mono font-bold text-cyan-300">+1.4% &gt; 50DMA</span>
+              <span className="text-zinc-500">Trend Alignment</span>
+              <span className={`font-mono font-bold ${isHostile ? 'text-rose-400' : 'text-cyan-300'}`}>
+                {regime?.spread_50dma_pct !== undefined ? `${regime.spread_50dma_pct > 0 ? '+' : ''}${regime.spread_50dma_pct.toFixed(2)}% vs 50DMA` : `${regimeScore}% Quality`}
+              </span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
-              <div className="h-full w-[85%] rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" />
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isHostile ? 'bg-gradient-to-r from-rose-500 to-amber-500' : 'bg-gradient-to-r from-cyan-400 to-emerald-400'
+                }`}
+                style={{ width: `${Math.max(12, Math.min(100, regimeScore))}%` }}
+              />
             </div>
           </div>
         </motion.div>
@@ -410,6 +435,39 @@ export default function NeoScannerTab({
         </motion.div>
       )}
 
+      {/* Macro Regime Governor Warning Banner */}
+      {isHostile && (
+        <motion.div
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="rounded-3xl border border-rose-500/40 bg-gradient-to-r from-rose-950/70 via-red-950/40 to-black/70 p-4 sm:p-5 shadow-2xl shadow-rose-950/40 backdrop-blur-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6"
+        >
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="rounded-md bg-rose-500/20 px-2 py-0.5 text-[10px] font-mono font-black uppercase text-rose-300 border border-rose-500/30">
+                  MACRO REGIME GOVERNOR ACTIVE
+                </span>
+                <span className="text-xs font-mono font-bold text-rose-400">
+                  Score: {regimeScore}/100
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 mt-1">
+                NIFTY 50 is in a <strong className="text-rose-300 font-bold">HOSTILE</strong> downdraft regime. 50% position sizing is enforced to protect paper capital. High-beta breakouts carry elevated failure risk; prioritize tight-risk mean reversion or stay defensive.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+            <span className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-1.5 font-mono text-xs font-black text-rose-300">
+              ⚡ 50% SIZING
+            </span>
+          </div>
+        </motion.div>
+      )}
+
       {/* ========================================================================= */}
       {/* 3. DYNAMIC BENTO STOCK CARDS GRID                                         */}
       {/* ========================================================================= */}
@@ -476,25 +534,38 @@ export default function NeoScannerTab({
                           #{index + 1 < 10 ? `0${index + 1}` : index + 1} {isTopRanked ? 'ALPHA LEADER' : 'PICK'}
                         </span>
                         {(() => {
-                          let badgeClass = "border-white/10 bg-white/[0.04] text-zinc-300";
-                          let icon = "🎯";
-                          if (setupType.includes("SWEEP")) {
+                          let badgeClass = "border-zinc-700/50 bg-zinc-900/40 text-zinc-400";
+                          let icon = "⏸️";
+                          let label = "No Active Setup";
+
+                          if (!setupType || setupType === 'NO_ACTIVE_SETUP' || setupType === 'NO_SETUP' || setupType === 'SWING_MOMENTUM') {
+                            badgeClass = "border-zinc-800 bg-zinc-900/30 text-zinc-500";
+                            icon = "⏸️";
+                            label = "No Active Setup";
+                          } else if (setupType.includes("SWEEP")) {
                             badgeClass = "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.15)]";
                             icon = "🛡️";
+                            label = setupType.replace(/_/g, ' ');
                           } else if (setupType.includes("SQUEEZE")) {
                             badgeClass = "border-purple-500/40 bg-purple-500/15 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.15)]";
                             icon = "⚡";
+                            label = setupType.replace(/_/g, ' ');
                           } else if (setupType.includes("SNAPBACK")) {
                             badgeClass = "border-amber-500/40 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]";
                             icon = "🧲";
+                            label = setupType.replace(/_/g, ' ');
                           } else if (setupType.includes("BREAKOUT")) {
                             badgeClass = "border-cyan-500/40 bg-cyan-500/15 text-cyan-300 shadow-[0_0_12px_rgba(0,242,254,0.15)]";
                             icon = "🚀";
+                            label = setupType.replace(/_/g, ' ');
+                          } else {
+                            badgeClass = "border-white/10 bg-white/[0.04] text-zinc-300";
+                            label = setupType.replace(/_/g, ' ');
                           }
                           return (
                             <span className={`rounded-xl border px-2.5 py-1 text-[10px] font-bold flex items-center space-x-1 ${badgeClass}`}>
                               <span>{icon}</span>
-                              <span>{setupType.replace(/_/g, ' ')}</span>
+                              <span>{label}</span>
                             </span>
                           );
                         })()}
@@ -549,6 +620,14 @@ export default function NeoScannerTab({
                         </div>
                       );
                     })()}
+
+                    {/* Hostile Macro Governor 50% Sizing Notice on Card */}
+                    {(c.macro_governor?.is_hostile || isHostile) && (
+                      <div className="mt-2.5 flex items-center space-x-1.5 rounded-xl border border-rose-500/30 bg-rose-950/20 px-2.5 py-1 text-[10px] font-mono font-bold text-rose-300">
+                        <ShieldAlert className="h-3 w-3 text-rose-400 shrink-0" />
+                        <span>Hostile Regime: 50% Sizing Enforced</span>
+                      </div>
+                    )}
 
                     {/* Visual Key Levels Spectrum Bar */}
                     <div className="mt-5 rounded-2xl border border-white/5 bg-black/40 p-3.5 space-y-2.5">

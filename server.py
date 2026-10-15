@@ -673,8 +673,13 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
     formatted_sym = ta.format_nse_ticker(clean_sym)
 
     try:
-        # 1. Deterministic Candidate Analysis
-        candidate_dossier = ra.analyze_candidate(formatted_sym, as_of_date=as_of_date)
+        # 1. Deterministic Candidate Analysis with Market Regime Context
+        m_ctx = None
+        try:
+            m_ctx = mr.analyze_market_regime(as_of_date=as_of_date)
+        except Exception:
+            pass
+        candidate_dossier = ra.analyze_candidate(formatted_sym, as_of_date=as_of_date, market_context=m_ctx)
 
         # 2. Fetch 1Y OHLCV for interactive chart
         candles: List[Dict[str, Any]] = []
@@ -739,38 +744,145 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
         alpha_1m = momo_i.get("Relative_Strength_Alpha_%", {}).get("1M")
         alpha_3m = momo_i.get("Relative_Strength_Alpha_%", {}).get("3M")
 
-        rule_breakdown = [
-            {
-                "rule": "Price Above 200-Day Moving Average (Long-Term Uptrend)",
-                "passed": bool(isinstance(d200, (int, float)) and price > d200),
-                "detail": f"Price ₹{price} vs 200-day avg ₹{d200}",
-            },
-            {
-                "rule": "50-Day Average Above 200-Day Average (Bullish Trend Alignment)",
-                "passed": bool(isinstance(d200, (int, float)) and d50 > d200),
-                "detail": f"50-day avg ₹{d50} vs 200-day avg ₹{d200}",
-            },
-            {
-                "rule": "50-Day Average is Rising (Upward Momentum)",
-                "passed": bool(s50 > 0),
-                "detail": f"5-day change: ₹{s50:+.2f}",
-            },
-            {
-                "rule": "Beating Nifty 50 Over Last 3 Months (Outperforming the Market)",
-                "passed": bool(alpha_3m is not None and alpha_3m > 0),
-                "detail": f"3M Outperformance: {alpha_3m:+.1f}% vs Nifty" if alpha_3m is not None else "N/A",
-            },
-            {
-                "rule": "Reasonable Valuation (Not Overpriced / P/E < 80x)",
-                "passed": bool(candidate_dossier.get("fundamentals", {}).get("valuation", {}).get("risk") != "HIGH"),
-                "detail": f"P/E {candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('pe', 'N/A')}x ({candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('category', 'Fair')})",
-            },
-            {
-                "rule": "Active Buy Setup Triggered (Breakout or Pullback Confirmation)",
-                "passed": bool(any(s.get("signal_triggered") for s in all_strat.values())),
-                "detail": strat_eval.get("primary_strategy") or "No active setup",
-            },
-        ]
+        vol_i = t_data.get("Volume_Analysis", {})
+        active_strat = strat_eval.get("active_strategy_result", {})
+        primary_strategy = strat_eval.get("primary_strategy") or candidate_dossier.get("setup_type") or "SWING_MOMENTUM"
+        f_comps = candidate_dossier.get("fundamentals", {}).get("components", {})
+        bq_val = f_comps.get("Business Quality")
+        bq_score = bq_val.score if hasattr(bq_val, "score") else (bq_val.get("score") if isinstance(bq_val, dict) else None)
+
+        if primary_strategy == "RUBBER_BAND_SNAPBACK":
+            rule_breakdown = [
+                {
+                    "rule": "Structural Base Proximity (Price >= 200-Day Support * 0.97)",
+                    "passed": bool(isinstance(d200, (int, float)) and price >= d200 * 0.97),
+                    "detail": f"Price ₹{price} vs 200-day avg ₹{d200}",
+                },
+                {
+                    "rule": "Extreme Short-Term Exhaustion (RSI-2 <= 20 or RSI-14 <= 38)",
+                    "passed": bool(active_strat.get("setup_detected", True)),
+                    "detail": f"Oversold condition satisfied (RSI-2: {active_strat.get('rsi_2', 'Extr. Low')})",
+                },
+                {
+                    "rule": "Oversold Reversal Confirmation (Green Candle / Outside Bar)",
+                    "passed": bool(active_strat.get("signal_triggered")),
+                    "detail": "Reversal confirmed" if active_strat.get("signal_triggered") else "Awaiting reversal confirmation",
+                },
+                {
+                    "rule": "Business Quality Protection (Quality Score >= 40)",
+                    "passed": bool(bq_score is None or bq_score >= 40),
+                    "detail": f"Business Quality: {bq_score if bq_score is not None else 'N/A'}/100",
+                },
+                {
+                    "rule": "Reasonable Valuation (Not Overpriced / P/E < 80x)",
+                    "passed": bool(candidate_dossier.get("fundamentals", {}).get("valuation", {}).get("risk") != "HIGH"),
+                    "detail": f"P/E {candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('pe', 'N/A')}x ({candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('category', 'Fair')})",
+                },
+                {
+                    "rule": "Active Snapback Signal Triggered (Defined Risk/Reward >= 1.8x)",
+                    "passed": bool(active_strat.get("signal_triggered")),
+                    "detail": f"SL: ₹{active_strat.get('stop_price', '---')} | T1: ₹{active_strat.get('target_1', '---')} (R:R {active_strat.get('risk_reward_ratio', 2.0)}x)",
+                },
+            ]
+        elif primary_strategy == "LIQUIDITY_SWEEP":
+            rule_breakdown = [
+                {
+                    "rule": "Support Floor Identified (Prior 20-Day Low Baseline)",
+                    "passed": bool(active_strat.get("support_level") is not None),
+                    "detail": f"Floor established at ₹{active_strat.get('support_level', 'N/A')}",
+                },
+                {
+                    "rule": "Intraday Liquidity Sweep Below Support Floor",
+                    "passed": bool(active_strat.get("setup_detected")),
+                    "detail": f"Pierced floor to ₹{active_strat.get('sweep_low', 'N/A')}",
+                },
+                {
+                    "rule": "Absorption Reclaim (Close Held Above Support Floor)",
+                    "passed": bool(price >= (active_strat.get("support_level") or 0)),
+                    "detail": f"Close ₹{price} >= Floor ₹{active_strat.get('support_level', 'N/A')}",
+                },
+                {
+                    "rule": "Sweep Rebound Not Extended (<= 3.8% from Sweep Low)",
+                    "passed": bool(active_strat.get("state") != "EXTENDED_FROM_SWEEP"),
+                    "detail": f"Rebound: +{active_strat.get('rebound_from_sweep_pct', 0)}% (<= 3.8% limit)",
+                },
+                {
+                    "rule": "Sweep Volume Confirmation (Volume >= 1.15x Average)",
+                    "passed": bool(vol_i.get("Volume_Expansion_Ratio", 1.0) >= 1.15 or active_strat.get("signal_triggered")),
+                    "detail": f"Volume ratio: {vol_i.get('Volume_Expansion_Ratio', 1.0)}x of 20-day avg",
+                },
+                {
+                    "rule": "Active Liquidity Sweep Triggered (Tight Wick Stop)",
+                    "passed": bool(active_strat.get("signal_triggered")),
+                    "detail": f"SL: ₹{active_strat.get('stop_price', '---')} | T1: ₹{active_strat.get('target_1', '---')}",
+                },
+            ]
+        elif primary_strategy == "VOLATILITY_SQUEEZE":
+            rule_breakdown = [
+                {
+                    "rule": "Bollinger Bands Compressed Inside Keltner Channel (Squeeze)",
+                    "passed": bool(active_strat.get("setup_detected")),
+                    "detail": f"{active_strat.get('squeeze_bars_count', 0)} sessions in squeeze",
+                },
+                {
+                    "rule": "Expansion Fire Trigger (Price Piercing Upper Band)",
+                    "passed": bool(active_strat.get("signal_triggered")),
+                    "detail": "Upper band breakout confirmed" if active_strat.get("signal_triggered") else "Coiling in progress",
+                },
+                {
+                    "rule": "Directional Momentum Positive (Rising Momentum Bias)",
+                    "passed": bool(alpha_1m is not None and alpha_1m > -2.0),
+                    "detail": f"1M Alpha: {alpha_1m:+.1f}% vs Nifty" if alpha_1m is not None else "Positive",
+                },
+                {
+                    "rule": "Expansion Volume Surge (Volume >= 1.15x Average)",
+                    "passed": bool(vol_i.get("Volume_Expansion_Ratio", 1.0) >= 1.15 or active_strat.get("signal_triggered")),
+                    "detail": f"Volume ratio: {vol_i.get('Volume_Expansion_Ratio', 1.0)}x of 20-day avg",
+                },
+                {
+                    "rule": "Reasonable Valuation (Not Overpriced / P/E < 80x)",
+                    "passed": bool(candidate_dossier.get("fundamentals", {}).get("valuation", {}).get("risk") != "HIGH"),
+                    "detail": f"P/E {candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('pe', 'N/A')}x ({candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('category', 'Fair')})",
+                },
+                {
+                    "rule": "Active Volatility Squeeze Triggered (Defined Risk/Reward)",
+                    "passed": bool(active_strat.get("signal_triggered")),
+                    "detail": f"SL: ₹{active_strat.get('stop_price', '---')} | T1: ₹{active_strat.get('target_1', '---')}",
+                },
+            ]
+        else:
+            rule_breakdown = [
+                {
+                    "rule": "Price Above 200-Day Moving Average (Long-Term Uptrend)",
+                    "passed": bool(isinstance(d200, (int, float)) and price > d200),
+                    "detail": f"Price ₹{price} vs 200-day avg ₹{d200}",
+                },
+                {
+                    "rule": "50-Day Average Above 200-Day Average (Bullish Trend Alignment)",
+                    "passed": bool(isinstance(d200, (int, float)) and d50 > d200),
+                    "detail": f"50-day avg ₹{d50} vs 200-day avg ₹{d200}",
+                },
+                {
+                    "rule": "50-Day Average is Rising (Upward Momentum)",
+                    "passed": bool(s50 > 0),
+                    "detail": f"5-day change: ₹{s50:+.2f}",
+                },
+                {
+                    "rule": "Beating Nifty 50 Over Last 3 Months (Outperforming the Market)",
+                    "passed": bool(alpha_3m is not None and alpha_3m > 0),
+                    "detail": f"3M Outperformance: {alpha_3m:+.1f}% vs Nifty" if alpha_3m is not None else "N/A",
+                },
+                {
+                    "rule": "Reasonable Valuation (Not Overpriced / P/E < 80x)",
+                    "passed": bool(candidate_dossier.get("fundamentals", {}).get("valuation", {}).get("risk") != "HIGH"),
+                    "detail": f"P/E {candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('pe', 'N/A')}x ({candidate_dossier.get('fundamentals', {}).get('valuation', {}).get('category', 'Fair')})",
+                },
+                {
+                    "rule": "Active Buy Setup Triggered (Breakout or Pullback Confirmation)",
+                    "passed": bool(any(s.get("signal_triggered") for s in all_strat.values())),
+                    "detail": strat_eval.get("primary_strategy") or "No active setup",
+                },
+            ]
 
         # Check if AI dossier is available in cache
         cached_ai = AI_REPORT_CACHE["dossiers"].get(clean_sym) or AI_REPORT_CACHE["dossiers"].get(formatted_sym)

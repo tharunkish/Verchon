@@ -581,7 +581,8 @@ def render_stock_report(stock_data: Dict[str, Any], market_context: Dict[str, An
 def analyze_candidate(
     ticker: str,
     display_name: Optional[str] = None,
-    as_of_date: Optional[str] = None
+    as_of_date: Optional[str] = None,
+    market_context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Runs live fundamental scraper/analyzer and technical analyzer."""
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
@@ -628,7 +629,11 @@ def analyze_candidate(
     val_pb = fund_results.get("valuation", {}).get("pb")
     strat_eval = tech_results.get("Strategy_Evaluation", {})
     active_strat_res = strat_eval.get("active_strategy_result", {}) if isinstance(strat_eval, dict) else {}
-    primary_strat_name = strat_eval.get("primary_strategy") or active_strat_res.get("strategy_name") or "SWING_MOMENTUM"
+    raw_primary = strat_eval.get("primary_strategy") or active_strat_res.get("strategy_name")
+    if not raw_primary or raw_primary in ("None", "NO_ACTIVE_SETUP"):
+        primary_strat_name = "NO_ACTIVE_SETUP"
+    else:
+        primary_strat_name = raw_primary
 
     # Multi-Factor Fundamental Protection for new institutional strategies:
     # If Rubber Band Snapback triggered, ensure Business Quality >= 40 so we never buy garbage falling knives
@@ -644,6 +649,19 @@ def analyze_candidate(
     has_active_signal = any(
         res.get("signal_triggered") for res in strat_eval.get("all_strategy_results", {}).values()
     ) if isinstance(strat_eval, dict) else False
+
+    # Macro Regime Governor Assessment
+    regime_state = market_context.get("regime", "") if market_context else ""
+    regime_score = market_context.get("regime_score") if market_context else None
+    is_hostile_regime = (regime_state == "HOSTILE") or (regime_score is not None and regime_score < 30)
+
+    macro_governor = {
+        "is_hostile": is_hostile_regime,
+        "regime_state": regime_state or "NEUTRAL",
+        "regime_score": regime_score if regime_score is not None else 50,
+        "sizing_multiplier": 0.5 if is_hostile_regime else 1.0,
+        "warning": "⚠️ HOSTILE REGIME: 50% Position Sizing Recommended. High-beta breakouts restricted." if is_hostile_regime else None,
+    }
 
     priority_reason = ""
     if fund_qual and has_active_signal and val_risk != "HIGH":
@@ -736,6 +754,7 @@ def analyze_candidate(
         "fundamentals": fund_results,
         "technicals": tech_results,
         "strategy": strat_eval,
+        "macro_governor": macro_governor,
     }
 
 
@@ -781,7 +800,7 @@ def analyze_universe(
 
         if verbose:
             print(f"[{idx}/{total}] Processing {sym}...")
-        result = analyze_candidate(sym, dname, as_of_date=as_of_date)
+        result = analyze_candidate(sym, dname, as_of_date=as_of_date, market_context=market_context)
         evaluated_candidates.append(result)
 
     # Sort descending by overall consolidated swing score

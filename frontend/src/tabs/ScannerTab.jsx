@@ -18,6 +18,7 @@ import {
 export default function ScannerTab({
   candidates,
   loadingScan,
+  regime = null,
   onRunScan,
   onSelectCandidate,
   onOpenTradeModal,
@@ -25,6 +26,9 @@ export default function ScannerTab({
   loadingAI,
   onGenerateAIReport,
 }) {
+  const regimeScore = regime?.regime_score ?? (regime?.regime === 'HOSTILE' ? 16 : 85);
+  const isHostile = (regime?.regime === 'HOSTILE') || (regimeScore < 30);
+
   const [filterPriority, setFilterPriority] = useState('ALL');
   const [selectedSectorFilter, setSelectedSectorFilter] = useState(null);
   const [portfolioSectors, setPortfolioSectors] = useState([]);
@@ -372,6 +376,35 @@ export default function ScannerTab({
         </div>
       )}
 
+      {/* Macro Regime Governor Warning Banner */}
+      {isHostile && (
+        <div className="mb-5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-950/70 via-red-950/40 to-black/70 p-4 font-mono shadow-2xl shadow-rose-950/40 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-300 border border-rose-500/30">
+                  MACRO REGIME GOVERNOR ACTIVE
+                </span>
+                <span className="text-xs font-bold text-rose-400">
+                  Score: {regimeScore}/100
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 mt-1">
+                NIFTY 50 is in a <strong className="text-rose-300 font-bold">HOSTILE</strong> downdraft regime. 50% position sizing is enforced to protect capital. High-beta breakouts carry elevated failure risk; prioritize tight-risk mean reversion or stay defensive.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+            <span className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300">
+              ⚡ 50% SIZING
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 3. Candidate Grid */}
       {loadingScan ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#0c0c10]/80 p-16 text-center shadow-2xl backdrop-blur-xl">
@@ -484,9 +517,17 @@ export default function ScannerTab({
                     <div className="flex items-center justify-between text-zinc-400">
                       <span>Chart Pattern:</span>
                       <span className="font-mono text-zinc-300">
-                        {c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy || 'No active setup'}
+                        {c.setup_type === 'NO_ACTIVE_SETUP' ? 'No active setup' : (c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy || 'No active setup')}
                       </span>
                     </div>
+
+                    {/* Hostile Regime Sizing Warning */}
+                    {(c.macro_governor?.is_hostile || isHostile) && (
+                      <div className="mt-1 flex items-center space-x-1.5 rounded border border-rose-500/30 bg-rose-950/20 px-2 py-0.5 text-[10px] font-mono font-bold text-rose-300">
+                        <ShieldAlert className="h-3 w-3 text-rose-400 shrink-0" />
+                        <span>Hostile Regime: 50% Sizing Enforced</span>
+                      </div>
+                    )}
 
                     {/* Dynamic Strategy Badge & Levels */}
                     {(() => {
@@ -494,7 +535,7 @@ export default function ScannerTab({
                       const stop = c.stop_loss || c.strategy?.active_strategy_result?.stop_price;
                       const t1 = c.target_1 || c.strategy?.active_strategy_result?.target_1;
                       const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
-                      if (!strat || strat === 'None' || strat === 'SWING_MOMENTUM') return null;
+                      if (!strat || strat === 'None' || strat === 'SWING_MOMENTUM' || strat === 'NO_ACTIVE_SETUP' || strat === 'NO_SETUP') return null;
 
                       let badgeStyle = "border-zinc-700 bg-zinc-800 text-zinc-300";
                       let icon = "🎯";

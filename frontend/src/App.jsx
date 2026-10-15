@@ -520,6 +520,7 @@ export default function App() {
             <NeoScannerTab
               candidates={candidates}
               loadingScan={loadingScan}
+              regime={regime}
               onRunScan={handleRunScan}
               onSelectCandidate={(ticker) => {
                 setSelectedTicker(ticker);
@@ -534,6 +535,7 @@ export default function App() {
             <ScannerTab
               candidates={candidates}
               loadingScan={loadingScan}
+              regime={regime}
               onRunScan={handleRunScan}
               onSelectCandidate={(ticker) => {
                 setSelectedTicker(ticker);
