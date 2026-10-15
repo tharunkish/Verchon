@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { 
   Play, Sparkles, Filter, ChevronRight, X, AlertCircle, ShieldAlert, ShieldCheck, 
   Clock, Zap, ArrowUpRight, CheckCircle2, TrendingUp, Layers, Target, Compass, 
-  Activity, BarChart3, Search, ChevronDown, Check, ArrowRight
+  Activity, BarChart3, Search, ChevronDown, Check, ArrowRight, Globe
 } from 'lucide-react';
 import SpotlightTiltCard from '../../components/neo/SpotlightTiltCard';
 import BorderBeam from '../../components/neo/BorderBeam';
@@ -21,18 +21,97 @@ export default function NeoScannerTab({
   onGenerateAIReport,
 }) {
   const [filterPriority, setFilterPriority] = useState('ALL');
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState(null);
+  const [portfolioSectors, setPortfolioSectors] = useState([]);
   const [universeSelect, setUniverseSelect] = useState('fast3');
   const [limitCount, setLimitCount] = useState(3);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCandidates = candidates.filter((c) => {
-    const matchesPriority = filterPriority === 'ALL' || c.priority === filterPriority;
+  // Fetch portfolio sector exposure for diversification engine
+  useEffect(() => {
+    fetch('/api/paper-trades/sector-exposure')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.sectors) setPortfolioSectors(data.sectors);
+      })
+      .catch(() => {});
+  }, []);
+
+  const getSectorExposurePct = (secName) => {
+    if (!secName || !portfolioSectors || portfolioSectors.length === 0) return 0;
+    const match = portfolioSectors.find(
+      (ps) => ps.sector?.toLowerCase() === secName.toLowerCase()
+    );
+    return match ? match.percentage : 0;
+  };
+
+  const getSectorImpactInfo = (secName) => {
+    if (!secName) return null;
+    const currentPct = getSectorExposurePct(secName);
+    if (currentPct === 0) {
+      return {
+        type: 'NEW_SECTOR',
+        label: `🌱 New Sector: ${secName} (0% in Portfolio)`,
+        badge: 'border-emerald-500/50 bg-emerald-950/40 text-emerald-300',
+        bonus: 35,
+      };
+    } else if (currentPct < 15) {
+      return {
+        type: 'BALANCED',
+        label: `🔵 Balances: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
+        badge: 'border-cyan-500/50 bg-cyan-950/40 text-cyan-300',
+        bonus: 15,
+      };
+    } else if (currentPct > 25) {
+      return {
+        type: 'OVERWEIGHT',
+        label: `⚠️ Overweight: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
+        badge: 'border-amber-500/60 bg-amber-950/50 text-amber-300',
+        bonus: -30,
+      };
+    }
+    return {
+      type: 'NEUTRAL',
+      label: `${secName} (${currentPct.toFixed(1)}%)`,
+      badge: 'border-white/10 bg-black/40 text-zinc-300',
+      bonus: 0,
+    };
+  };
+
+  const allScannedSectors = Array.from(
+    new Set(candidates.map((c) => c.sector || c.fundamentals?.sector).filter(Boolean))
+  );
+  const missingSectors = allScannedSectors.filter((sec) => getSectorExposurePct(sec) === 0);
+
+  let filteredCandidates = candidates.filter((c) => {
+    if (filterPriority === 'SECTOR DIVERSITY') {
+      if (c.priority === 'AVOID / FILTERED OUT') return false;
+      if (selectedSectorFilter) {
+        const sec = c.sector || c.fundamentals?.sector;
+        if (sec?.toLowerCase() !== selectedSectorFilter.toLowerCase()) return false;
+      }
+    } else if (filterPriority !== 'ALL' && c.priority !== filterPriority) {
+      return false;
+    }
+
     const matchesSearch = searchQuery === '' || 
       c.ticker.toLowerCase().includes(searchQuery.toLowerCase()) || 
       (c.company_name && c.company_name.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesPriority && matchesSearch;
+    return matchesSearch;
   });
+
+  if (filterPriority === 'SECTOR DIVERSITY') {
+    filteredCandidates = [...filteredCandidates].sort((a, b) => {
+      const secA = a.sector || a.fundamentals?.sector;
+      const secB = b.sector || b.fundamentals?.sector;
+      const bonusA = getSectorImpactInfo(secA)?.bonus || 0;
+      const bonusB = getSectorImpactInfo(secB)?.bonus || 0;
+      const scoreA = (a.overall_score || 0) + bonusA;
+      const scoreB = (b.overall_score || 0) + bonusB;
+      return scoreB - scoreA;
+    });
+  }
 
   const handleScanSubmit = () => {
     if (universeSelect === 'fast3') {
@@ -47,6 +126,7 @@ export default function NeoScannerTab({
     { id: 'SIGNAL TRIGGERED', label: '⚡ Signal Triggered', count: candidates.filter((c) => c.priority === 'SIGNAL TRIGGERED').length, color: 'text-emerald-400' },
     { id: 'HIGH PRIORITY', label: '💎 High Alpha', count: candidates.filter((c) => c.priority === 'HIGH PRIORITY').length, color: 'text-cyan-400' },
     { id: 'WATCHLIST', label: '👁️ Watchlist', count: candidates.filter((c) => c.priority === 'WATCHLIST').length, color: 'text-amber-400' },
+    { id: 'SECTOR DIVERSITY', label: '🌐 Sector Diversity', count: candidates.filter((c) => c.priority !== 'AVOID / FILTERED OUT').length, color: 'text-emerald-300' },
     { id: 'AVOID / FILTERED OUT', label: '🛡️ Filtered Out', count: candidates.filter((c) => c.priority === 'AVOID / FILTERED OUT').length, color: 'text-rose-400' },
   ];
 
@@ -265,6 +345,72 @@ export default function NeoScannerTab({
       </div>
 
       {/* ========================================================================= */}
+      {/* 2.1 PORTFOLIO SECTOR GAP BANNER (DIVERSIFICATION PICK ENGINE)             */}
+      {/* ========================================================================= */}
+      {filterPriority === 'SECTOR DIVERSITY' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-[#0a1215]/80 to-emerald-950/40 p-5 backdrop-blur-3xl shadow-[0_8px_32px_rgba(16,185,129,0.08)] ring-1 ring-emerald-500/20"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3 mb-3">
+            <div className="flex items-center space-x-2 text-emerald-400">
+              <Globe className="h-4 w-4" />
+              <span className="text-xs font-extrabold uppercase tracking-wider">
+                Portfolio Sector Gap Analysis · Diversification Pick Engine
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-zinc-400">
+              Underweight Sector Bonus applied · Click a sector to isolate picks
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-zinc-400 font-bold">Missing Sectors (0% Exposure):</span>
+            {missingSectors.length > 0 ? (
+              missingSectors.map((sec) => {
+                const count = candidates.filter(
+                  (c) => (c.sector === sec || c.fundamentals?.sector === sec) && c.priority !== 'AVOID / FILTERED OUT'
+                ).length;
+                const isSelected = selectedSectorFilter?.toLowerCase() === sec.toLowerCase();
+
+                return (
+                  <button
+                    key={sec}
+                    onClick={() => setSelectedSectorFilter(isSelected ? null : sec)}
+                    className={`flex items-center space-x-1.5 rounded-xl border px-3 py-1 text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'border-emerald-400 bg-emerald-400 text-black shadow-md shadow-emerald-400/20'
+                        : 'border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-500/50'
+                    }`}
+                  >
+                    <span>{sec}</span>
+                    <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                      isSelected ? 'bg-black/20 text-black font-extrabold' : 'bg-emerald-900/60 text-emerald-200'
+                    }`}>
+                      {count} viable
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <span className="text-xs text-zinc-500 font-mono">All scanned sectors currently represented in portfolio.</span>
+            )}
+
+            {selectedSectorFilter && (
+              <button
+                onClick={() => setSelectedSectorFilter(null)}
+                className="flex items-center space-x-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300 hover:text-white transition"
+              >
+                <X className="h-3 w-3" />
+                <span>Show All Divergent</span>
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 3. DYNAMIC BENTO STOCK CARDS GRID                                         */}
       {/* ========================================================================= */}
       {filteredCandidates.length === 0 ? (
@@ -361,6 +507,28 @@ export default function NeoScannerTab({
                         </span>
                       </div>
                     </div>
+
+                    {/* Sector & Dynamic Portfolio Diversification Impact Pill */}
+                    {(() => {
+                      const sec = c.sector || c.fundamentals?.sector;
+                      const impact = getSectorImpactInfo(sec);
+                      if (!impact && !sec) return null;
+                      return (
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                          {sec && (
+                            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+                              {sec}
+                            </span>
+                          )}
+                          {impact && (
+                            <span className={`inline-flex items-center space-x-1 rounded-lg border px-2 py-0.5 text-[10px] font-mono font-bold tracking-wide ${impact.badge}`}>
+                              {impact.type === 'NEW_SECTOR' && <Globe className="h-2.5 w-2.5 mr-0.5 text-emerald-400" />}
+                              <span>{impact.label}</span>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Visual Key Levels Spectrum Bar */}
                     <div className="mt-5 rounded-2xl border border-white/5 bg-black/40 p-3.5 space-y-2.5">

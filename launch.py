@@ -39,7 +39,7 @@ def main():
                     except OSError:
                         break
                 time.sleep(0.6)  # Give OS networking stack time to recycle port 8000
-                print("  [✓] Previous instance fully exited. Proceeding with clean boot.")
+                print("  [OK] Previous instance fully exited. Proceeding with clean boot.")
         except Exception as e:
             print(f"  [!] Wait for PID check: {e}")
 
@@ -65,8 +65,8 @@ def main():
     if "--no-browser" not in sys.argv:
         threading.Thread(target=wait_and_open_browser, daemon=True).start()
 
-    print("\n  [✓] Starting server engine...")
-    print("  [✓] Local AI Model: Huihui-Qwen3.5-4B (Auto-boots with Verchon)")
+    print("\n  [OK] Starting server engine...")
+    print("  [OK] Local AI Model: Qwen 2.5 Coder 7B (Auto-boots with Verchon)")
     print("  [!] Close this window or press Ctrl+C to exit and stop the server.\n")
     print("=" * 65 + "\n")
 

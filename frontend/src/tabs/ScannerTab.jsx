@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Play, Sparkles, Filter, ChevronRight, X, AlertCircle, ShieldAlert, ShieldCheck, Clock } from 'lucide-react';
+import { 
+  Play, 
+  Sparkles, 
+  Filter, 
+  ChevronRight, 
+  X, 
+  AlertCircle, 
+  ShieldAlert, 
+  ShieldCheck, 
+  Clock,
+  Globe,
+  PieChart,
+  Layers
+} from 'lucide-react';
 
 export default function ScannerTab({
   candidates,
@@ -13,6 +26,8 @@ export default function ScannerTab({
   onGenerateAIReport,
 }) {
   const [filterPriority, setFilterPriority] = useState('ALL');
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState(null);
+  const [portfolioSectors, setPortfolioSectors] = useState([]);
   const [universeSelect, setUniverseSelect] = useState(() => {
     try {
       return localStorage.getItem('verchon_scanner_universe') || 'nifty100';
@@ -59,10 +74,90 @@ export default function ScannerTab({
     return () => clearInterval(timer);
   }, [loadingAI]);
 
-  const filteredCandidates = candidates.filter((c) => {
+  // Fetch portfolio sector exposure for diversification engine
+  useEffect(() => {
+    fetch('/api/paper-trades/sector-exposure')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.sectors) setPortfolioSectors(data.sectors);
+      })
+      .catch(() => {});
+  }, []);
+
+  const getSectorExposurePct = (secName) => {
+    if (!secName || !portfolioSectors || portfolioSectors.length === 0) return 0;
+    const match = portfolioSectors.find(
+      (ps) => ps.sector?.toLowerCase() === secName.toLowerCase()
+    );
+    return match ? match.percentage : 0;
+  };
+
+  const getSectorImpactInfo = (secName) => {
+    if (!secName) return null;
+    const currentPct = getSectorExposurePct(secName);
+    if (currentPct === 0) {
+      return {
+        type: 'NEW_SECTOR',
+        label: `🌱 New Sector: ${secName} (0% in Portfolio)`,
+        badge: 'border-emerald-500/50 bg-emerald-950/40 text-emerald-300',
+        bonus: 35,
+      };
+    } else if (currentPct < 15) {
+      return {
+        type: 'BALANCED',
+        label: `🔵 Balances: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
+        badge: 'border-blue-500/50 bg-blue-950/40 text-blue-300',
+        bonus: 15,
+      };
+    } else if (currentPct > 25) {
+      return {
+        type: 'OVERWEIGHT',
+        label: `⚠️ Overweight: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
+        badge: 'border-amber-500/60 bg-amber-950/50 text-amber-300',
+        bonus: -30,
+      };
+    }
+    return {
+      type: 'NEUTRAL',
+      label: `${secName} (${currentPct.toFixed(1)}%)`,
+      badge: 'border-zinc-700 bg-zinc-800 text-zinc-300',
+      bonus: 0,
+    };
+  };
+
+  // Identify all scanned sectors and those completely missing from portfolio
+  const allScannedSectors = Array.from(
+    new Set(candidates.map((c) => c.sector || c.fundamentals?.sector).filter(Boolean))
+  );
+  const missingSectors = allScannedSectors.filter((sec) => getSectorExposurePct(sec) === 0);
+
+  let filteredCandidates = candidates.filter((c) => {
+    if (filterPriority === 'SECTOR DIVERSITY') {
+      // Exclude AVOID / FILTERED OUT so quality is never compromised
+      if (c.priority === 'AVOID / FILTERED OUT') return false;
+      // If a specific missing sector chip was selected in the banner
+      if (selectedSectorFilter) {
+        const sec = c.sector || c.fundamentals?.sector;
+        return sec?.toLowerCase() === selectedSectorFilter.toLowerCase();
+      }
+      return true;
+    }
     if (filterPriority === 'ALL') return true;
     return c.priority === filterPriority;
   });
+
+  if (filterPriority === 'SECTOR DIVERSITY') {
+    // Rank by: Overall Score + Sector Diversification Bonus
+    filteredCandidates = [...filteredCandidates].sort((a, b) => {
+      const secA = a.sector || a.fundamentals?.sector;
+      const secB = b.sector || b.fundamentals?.sector;
+      const bonusA = getSectorImpactInfo(secA)?.bonus || 0;
+      const bonusB = getSectorImpactInfo(secB)?.bonus || 0;
+      const scoreA = (a.overall_score || 0) + bonusA;
+      const scoreB = (b.overall_score || 0) + bonusB;
+      return scoreB - scoreA;
+    });
+  }
 
   const handleScanSubmit = () => {
     if (universeSelect === 'fast3') {
@@ -187,20 +282,28 @@ export default function ScannerTab({
 
       {/* 2. Priority Filter Bar */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Filter className="h-3.5 w-3.5 text-zinc-500" />
           <span className="font-mono text-xs text-zinc-500">FILTER BY PRIORITY:</span>
-          {['ALL', 'SIGNAL TRIGGERED', 'HIGH PRIORITY', 'WATCHLIST', 'AVOID / FILTERED OUT'].map((p) => (
+          {['ALL', 'SIGNAL TRIGGERED', 'HIGH PRIORITY', 'WATCHLIST', 'SECTOR DIVERSITY', 'AVOID / FILTERED OUT'].map((p) => (
             <button
               key={p}
-              onClick={() => setFilterPriority(p)}
-              className={`rounded-full px-3 py-1 font-mono text-[11px] transition ${
+              onClick={() => {
+                setFilterPriority(p);
+                if (p !== 'SECTOR DIVERSITY') setSelectedSectorFilter(null);
+              }}
+              className={`rounded-full px-3 py-1 font-mono text-[11px] transition flex items-center space-x-1 ${
                 filterPriority === p
-                  ? 'bg-zinc-200 font-semibold text-zinc-900'
+                  ? p === 'SECTOR DIVERSITY'
+                    ? 'bg-emerald-400 font-bold text-zinc-950 shadow-md shadow-emerald-950/50'
+                    : 'bg-zinc-200 font-semibold text-zinc-900'
+                  : p === 'SECTOR DIVERSITY'
+                  ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/50 hover:bg-emerald-900/50'
                   : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
               }`}
             >
-              {p}
+              {p === 'SECTOR DIVERSITY' && <Globe className="h-3 w-3 mr-1" />}
+              <span>{p}</span>
             </button>
           ))}
         </div>
@@ -208,6 +311,66 @@ export default function ScannerTab({
           Showing {filteredCandidates.length} of {candidates.length} candidates
         </span>
       </div>
+
+      {/* Portfolio Sector Gap Banner (Active when SECTOR DIVERSITY filter selected) */}
+      {filterPriority === 'SECTOR DIVERSITY' && (
+        <div className="mb-5 rounded-xl border border-emerald-900/40 bg-gradient-to-r from-emerald-950/30 via-[#0a0f12] to-emerald-950/30 p-4 font-mono shadow-lg backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-900/30 pb-2.5 mb-3">
+            <div className="flex items-center space-x-2 text-emerald-400">
+              <Globe className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                PORTFOLIO SECTOR GAP ANALYSIS (DIVERSIFICATION PICK ENGINE)
+              </span>
+            </div>
+            <span className="text-[10px] text-zinc-400">
+              Underweight Sector Bonus applied · Click a sector to isolate picks
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-zinc-400">Missing Sectors (0% Exposure):</span>
+            {missingSectors.length > 0 ? (
+              missingSectors.map((sec) => {
+                const count = candidates.filter(
+                  (c) => (c.sector === sec || c.fundamentals?.sector === sec) && c.priority !== 'AVOID / FILTERED OUT'
+                ).length;
+                const isSelected = selectedSectorFilter?.toLowerCase() === sec.toLowerCase();
+
+                return (
+                  <button
+                    key={sec}
+                    onClick={() => setSelectedSectorFilter(isSelected ? null : sec)}
+                    className={`flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-xs transition ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-500 text-zinc-950 font-bold shadow-md'
+                        : 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-700'
+                    }`}
+                  >
+                    <span>{sec}</span>
+                    <span className={`rounded px-1.5 py-0.2 text-[10px] ${
+                      isSelected ? 'bg-zinc-950 text-emerald-300' : 'bg-emerald-900/70 text-emerald-200'
+                    }`}>
+                      {count} viable
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <span className="text-xs text-zinc-500">All scanned sectors currently represented in portfolio.</span>
+            )}
+
+            {selectedSectorFilter && (
+              <button
+                onClick={() => setSelectedSectorFilter(null)}
+                className="flex items-center space-x-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:text-white transition"
+              >
+                <X className="h-3 w-3" />
+                <span>Show All Divergent</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 3. Candidate Grid */}
       {loadingScan ? (
@@ -261,6 +424,19 @@ export default function ScannerTab({
                       <div className="mt-0.5 text-xs text-zinc-400">
                         {c.name} · {c.sector}
                       </div>
+
+                      {/* Dynamic Sector Impact Badge */}
+                      {(() => {
+                        const impact = getSectorImpactInfo(c.sector || f.sector);
+                        if (!impact) return null;
+                        return (
+                          <div className="mt-1.5 flex items-center">
+                            <span className={`inline-flex items-center space-x-1 rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${impact.badge}`}>
+                              <span>{impact.label}</span>
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold ${getPriorityStyle(c.priority)}`}>
                       {c.priority}
