@@ -1,46 +1,79 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  /* Apple Light Mode Palette */
+  --bg-canvas: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ffffff;
+  --bg-subtle: #e5e5ea;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --accent-blue: #0071e3;
+  --accent-green: #34c759;
+  --accent-rose: #ff3b30;
+  --accent-amber: #ff9500;
+  color-scheme: light;
+}
+
+.dark {
+  /* Apple Dark Mode Palette */
+  --bg-canvas: #0b0d13;
+  --bg-surface: #151821;
+  --bg-surface-elevated: #1d212c;
+  --bg-subtle: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #f5f5f7;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --accent-blue: #2997ff;
+  --accent-green: #30d158;
+  --accent-rose: #ff453a;
+  --accent-amber: #ff9f0a;
   color-scheme: dark;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #050507;
-  color: #f4f4f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
-  background-color: rgba(225, 29, 72, 0.4);
-  color: #ffffff;
+  background-color: rgba(0, 113, 227, 0.25);
+  color: inherit;
 }
 
-/* Custom minimal dark scrollbars with subtle crimson glow */
+/* Apple-style minimalist scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #050507;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #230810;
-  border-radius: 3px;
-  border: 1px solid rgba(225, 29, 72, 0.15);
+  background: rgba(120, 120, 128, 0.3);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #470e1c;
+  background: rgba(120, 120, 128, 0.5);
 }
 
-/* Monospace font utility for numbers and financial data */
-.font-mono-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+/* Tabular figures for financial numbers & prices */
+.tabular-nums, .font-mono-num {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* Smooth Hardware-Accelerated Ambient Animations */

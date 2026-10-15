@@ -29,26 +29,70 @@ export function normalizeTicker(input) {
 export default function App() {
   const { addToast } = useToast();
 
-  const getInitialTheme = () => {
+  const getInitialThemeStyle = () => {
     try {
-      return localStorage.getItem('verchon_theme_mode') || 'neo-vision';
+      const saved = localStorage.getItem('verchon_theme_style');
+      if (saved) return saved;
+      const legacy = localStorage.getItem('verchon_theme_mode');
+      if (legacy === 'classic-terminal' || legacy === 'terminal') return 'terminal';
+      return 'apple';
     } catch {
-      return 'neo-vision';
+      return 'apple';
     }
   };
 
-  const [themeMode, setThemeModeState] = useState(getInitialTheme);
+  const getInitialColorMode = () => {
+    try {
+      const saved = localStorage.getItem('verchon_color_mode');
+      if (saved === 'light' || saved === 'dark') return saved;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+      return 'dark';
+    } catch {
+      return 'dark';
+    }
+  };
+
+  const [themeStyle, setThemeStyleState] = useState(getInitialThemeStyle);
+  const [colorMode, setColorModeState] = useState(getInitialColorMode);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
 
-  const setThemeMode = (mode) => {
-    setThemeModeState(mode);
+  const setThemeStyle = (style) => {
+    setThemeStyleState(style);
     try {
-      localStorage.setItem('verchon_theme_mode', mode);
+      localStorage.setItem('verchon_theme_style', style);
     } catch (err) {
-      console.warn('Failed to save theme preference:', err);
+      console.warn('Failed to save theme style preference:', err);
     }
   };
+
+  const setColorMode = (mode) => {
+    setColorModeState(mode);
+    try {
+      localStorage.setItem('verchon_color_mode', mode);
+      if (mode === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (err) {
+      console.warn('Failed to save color mode preference:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (colorMode === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [colorMode]);
+
+  // Backward-compatibility alias for components expecting themeMode
+  const themeMode = themeStyle;
+  const setThemeMode = setThemeStyle;
 
   const getInitialTab = () => {
     try {
@@ -477,12 +521,21 @@ export default function App() {
     setIsGlobalOrderModalOpen(true);
   };
 
-  const isNeo = themeMode === 'neo-vision';
+  const isNeo = themeStyle === 'neo-vision';
 
   return (
-    <div className={`relative min-h-screen w-full overflow-x-hidden bg-[#050508] text-zinc-100 ${isNeo ? 'font-sans' : 'font-mono'}`}>
-      {/* Option A: Classic Terminal Aura / Option B: Aurora Background */}
-      {isNeo ? <AuroraBackground /> : <BackgroundAura />}
+    <div className={`relative min-h-screen w-full overflow-x-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-200 ${themeStyle === 'terminal' ? 'font-mono' : 'font-sans'}`}>
+      {/* Ambient Lighting Canvas */}
+      {themeStyle === 'apple' ? (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-40 dark:opacity-25 transition-opacity duration-500">
+          <div className="absolute -top-[25%] -left-[10%] h-[600px] w-[600px] rounded-full bg-blue-500/10 blur-[140px] dark:bg-blue-600/15" />
+          <div className="absolute top-[20%] -right-[15%] h-[600px] w-[600px] rounded-full bg-indigo-500/10 blur-[150px] dark:bg-indigo-600/15" />
+        </div>
+      ) : isNeo ? (
+        <AuroraBackground />
+      ) : (
+        <BackgroundAura />
+      )}
 
       {/* Option B: Neo Dynamic Island */}
       {isNeo && (
@@ -499,7 +552,7 @@ export default function App() {
         />
       )}
 
-      {/* Option A: Classic Monospace Header */}
+      {/* Header */}
       {!isNeo && (
         <Header
           regime={regime}
@@ -508,7 +561,9 @@ export default function App() {
           onOpenCommandK={() => setIsCommandKOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenRestartModal={() => setIsRestartModalOpen(true)}
-          themeMode={themeMode}
+          themeStyle={themeStyle}
+          colorMode={colorMode}
+          setColorMode={setColorMode}
         />
       )}
 
@@ -639,6 +694,10 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        themeStyle={themeStyle}
+        setThemeStyle={setThemeStyle}
+        colorMode={colorMode}
+        setColorMode={setColorMode}
         themeMode={themeMode}
         setThemeMode={setThemeMode}
         onOpenRestartModal={() => setIsRestartModalOpen(true)}

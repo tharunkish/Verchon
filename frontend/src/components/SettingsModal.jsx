@@ -1,14 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Terminal, Palette, Monitor, Zap, Shield, Check, RotateCcw } from 'lucide-react';
+import { X, Terminal, Palette, Zap, Shield, Check, RotateCcw, Sun, Moon, Sparkles, Monitor } from 'lucide-react';
 
 export default function SettingsModal({
   isOpen,
   onClose,
+  themeStyle = 'apple',
+  setThemeStyle,
+  colorMode = 'dark',
+  setColorMode,
   themeMode,
   setThemeMode,
   onOpenRestartModal,
 }) {
+  const activeThemeStyle = themeStyle || themeMode || 'apple';
+  const handleSelectThemeStyle = (style) => {
+    if (setThemeStyle) setThemeStyle(style);
+    if (setThemeMode) setThemeMode(style);
+  };
+
   const [aiProvider, setAiProvider] = useState(() => {
     try {
       return localStorage.getItem('verchon_ai_provider') || 'qwen';
@@ -46,193 +56,256 @@ export default function SettingsModal({
 
   if (!isOpen) return null;
 
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 p-6 shadow-2xl backdrop-blur-2xl ring-1 ring-white/[0.05]"
+          initial={{ scale: 0.95, opacity: 0, y: 10 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 10 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+          className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 shadow-2xl backdrop-blur-2xl transition-colors duration-200"
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
             <div className="flex items-center space-x-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/20 to-purple-500/20 text-rose-400 border border-rose-500/30">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 dark:bg-blue-500/20 dark:text-blue-400">
                 <Palette className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-zinc-100">Workstation UI & Theme Engine</h3>
-                <p className="text-[11px] text-zinc-400">Switch between distinct visual designs and ergonomics.</p>
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">Workstation Preferences</h3>
+                <p className="text-[11px] text-[var(--text-secondary)]">Personalize theme design, color appearance, and AI engine.</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 transition"
+              className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--border-subtle)] hover:text-[var(--text-primary)] transition"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Theme Selection Cards */}
-          <div className="mt-5 space-y-3">
-            <label className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-              Select Workspace Interface:
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {/* Option A: Terminal Core */}
-              <div
-                onClick={() => setThemeMode('terminal')}
-                className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
-                  themeMode === 'terminal'
-                    ? 'border-rose-500/60 bg-gradient-to-b from-rose-500/10 via-zinc-900 to-zinc-950 shadow-lg shadow-rose-950/40 ring-1 ring-rose-500/30'
-                    : 'border-white/[0.08] bg-zinc-900/40 hover:border-white/20 hover:bg-zinc-900/70'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Terminal className="h-4 w-4 text-zinc-400 group-hover:text-rose-400 transition" />
-                    <span className="font-mono text-xs font-bold text-zinc-200">Terminal Core</span>
+          <div className="mt-5 space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Appearance Mode: Light vs Dark */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary)] uppercase">
+                Color Appearance
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Dark Mode */}
+                <button
+                  type="button"
+                  onClick={() => setColorMode && setColorMode('dark')}
+                  className={`flex items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                    colorMode === 'dark'
+                      ? 'border-blue-500 bg-blue-500/10 shadow-sm ring-1 ring-blue-500/30'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-zinc-100 border border-zinc-700">
+                      <Moon className="h-3.5 w-3.5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[var(--text-primary)]">Dark Mode</div>
+                      <div className="text-[10px] text-[var(--text-secondary)]">Deep obsidian, high contrast</div>
+                    </div>
                   </div>
-                  {themeMode === 'terminal' && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">
+                  {colorMode === 'dark' && (
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
                       <Check className="h-2.5 w-2.5" />
                     </span>
                   )}
-                </div>
-                <p className="font-mono text-[10px] text-zinc-400 leading-relaxed">
-                  Gritty high-density monospace layout. Classic top tabs, developer console, and compact data tables.
-                </p>
-                <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px] text-zinc-500">
-                  <span className="rounded bg-zinc-800 px-1 py-0.5">Bloomberg Style</span>
-                  <span className="rounded bg-zinc-800 px-1 py-0.5">Fast</span>
-                </div>
+                </button>
+
+                {/* Light Mode */}
+                <button
+                  type="button"
+                  onClick={() => setColorMode && setColorMode('light')}
+                  className={`flex items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${
+                    colorMode === 'light'
+                      ? 'border-blue-500 bg-blue-500/10 shadow-sm ring-1 ring-blue-500/30'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700 border border-amber-300">
+                      <Sun className="h-3.5 w-3.5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[var(--text-primary)]">Light Mode</div>
+                      <div className="text-[10px] text-[var(--text-secondary)]">Apple canvas, clean & crisp</div>
+                    </div>
+                  </div>
+                  {colorMode === 'light' && (
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+                      <Check className="h-2.5 w-2.5" />
+                    </span>
+                  )}
+                </button>
               </div>
+            </div>
 
-              {/* Option B: Neo-Vision OS */}
-              <div
-                onClick={() => setThemeMode('neo-vision')}
-                className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
-                  themeMode === 'neo-vision'
-                    ? 'border-rose-500/60 bg-gradient-to-b from-rose-500/15 via-purple-950/20 to-zinc-950 shadow-lg shadow-rose-950/50 ring-1 ring-rose-500/40'
-                    : 'border-white/[0.08] bg-zinc-900/40 hover:border-white/20 hover:bg-zinc-900/70'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Sparkles className="h-4 w-4 text-purple-400 group-hover:text-rose-400 transition" />
-                    <span className="font-sans text-xs font-extrabold text-zinc-100">Neo-Vision OS</span>
+            {/* Theme Style: Apple Native vs Terminal Monospace */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary)] uppercase">
+                Theme Design Style
+              </label>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Option 1: Apple Native */}
+                <div
+                  onClick={() => handleSelectThemeStyle('apple')}
+                  className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
+                    activeThemeStyle === 'apple'
+                      ? 'border-blue-500 bg-blue-500/10 shadow-sm ring-1 ring-blue-500/30'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4 text-blue-500" />
+                      <span className="text-xs font-bold text-[var(--text-primary)]">Apple Native</span>
+                    </div>
+                    {activeThemeStyle === 'apple' && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+                        <Check className="h-2.5 w-2.5" />
+                      </span>
+                    )}
                   </div>
-                  {themeMode === 'neo-vision' && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">
-                      <Check className="h-2.5 w-2.5" />
-                    </span>
-                  )}
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    Polished Apple ergonomics. Clean SF Pro typography, tactile spacing, frosted glass, zero bloat.
+                  </p>
+                  <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
+                    <span className="rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-semibold">Recommended</span>
+                    <span className="rounded bg-[var(--border-subtle)] text-[var(--text-secondary)] px-1.5 py-0.5">Dual View</span>
+                  </div>
                 </div>
-                <p className="text-[10px] text-zinc-400 leading-relaxed">
-                  Ultra-aesthetic Magic UI. Floating magnetic dock, dynamic island, 3D tilt cards, and massive hero prices.
-                </p>
-                <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
-                  <span className="rounded bg-purple-950/60 text-purple-300 border border-purple-800/40 px-1 py-0.5">3D Bento</span>
-                  <span className="rounded bg-rose-950/60 text-rose-300 border border-rose-800/40 px-1 py-0.5">Vegas Ticker</span>
+
+                {/* Option 2: Terminal Monospace */}
+                <div
+                  onClick={() => handleSelectThemeStyle('terminal')}
+                  className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
+                    activeThemeStyle === 'terminal'
+                      ? 'border-blue-500 bg-blue-500/10 shadow-sm ring-1 ring-blue-500/30'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Terminal className="h-4 w-4 text-zinc-400 group-hover:text-zinc-200 transition" />
+                      <span className="font-mono text-xs font-bold text-[var(--text-primary)]">Terminal Monospace</span>
+                    </div>
+                    {activeThemeStyle === 'terminal' && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+                        <Check className="h-2.5 w-2.5" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    Deterministic developer monospace layout. High-density data grids and classic terminal vibes.
+                  </p>
+                  <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px] text-[var(--text-muted)]">
+                    <span className="rounded bg-[var(--border-subtle)] px-1.5 py-0.5">Density</span>
+                    <span className="rounded bg-[var(--border-subtle)] px-1.5 py-0.5">Classic</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* AI Engine Selection Cards */}
-          <div className="mt-5 space-y-3">
-            <label className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-              AI Intelligence Engine:
-            </label>
+            {/* AI Engine Selection Cards */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary)] uppercase">
+                AI Intelligence Engine
+              </label>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {/* Option 1: Local Qwen 3.5 4B */}
-              <div
-                onClick={() => handleSelectProvider('qwen')}
-                className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
-                  aiProvider === 'qwen'
-                    ? 'border-cyan-500/60 bg-gradient-to-b from-cyan-500/15 via-blue-950/20 to-zinc-950 shadow-lg shadow-cyan-950/40 ring-1 ring-cyan-500/40'
-                    : 'border-white/[0.08] bg-zinc-900/40 hover:border-white/20 hover:bg-zinc-900/70'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Zap className="h-4 w-4 text-cyan-400 group-hover:text-cyan-300 transition" />
-                    <span className="font-sans text-xs font-extrabold text-zinc-100">Local Qwen 3.5 4B</span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Option 1: Local Qwen 3.5 4B */}
+                <div
+                  onClick={() => handleSelectProvider('qwen')}
+                  className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
+                    aiProvider === 'qwen'
+                      ? 'border-cyan-500/60 bg-cyan-500/10 shadow-sm ring-1 ring-cyan-500/40'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Zap className="h-4 w-4 text-cyan-500 transition" />
+                      <span className="text-xs font-bold text-[var(--text-primary)]">Local Qwen 3.5 4B</span>
+                    </div>
+                    {aiProvider === 'qwen' && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] text-black font-bold">
+                        <Check className="h-2.5 w-2.5" />
+                      </span>
+                    )}
                   </div>
-                  {aiProvider === 'qwen' && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] text-black font-bold">
-                      <Check className="h-2.5 w-2.5" />
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-400 leading-relaxed">
-                  Headless local engine in D:\lmmodels. Zero rate limits, 100% offline & private, sub-second latency.
-                </p>
-                <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
-                  <span className="rounded bg-cyan-950/60 text-cyan-300 border border-cyan-800/40 px-1 py-0.5">Offline</span>
-                  <span className="rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/40 px-1 py-0.5">Unlimited</span>
-                </div>
-              </div>
-
-              {/* Option 2: Google Gemini Cloud */}
-              <div
-                onClick={() => handleSelectProvider('gemini')}
-                className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
-                  aiProvider === 'gemini'
-                    ? 'border-purple-500/60 bg-gradient-to-b from-purple-500/15 via-indigo-950/20 to-zinc-950 shadow-lg shadow-purple-950/40 ring-1 ring-purple-500/40'
-                    : 'border-white/[0.08] bg-zinc-900/40 hover:border-white/20 hover:bg-zinc-900/70'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Sparkles className="h-4 w-4 text-purple-400 group-hover:text-purple-300 transition" />
-                    <span className="font-sans text-xs font-extrabold text-zinc-100">Google Gemini Cloud</span>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    Offline local model. Zero rate limits, 100% private, sub-second execution.
+                  </p>
+                  <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
+                    <span className="rounded bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 font-semibold">Offline</span>
+                    <span className="rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 font-semibold">Unlimited</span>
                   </div>
-                  {aiProvider === 'gemini' && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
-                      <Check className="h-2.5 w-2.5" />
-                    </span>
-                  )}
                 </div>
-                <p className="text-[10px] text-zinc-400 leading-relaxed">
-                  Official 2-stage Gemini Cloud API. Deep comparative research across candidates (subject to API quota).
-                </p>
-                <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
-                  <span className="rounded bg-purple-950/60 text-purple-300 border border-purple-800/40 px-1 py-0.5">Cloud Cascade</span>
-                  <span className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">High Reasoning</span>
+
+                {/* Option 2: Google Gemini Cloud */}
+                <div
+                  onClick={() => handleSelectProvider('gemini')}
+                  className={`group relative cursor-pointer rounded-2xl border p-4 transition-all duration-200 ${
+                    aiProvider === 'gemini'
+                      ? 'border-purple-500/60 bg-purple-500/10 shadow-sm ring-1 ring-purple-500/40'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="h-4 w-4 text-purple-500 transition" />
+                      <span className="text-xs font-bold text-[var(--text-primary)]">Google Gemini Cloud</span>
+                    </div>
+                    {aiProvider === 'gemini' && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
+                        <Check className="h-2.5 w-2.5" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    Official 2-stage Gemini Cloud API. Deep comparative cross-examination across candidates.
+                  </p>
+                  <div className="mt-3 flex items-center space-x-1.5 font-mono text-[9px]">
+                    <span className="rounded bg-purple-500/15 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-semibold">Cloud Cascade</span>
+                    <span className="rounded bg-[var(--border-subtle)] px-1.5 py-0.5 text-[var(--text-secondary)]">Deep Reasoning</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* System Info & Persistence Indicator + Quick Reboot */}
-          <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] text-zinc-400 flex items-center justify-between">
-            <span className="flex items-center space-x-2">
-              <Shield className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Settings auto-persist in localStorage & backend</span>
-            </span>
-            <button
-              onClick={() => {
-                onClose();
-                if (onOpenRestartModal) onOpenRestartModal();
-              }}
-              className="flex items-center space-x-1.5 rounded-lg border border-rose-500/30 bg-rose-950/40 px-2.5 py-1 font-mono text-[10px] text-rose-300 hover:bg-rose-900/60 hover:border-rose-500/70 transition"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span>Restart System</span>
-            </button>
+            {/* System Info & Persistence Indicator + Quick Reboot */}
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3 text-[11px] text-[var(--text-secondary)] flex items-center justify-between">
+              <span className="flex items-center space-x-2">
+                <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                <span>Settings auto-persisted in localStorage & backend</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onOpenRestartModal) onOpenRestartModal();
+                }}
+                className="flex items-center space-x-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 font-mono text-[10px] text-rose-500 hover:bg-rose-500/20 transition"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>Restart System</span>
+              </button>
+            </div>
           </div>
 
           {/* Close Action */}
-          <div className="mt-5 flex justify-end">
+          <div className="mt-5 flex justify-end border-t border-[var(--border-subtle)] pt-4">
             <button
+              type="button"
               onClick={onClose}
-              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-rose-950/60 hover:bg-rose-500 transition"
+              className="rounded-xl bg-blue-500 px-6 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/30 hover:bg-blue-600 active:scale-95 transition"
             >
               Done
             </button>

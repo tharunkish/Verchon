@@ -1,7 +1,17 @@
 import React from 'react';
-import { Activity, ShieldAlert, ShieldCheck, AlertTriangle, Layers, Briefcase, Search, Command, Settings, RotateCcw } from 'lucide-react';
+import { Activity, ShieldAlert, ShieldCheck, AlertTriangle, Layers, Briefcase, Search, Command, Settings, RotateCcw, Sun, Moon } from 'lucide-react';
 
-export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK, onOpenSettings, onOpenRestartModal, themeMode }) {
+export default function Header({
+  regime,
+  activeTab,
+  setActiveTab,
+  onOpenCommandK,
+  onOpenSettings,
+  onOpenRestartModal,
+  themeStyle = 'apple',
+  colorMode = 'dark',
+  setColorMode,
+}) {
   const regimeName = regime?.regime || 'LOADING';
   const regimeScore = regime?.regime_score ?? 'N/A';
   const price = regime?.current_price ? `₹${regime.current_price.toLocaleString('en-IN')}` : 'N/A';
@@ -9,31 +19,31 @@ export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK
   const trend = regime?.trend || {};
   const vol = regime?.volatility || {};
 
-  // Regime style mapping
+  // Regime style mapping with accessible colors for both Light & Dark modes
   const getRegimeColor = () => {
     switch (regimeName) {
       case 'SUPPORTIVE':
         return {
-          bg: 'bg-emerald-950/60 border-emerald-800/80 text-emerald-400',
-          badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-600/40',
+          pill: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25',
+          scoreBadge: 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
           icon: ShieldCheck,
         };
       case 'HOSTILE':
         return {
-          bg: 'bg-rose-950/60 border-rose-800/80 text-rose-400',
-          badge: 'bg-rose-500/20 text-rose-300 border-rose-600/40',
+          pill: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/25',
+          scoreBadge: 'bg-rose-500/20 text-rose-800 dark:text-rose-300 border-rose-500/30',
           icon: ShieldAlert,
         };
       case 'CAUTION':
         return {
-          bg: 'bg-amber-950/60 border-amber-800/80 text-amber-400',
-          badge: 'bg-amber-500/20 text-amber-300 border-amber-600/40',
+          pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25',
+          scoreBadge: 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/30',
           icon: AlertTriangle,
         };
       default:
         return {
-          bg: 'bg-zinc-900 border-zinc-800 text-zinc-400',
-          badge: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+          pill: 'bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]',
+          scoreBadge: 'bg-[var(--border-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)]',
           icon: Activity,
         };
     }
@@ -42,140 +52,144 @@ export default function Header({ regime, activeTab, setActiveTab, onOpenCommandK
   const currentTheme = getRegimeColor();
   const RegimeIcon = currentTheme.icon;
 
+  const toggleColorMode = () => {
+    if (setColorMode) {
+      setColorMode(colorMode === 'dark' ? 'light' : 'dark');
+    }
+  };
+
+  const navItems = [
+    { id: 'scanner', label: '1. Market Scanner & AI Dossiers', shortLabel: '1. Scanner', icon: Layers, num: '1' },
+    { id: 'portfolio', label: '2. Paper Portfolio & Exit Alerts', shortLabel: '2. Portfolio', icon: Briefcase, num: '2' },
+    { id: 'deepdive', label: '3. Stock Deep Dive & Strategy Rules', shortLabel: '3. Deep Dive', icon: Search, num: '3' },
+    { id: 'news', label: '4. Corporate Radar & News Hub', shortLabel: '4. News Hub', icon: Activity, num: '4' },
+  ];
+
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/[0.07] bg-[#07070a]/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 w-full border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/85 backdrop-blur-xl transition-colors duration-200">
       {/* Upper Brand & Market Regime Status Bar */}
-      <div className="flex h-14 items-center justify-between px-6">
+      <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left: Brand Identity */}
         <div className="flex items-center space-x-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/40 bg-gradient-to-br from-rose-950/80 via-red-950/50 to-zinc-950 font-mono text-xs font-black tracking-wider text-rose-400 shadow-md shadow-rose-950/60 ring-1 ring-rose-500/20">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500 text-white font-mono text-xs font-black shadow-md shadow-blue-500/20">
             V
           </div>
-          <div>
-            <span className="font-mono text-xs font-extrabold tracking-widest text-zinc-100">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-black tracking-widest text-[var(--text-primary)]">
               VERCHON
             </span>
-            <span className="ml-2 rounded border border-rose-900/60 bg-rose-950/50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-rose-300">
-              VECTOR TERMINAL
+            <span className="hidden sm:inline-block rounded-md border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[9px] font-medium text-[var(--text-secondary)]">
+              DETERMINISTIC ENGINE
             </span>
           </div>
         </div>
 
         {/* Center: Live Nifty 50 Market Regime Badge */}
-        <div className={`flex items-center space-x-3 rounded-full border px-4 py-1 text-xs backdrop-blur-md ${currentTheme.bg}`}>
-          <RegimeIcon className="h-3.5 w-3.5" />
-          <span className="font-semibold tracking-wide">
+        <div className={`hidden md:flex items-center space-x-2.5 rounded-full border px-3.5 py-1 text-xs backdrop-blur-md transition-colors ${currentTheme.pill}`}>
+          <RegimeIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="font-semibold tracking-tight">
             NIFTY 50: {regimeName}
           </span>
-          <span className="font-mono-num text-zinc-400">({price})</span>
-          <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${currentTheme.badge}`}>
+          <span className="font-mono-num opacity-80 text-[11px]">({price})</span>
+          <span className={`rounded-full border px-2 py-0.2 font-mono text-[10px] font-bold ${currentTheme.scoreBadge}`}>
             {regimeScore}/100
           </span>
           {trend.price_vs_50dma != null && (
-            <span className="font-mono-num text-[11px] text-zinc-400">
-              vs 50D: <span className={trend.price_vs_50dma >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{trend.price_vs_50dma > 0 ? '+' : ''}{trend.price_vs_50dma}%</span>
+            <span className="font-mono-num text-[11px] opacity-80">
+              50D: <span className={trend.price_vs_50dma >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'}>{trend.price_vs_50dma > 0 ? '+' : ''}{trend.price_vs_50dma}%</span>
             </span>
           )}
           {vol.realized_vol_20d != null && (
-            <span className="font-mono-num text-[11px] text-zinc-500">
+            <span className="font-mono-num text-[10px] opacity-70">
               Vol: {vol.realized_vol_20d}%
             </span>
           )}
         </div>
 
-        {/* Right: Connectivity Status, Command K, Settings, and Restart */}
-        <div className="flex items-center space-x-2.5">
-          <div className="flex items-center space-x-1.5 rounded border border-white/[0.08] bg-zinc-900/60 px-2 py-0.5 font-mono text-[10px]">
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${regime ? 'bg-emerald-400' : 'bg-rose-400 animate-pulse'}`} />
-            <span className={regime ? 'text-zinc-400' : 'text-rose-400'}>
-              {regime ? 'API 8000 CONNECTED' : 'BACKEND OFFLINE'}
+        {/* Right: Actions, Command K, Appearance, Settings */}
+        <div className="flex items-center space-x-2">
+          {/* Backend Connectivity Status */}
+          <div className="hidden lg:flex items-center space-x-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2 py-1 font-mono text-[10px]">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${regime ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
+            <span className="text-[var(--text-secondary)]">
+              {regime ? 'API 8000 CONNECTED' : 'OFFLINE'}
             </span>
           </div>
 
+          {/* Command K Trigger */}
           <button
             onClick={onOpenCommandK}
-            className="flex items-center space-x-2 rounded-lg border border-white/[0.08] bg-zinc-900/70 px-2.5 py-1 text-xs text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
+            className="flex items-center space-x-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-xs text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] hover:border-black/20 dark:hover:border-white/20"
           >
             <Search className="h-3 w-3" />
-            <span className="font-mono text-[11px]">Search Ticker</span>
-            <kbd className="flex items-center rounded border border-zinc-700 bg-zinc-800 px-1 font-mono text-[9px] text-zinc-400">
+            <span className="hidden sm:inline text-[11px]">Search</span>
+            <kbd className="flex items-center rounded border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-1 font-mono text-[9px] text-[var(--text-muted)]">
               <Command className="mr-0.5 h-2.5 w-2.5" /> K
             </kbd>
           </button>
 
+          {/* Quick Light/Dark Mode Switcher */}
+          <button
+            onClick={toggleColorMode}
+            title={`Switch to ${colorMode === 'dark' ? 'Light' : 'Dark'} Mode`}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-black/20 dark:hover:border-white/20 transition"
+          >
+            {colorMode === 'dark' ? (
+              <Sun className="h-3.5 w-3.5 text-amber-400" />
+            ) : (
+              <Moon className="h-3.5 w-3.5 text-blue-500" />
+            )}
+          </button>
+
+          {/* Settings Modal Button */}
           <button
             onClick={onOpenSettings}
             title="Workstation Settings"
-            className="flex items-center space-x-1.5 rounded-lg border border-white/[0.08] bg-zinc-900/70 px-2.5 py-1 text-xs text-zinc-400 hover:border-rose-500/50 hover:text-rose-200 transition"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-black/20 dark:hover:border-white/20 transition"
           >
             <Settings className="h-3.5 w-3.5" />
-            <span className="font-mono text-[10px]">Theme</span>
           </button>
 
+          {/* System Restart Button */}
           <button
             onClick={onOpenRestartModal}
             title="Completely restart server and local AI engine"
-            className="flex items-center space-x-1.5 rounded-lg border border-rose-500/30 bg-rose-950/40 px-2.5 py-1 text-xs text-rose-300 hover:border-rose-500/70 hover:bg-rose-900/60 transition shadow-sm"
+            className="flex items-center space-x-1.5 rounded-xl border border-rose-500/25 bg-rose-500/10 px-2.5 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition"
           >
             <RotateCcw className="h-3 w-3" />
-            <span className="font-mono text-[10px] font-semibold">Restart</span>
+            <span className="hidden sm:inline font-mono text-[10px] font-semibold">Restart</span>
           </button>
         </div>
       </div>
 
-      {/* Lower Navigation Tabs (Full-Screen Workspace Switcher) */}
-      <div className="flex h-11 items-center space-x-1 border-t border-white/[0.06] px-6">
-        <button
-          onClick={() => setActiveTab('scanner')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-2 font-mono text-xs font-medium transition ${
-            activeTab === 'scanner'
-              ? 'border-rose-500 text-rose-100 shadow-[0_1px_12px_rgba(225,29,72,0.35)]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          <span>1. Market Scanner & AI Dossiers</span>
-          <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">1</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('portfolio')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-2 font-mono text-xs font-medium transition ${
-            activeTab === 'portfolio'
-              ? 'border-rose-500 text-rose-100 shadow-[0_1px_12px_rgba(225,29,72,0.35)]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Briefcase className="h-3.5 w-3.5" />
-          <span>2. Paper Portfolio & Exit Alerts</span>
-          <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">2</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('deepdive')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-2 font-mono text-xs font-medium transition ${
-            activeTab === 'deepdive'
-              ? 'border-rose-500 text-rose-100 shadow-[0_1px_12px_rgba(225,29,72,0.35)]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span>3. Stock Deep Dive & Strategy Rules</span>
-          <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">3</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('news')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-2 font-mono text-xs font-medium transition ${
-            activeTab === 'news'
-              ? 'border-rose-500 text-rose-100 shadow-[0_1px_12px_rgba(225,29,72,0.35)]'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Activity className="h-3.5 w-3.5" />
-          <span>4. Corporate Radar & News Hub</span>
-          <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1 text-[9px] text-zinc-500">4</span>
-        </button>
+      {/* Lower Navigation Tabs (Apple Segmented Style) */}
+      <div className="flex h-11 items-center space-x-1 border-t border-[var(--border-subtle)] px-4 sm:px-6 overflow-x-auto no-scrollbar">
+        {navItems.map((item) => {
+          const isActive = activeTab === item.id;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex items-center space-x-2 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-150 ${
+                isActive
+                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/50'
+              }`}
+            >
+              <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-blue-500' : 'text-[var(--text-muted)]'}`} />
+              <span className="hidden sm:inline">{item.label}</span>
+              <span className="sm:hidden">{item.shortLabel}</span>
+              <span className={`rounded px-1 text-[9px] font-mono ${
+                isActive
+                  ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold'
+                  : 'bg-[var(--border-subtle)] text-[var(--text-muted)]'
+              }`}>
+                {item.num}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </header>
   );
