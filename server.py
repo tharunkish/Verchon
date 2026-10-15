@@ -7,6 +7,7 @@ wrapping existing analytical engines without modifying base logic.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import sys
