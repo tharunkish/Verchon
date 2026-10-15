@@ -627,6 +627,20 @@ def analyze_candidate(
     val_pe = fund_results.get("valuation", {}).get("pe")
     val_pb = fund_results.get("valuation", {}).get("pb")
     strat_eval = tech_results.get("Strategy_Evaluation", {})
+    active_strat_res = strat_eval.get("active_strategy_result", {}) if isinstance(strat_eval, dict) else {}
+    primary_strat_name = strat_eval.get("primary_strategy") or active_strat_res.get("strategy_name") or "SWING_MOMENTUM"
+
+    # Multi-Factor Fundamental Protection for new institutional strategies:
+    # If Rubber Band Snapback triggered, ensure Business Quality >= 40 so we never buy garbage falling knives
+    fund_comps = fund_results.get("components", {}) if isinstance(fund_results, dict) else {}
+    bq_val = fund_comps.get("Business Quality")
+    bq_score = bq_val.score if hasattr(bq_val, "score") else (bq_val.get("score") if isinstance(bq_val, dict) else None)
+    if primary_strat_name == "RUBBER_BAND_SNAPBACK" and bq_score is not None and bq_score < 40:
+        if active_strat_res.get("signal_triggered"):
+            active_strat_res["signal_triggered"] = False
+            active_strat_res["state"] = "ENTRY_REJECTED"
+            active_strat_res["rejection_reason"] = f"WEAK_BUSINESS_QUALITY ({bq_score}/100)"
+
     has_active_signal = any(
         res.get("signal_triggered") for res in strat_eval.get("all_strategy_results", {}).values()
     ) if isinstance(strat_eval, dict) else False
@@ -634,7 +648,7 @@ def analyze_candidate(
     priority_reason = ""
     if fund_qual and has_active_signal and val_risk != "HIGH":
         priority = "SIGNAL TRIGGERED"
-        priority_reason = "Safety checks passed and active technical entry trigger confirmed."
+        priority_reason = f"Safety checks passed and active technical entry trigger confirmed ({primary_strat_name})."
     elif (f_score is not None and f_score >= HIGH_PRIORITY_MIN_FUND) and (t_score is not None and t_score >= HIGH_PRIORITY_MIN_TECH) and val_risk != "HIGH":
         priority = "HIGH PRIORITY"
         priority_reason = "High fundamental quality & strong trend; waiting for entry breakout/pullback trigger."
@@ -660,7 +674,7 @@ def analyze_candidate(
     deterministic_truth_table: Dict[str, Any] = {
         "fundamentals": fund_tt,
         "trend_qualification": strat_eval.get("trend_truth_table", []),
-        "active_strategy": strat_eval.get("active_strategy_result", {}).get("truth_table", []),
+        "active_strategy": active_strat_res.get("truth_table", []),
     }
 
     # Contextual Evidence Layers (Observational only)
@@ -676,6 +690,13 @@ def analyze_candidate(
         "is_evidence_only": True,
         "disclaimer": "Observational evidence layers for context; not hard strategy qualification filters."
     }
+
+    # Extract exact trade levels for root candidate object
+    current_price = tech_results.get("Trend_Analysis", {}).get("Current_Price")
+    stop_price = active_strat_res.get("stop_price")
+    target_1 = active_strat_res.get("target_1")
+    target_2 = active_strat_res.get("target_2")
+    risk_reward_ratio = active_strat_res.get("risk_reward_ratio")
 
     # Temporal & Reproducibility metadata
     is_live = as_of_date is None
@@ -693,10 +714,17 @@ def analyze_candidate(
 
     return {
         "name": display_name or fund_results.get("company", clean_sym),
+        "company_name": display_name or fund_results.get("company", clean_sym),
         "ticker": clean_sym,
         "overall_score": overall_score,
         "priority": priority,
         "priority_reason": priority_reason,
+        "setup_type": primary_strat_name,
+        "current_price": current_price,
+        "stop_loss": stop_price,
+        "target_1": target_1,
+        "target_2": target_2,
+        "risk_reward_ratio": risk_reward_ratio,
         "fundamental_qualified": fund_qual,
         "fundamental_failed_reasons": fund_failed_reasons,
         "fundamental_truth_table": fund_tt,

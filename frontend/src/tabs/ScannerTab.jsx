@@ -484,9 +484,55 @@ export default function ScannerTab({
                     <div className="flex items-center justify-between text-zinc-400">
                       <span>Chart Pattern:</span>
                       <span className="font-mono text-zinc-300">
-                        {c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy || 'No active setup'}
+                        {c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy || 'No active setup'}
                       </span>
                     </div>
+
+                    {/* Dynamic Strategy Badge & Levels */}
+                    {(() => {
+                      const strat = c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy;
+                      const stop = c.stop_loss || c.strategy?.active_strategy_result?.stop_price;
+                      const t1 = c.target_1 || c.strategy?.active_strategy_result?.target_1;
+                      const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
+                      if (!strat || strat === 'None' || strat === 'SWING_MOMENTUM') return null;
+
+                      let badgeStyle = "border-zinc-700 bg-zinc-800 text-zinc-300";
+                      let icon = "🎯";
+                      if (strat.includes("SWEEP")) {
+                        badgeStyle = "border-emerald-500/50 bg-emerald-950/40 text-emerald-300";
+                        icon = "🛡️";
+                      } else if (strat.includes("SQUEEZE")) {
+                        badgeStyle = "border-purple-500/50 bg-purple-950/40 text-purple-300";
+                        icon = "⚡";
+                      } else if (strat.includes("SNAPBACK")) {
+                        badgeStyle = "border-amber-500/50 bg-amber-950/40 text-amber-300";
+                        icon = "🧲";
+                      } else if (strat.includes("BREAKOUT")) {
+                        badgeStyle = "border-cyan-500/50 bg-cyan-950/40 text-cyan-300";
+                        icon = "🚀";
+                      }
+
+                      return (
+                        <div className="mt-2 rounded border border-white/5 bg-black/40 p-2 font-mono text-[11px] space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`inline-flex items-center space-x-1 rounded px-1.5 py-0.5 text-[10px] font-bold border ${badgeStyle}`}>
+                              <span>{icon} {strat.replace(/_/g, ' ')}</span>
+                            </span>
+                            {rr && (
+                              <span className="text-[10px] text-cyan-400 font-bold">
+                                R:R {rr}x
+                              </span>
+                            )}
+                          </div>
+                          {stop && (
+                            <div className="flex items-center justify-between text-[10px] text-zinc-400 pt-0.5">
+                              <span className="text-rose-400">SL: ₹{Number(stop).toFixed(1)}</span>
+                              {t1 && <span className="text-emerald-400">T1: ₹{Number(t1).toFixed(1)}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Rejection / Filter Reason Banner */}

@@ -1338,7 +1338,579 @@ def evaluate_rs_continuation(
 
 
 # ==============================================================================
-# 5.4 ENTRY, RISK FILTER & POSITION SIZING ENGINE
+# 5.4 STRATEGY 4 — INSTITUTIONAL LIQUIDITY SWEEP (SMC STOP-HUNT & RECLAIM)
+# ==============================================================================
+
+def evaluate_liquidity_sweep(df: pd.DataFrame, trend_info: dict, trend_qual: bool, trend_reasons: list[str]) -> dict:
+    """
+    Strategy 4 — Institutional Liquidity Sweep (SMC Stop-Hunt & Reclaim)
+    Purpose: Detects when smart money pushes price below a multi-week support floor to trigger
+    retail stop-losses, absorbs the liquidity, and closes back above support with volume.
+    """
+    res = {
+        "strategy_name": "LIQUIDITY_SWEEP",
+        "qualified": True,
+        "setup_detected": False,
+        "signal_triggered": False,
+        "state": "QUALIFIED",
+        "signal_date": None,
+        "signal_close": None,
+        "expected_entry": None,
+        "actual_entry": None,
+        "stop_price": None,
+        "target_1": None,
+        "target_2": None,
+        "risk_reward_ratio": None,
+        "risk_percent": None,
+        "support_level": None,
+        "sweep_low": None,
+        "invalidation_reason": None,
+        "rejection_reason": None,
+    }
+
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+    open_p = df["Open"]
+    vol = df["Volume"]
+    dates = df.index
+    n = len(df)
+
+    truth_table: list[dict] = []
+
+    if n < 30:
+        res["qualified"] = False
+        res["state"] = "NOT_QUALIFIED"
+        res["invalidation_reason"] = "INSUFFICIENT_DATA"
+        truth_table.append(StrategyPredicate(
+            name="history_length_30",
+            description="At least 30 bars for liquidity sweep evaluation",
+            observed=n,
+            required=">= 30 bars",
+            passed=False,
+            failure_reason="INSUFFICIENT_DATA"
+        ).to_dict())
+        res["truth_table"] = truth_table
+        return res
+
+    # Support baseline from previous 20 completed sessions: (n-21) to (n-2)
+    prev_20_lows = low.iloc[n - 21 : n - 1]
+    prev_20_highs = high.iloc[n - 21 : n - 1]
+    prev_20_vols = vol.iloc[n - 21 : n - 1]
+
+    support_level = float(prev_20_lows.min())
+    res["support_level"] = round(support_level, 2)
+
+    curr_close = float(close.iloc[-1])
+    curr_low = float(low.iloc[-1])
+    curr_open = float(open_p.iloc[-1])
+    curr_vol = float(vol.iloc[-1])
+    avg_vol_20 = float(prev_20_vols.mean())
+
+    # Step 1: Sweep condition (Low < Support Floor)
+    sweep_occurred = curr_low < support_level
+    truth_table.append(StrategyPredicate(
+        name="low_swept_support",
+        description="Current low pierced prior 20-day support floor",
+        observed=round(curr_low, 2),
+        required=f"< {support_level:.2f}",
+        passed=sweep_occurred,
+        failure_reason=None if sweep_occurred else f"NO_SWEEP_DETECTED (Low: ₹{curr_low:.2f} >= Support: ₹{support_level:.2f})"
+    ).to_dict())
+
+    if not sweep_occurred:
+        res["state"] = "NO_SETUP"
+        res["invalidation_reason"] = "NO_SWEEP_DETECTED"
+        res["truth_table"] = truth_table
+        return res
+
+    res["setup_detected"] = True
+    res["state"] = "SETUP_FORMING"
+    res["sweep_low"] = round(curr_low, 2)
+
+    # Step 2: Reclaim condition (Close >= Support Floor)
+    reclaimed = curr_close >= support_level
+    truth_table.append(StrategyPredicate(
+        name="close_reclaimed_support",
+        description="Close reclaimed and held above support floor",
+        observed=round(curr_close, 2),
+        required=f">= {support_level:.2f}",
+        passed=reclaimed,
+        failure_reason=None if reclaimed else f"FAILED_TO_RECLAIM_SUPPORT (Close: ₹{curr_close:.2f} < Support: ₹{support_level:.2f})"
+    ).to_dict())
+
+    if not reclaimed:
+        res["state"] = "BREAKDOWN_UNCONFIRMED"
+        res["rejection_reason"] = "FAILED_TO_RECLAIM_SUPPORT"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 3: Candle confirmation (Green candle or absorption lower tail)
+    lower_shadow = min(curr_close, curr_open) - curr_low
+    body = abs(curr_close - curr_open)
+    has_tail = lower_shadow >= (1.2 * body) if body > 0 else lower_shadow > 0
+    is_bullish = curr_close >= curr_open or has_tail
+
+    truth_table.append(StrategyPredicate(
+        name="absorption_candle_structure",
+        description="Bullish candle or lower absorption tail on sweep",
+        observed="Tail/Bullish" if is_bullish else "Bearish body",
+        required="Bullish close or lower shadow >= 1.2x body",
+        passed=is_bullish,
+        failure_reason=None if is_bullish else "BEARISH_SWEEP_CLOSE"
+    ).to_dict())
+
+    if not is_bullish:
+        res["state"] = "ABSORPTION_UNCONFIRMED"
+        res["rejection_reason"] = "BEARISH_SWEEP_CLOSE"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 4: Volume confirmation
+    vol_pass = curr_vol >= (1.15 * avg_vol_20)
+    truth_table.append(StrategyPredicate(
+        name="liquidity_volume_spike",
+        description="Sweep volume >= 1.15x 20-day volume average",
+        observed=int(curr_vol),
+        required=f">= {int(1.15 * avg_vol_20)}",
+        passed=vol_pass,
+        failure_reason=None if vol_pass else f"INSUFFICIENT_SWEEP_VOLUME ({curr_vol:.0f} < {1.15 * avg_vol_20:.0f})"
+    ).to_dict())
+
+    if not vol_pass:
+        res["state"] = "VOLUME_UNCONFIRMED"
+        res["rejection_reason"] = "INSUFFICIENT_SWEEP_VOLUME"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 5: Stop placement & Risk calculation
+    stop_price = round(curr_low * 0.995, 2)
+    risk_pct = round(((curr_close - stop_price) / curr_close) * 100, 2)
+
+    risk_valid = (0.5 <= risk_pct <= 7.0)
+    truth_table.append(StrategyPredicate(
+        name="sweep_risk_within_bounds",
+        description="Risk percent between 0.5% and 7.0%",
+        observed=risk_pct,
+        required="0.5% <= Risk <= 7.0%",
+        passed=risk_valid,
+        failure_reason=None if risk_valid else f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+    ).to_dict())
+
+    if not risk_valid:
+        res["state"] = "ENTRY_REJECTED"
+        res["rejection_reason"] = f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+        res["truth_table"] = truth_table
+        return res
+
+    # Valid Triggered Signal
+    sig_date_val = dates[-1]
+    sig_date_str = sig_date_val.strftime("%Y-%m-%d") if hasattr(sig_date_val, "strftime") else str(sig_date_val)[:10]
+
+    target_1 = round(curr_close + 2.0 * (curr_close - stop_price), 2)
+    target_2 = round(max(float(prev_20_highs.max()), curr_close + 3.0 * (curr_close - stop_price)), 2)
+    rr_ratio = round((target_1 - curr_close) / (curr_close - stop_price), 2)
+
+    res["signal_triggered"] = True
+    res["state"] = "SIGNAL_TRIGGERED"
+    res["signal_date"] = sig_date_str
+    res["signal_close"] = round(curr_close, 2)
+    res["expected_entry"] = "NEXT_TRADING_DAY_OPEN"
+    res["stop_price"] = stop_price
+    res["target_1"] = target_1
+    res["target_2"] = target_2
+    res["risk_reward_ratio"] = rr_ratio
+    res["risk_percent"] = risk_pct
+    res["truth_table"] = truth_table
+
+    return res
+
+
+# ==============================================================================
+# 5.5 STRATEGY 5 — VOLATILITY SQUEEZE (CARTER COILING & EXPANSION IGNITION)
+# ==============================================================================
+
+def evaluate_volatility_squeeze(df: pd.DataFrame, trend_info: dict, trend_qual: bool, trend_reasons: list[str]) -> dict:
+    """
+    Strategy 5 — Volatility Squeeze (John Carter Coiling & Expansion Ignition)
+    Identifies stocks whose Bollinger Bands compress entirely inside Keltner Channels,
+    storing directional energy, and triggers on the first expansion ignition bar.
+    """
+    res = {
+        "strategy_name": "VOLATILITY_SQUEEZE",
+        "qualified": True,
+        "setup_detected": False,
+        "signal_triggered": False,
+        "state": "QUALIFIED",
+        "signal_date": None,
+        "signal_close": None,
+        "expected_entry": None,
+        "actual_entry": None,
+        "stop_price": None,
+        "target_1": None,
+        "target_2": None,
+        "risk_reward_ratio": None,
+        "risk_percent": None,
+        "squeeze_bars_count": 0,
+        "invalidation_reason": None,
+        "rejection_reason": None,
+    }
+
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+    open_p = df["Open"]
+    vol = df["Volume"]
+    dates = df.index
+    n = len(df)
+
+    truth_table: list[dict] = []
+
+    if n < 35:
+        res["qualified"] = False
+        res["state"] = "NOT_QUALIFIED"
+        res["invalidation_reason"] = "INSUFFICIENT_DATA"
+        truth_table.append(StrategyPredicate(
+            name="history_length_35",
+            description="At least 35 bars for squeeze calculation",
+            observed=n,
+            required=">= 35 bars",
+            passed=False,
+            failure_reason="INSUFFICIENT_DATA"
+        ).to_dict())
+        res["truth_table"] = truth_table
+        return res
+
+    # Bollinger Bands (20, 2)
+    sma_20 = close.rolling(20).mean()
+    std_20 = close.rolling(20).std()
+    bb_upper = sma_20 + 2.0 * std_20
+    bb_lower = sma_20 - 2.0 * std_20
+
+    # Keltner Channels (20, 1.5 ATR)
+    tr = np.maximum(high - low, np.maximum((high - close.shift(1)).abs(), (low - close.shift(1)).abs()))
+    atr_20 = tr.rolling(20).mean()
+    ema_20 = close.ewm(span=20, adjust=False).mean()
+    kc_upper = ema_20 + 1.5 * atr_20
+    kc_lower = ema_20 - 1.5 * atr_20
+
+    # Squeeze condition per bar
+    is_squeezed = (bb_upper < kc_upper) & (bb_lower > kc_lower)
+
+    # Check how many of the last 10 completed bars were in squeeze
+    recent_squeeze_window = is_squeezed.iloc[n - 11 : n - 1]
+    squeeze_count = int(recent_squeeze_window.sum())
+    res["squeeze_bars_count"] = squeeze_count
+
+    has_recent_squeeze = squeeze_count >= 2
+    truth_table.append(StrategyPredicate(
+        name="recent_squeeze_compression",
+        description="At least 2 of last 10 bars in Bollinger/Keltner squeeze",
+        observed=squeeze_count,
+        required=">= 2 bars",
+        passed=has_recent_squeeze,
+        failure_reason=None if has_recent_squeeze else f"NO_PRIOR_SQUEEZE ({squeeze_count} bars in squeeze)"
+    ).to_dict())
+
+    if not has_recent_squeeze:
+        res["state"] = "NO_SETUP"
+        res["invalidation_reason"] = f"NO_PRIOR_SQUEEZE ({squeeze_count} bars in squeeze)"
+        res["truth_table"] = truth_table
+        return res
+
+    res["setup_detected"] = True
+    res["state"] = "SETUP_FORMING"
+
+    curr_close = float(close.iloc[-1])
+    curr_open = float(open_p.iloc[-1])
+    curr_vol = float(vol.iloc[-1])
+    avg_vol_20 = float(vol.iloc[n - 21 : n - 1].mean())
+
+    # Step 2: Expansion Trigger today
+    prev_bb_upper = float(bb_upper.iloc[-2])
+    today_bb_upper = float(bb_upper.iloc[-1])
+    today_kc_upper = float(kc_upper.iloc[-1])
+
+    expansion_fire = (curr_close >= prev_bb_upper) or (today_bb_upper >= today_kc_upper and curr_close > curr_open and curr_close > float(sma_20.iloc[-1]))
+    truth_table.append(StrategyPredicate(
+        name="squeeze_expansion_fire",
+        description="Price breaking upper band or BB expanding outside KC",
+        observed=round(curr_close, 2),
+        required=">= Upper Band",
+        passed=expansion_fire,
+        failure_reason=None if expansion_fire else "AWAITING_EXPANSION_TRIGGER"
+    ).to_dict())
+
+    if not expansion_fire:
+        res["state"] = "SQUEEZE_COILING"
+        res["rejection_reason"] = "AWAITING_EXPANSION_TRIGGER"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 3: Positive directional momentum
+    mom_10 = float(close.iloc[-1] - close.iloc[-11]) if n >= 12 else 1.0
+    mom_pass = mom_10 > 0 and curr_close > curr_open
+    truth_table.append(StrategyPredicate(
+        name="positive_momentum_bias",
+        description="Directional momentum positive and green candle",
+        observed=round(mom_10, 2),
+        required="> 0",
+        passed=mom_pass,
+        failure_reason=None if mom_pass else "NEGATIVE_MOMENTUM_OR_RED_CANDLE"
+    ).to_dict())
+
+    if not mom_pass:
+        res["state"] = "MOMENTUM_UNCONFIRMED"
+        res["rejection_reason"] = "NEGATIVE_MOMENTUM_OR_RED_CANDLE"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 4: Volume expansion
+    vol_pass = curr_vol >= (1.15 * avg_vol_20)
+    truth_table.append(StrategyPredicate(
+        name="expansion_volume_confirmation",
+        description="Volume >= 1.15x 20-day volume average",
+        observed=int(curr_vol),
+        required=f">= {int(1.15 * avg_vol_20)}",
+        passed=vol_pass,
+        failure_reason=None if vol_pass else f"INSUFFICIENT_EXPANSION_VOLUME ({curr_vol:.0f} < {1.15 * avg_vol_20:.0f})"
+    ).to_dict())
+
+    if not vol_pass:
+        res["state"] = "VOLUME_UNCONFIRMED"
+        res["rejection_reason"] = "INSUFFICIENT_EXPANSION_VOLUME"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 5: Stop placement & Risk calculation
+    base_low = float(low.iloc[n - 10 : n].min())
+    mid_sma = float(sma_20.iloc[-1])
+    stop_price = round(max(base_low, mid_sma * 0.99), 2)
+    risk_pct = round(((curr_close - stop_price) / curr_close) * 100, 2)
+
+    risk_valid = (0.8 <= risk_pct <= 7.5)
+    truth_table.append(StrategyPredicate(
+        name="squeeze_risk_within_bounds",
+        description="Risk percent between 0.8% and 7.5%",
+        observed=risk_pct,
+        required="0.8% <= Risk <= 7.5%",
+        passed=risk_valid,
+        failure_reason=None if risk_valid else f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+    ).to_dict())
+
+    if not risk_valid:
+        res["state"] = "ENTRY_REJECTED"
+        res["rejection_reason"] = f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+        res["truth_table"] = truth_table
+        return res
+
+    sig_date_val = dates[-1]
+    sig_date_str = sig_date_val.strftime("%Y-%m-%d") if hasattr(sig_date_val, "strftime") else str(sig_date_val)[:10]
+
+    target_1 = round(curr_close + 2.0 * (curr_close - stop_price), 2)
+    target_2 = round(curr_close + 3.5 * (curr_close - stop_price), 2)
+    rr_ratio = round((target_1 - curr_close) / (curr_close - stop_price), 2)
+
+    res["signal_triggered"] = True
+    res["state"] = "SIGNAL_TRIGGERED"
+    res["signal_date"] = sig_date_str
+    res["signal_close"] = round(curr_close, 2)
+    res["expected_entry"] = "NEXT_TRADING_DAY_OPEN"
+    res["stop_price"] = stop_price
+    res["target_1"] = target_1
+    res["target_2"] = target_2
+    res["risk_reward_ratio"] = rr_ratio
+    res["risk_percent"] = risk_pct
+    res["truth_table"] = truth_table
+
+    return res
+
+
+# ==============================================================================
+# 5.6 STRATEGY 6 — RUBBER BAND SNAPBACK (ORDER BLOCK / DEEP PULLBACK RETEST)
+# ==============================================================================
+
+def evaluate_rubber_band_snapback(df: pd.DataFrame, trend_info: dict, trend_qual: bool, trend_reasons: list[str]) -> dict:
+    """
+    Strategy 6 — Rubber Band Snapback (Bullish Order Block & Mean-Reversion)
+    Finds structural market leaders (Price > 200 DMA) suffering a sharp panic flush 
+    into extreme short-term oversold territory / Order Block support, triggering on the first reversal candle.
+    """
+    res = {
+        "strategy_name": "RUBBER_BAND_SNAPBACK",
+        "qualified": True,
+        "setup_detected": False,
+        "signal_triggered": False,
+        "state": "QUALIFIED",
+        "signal_date": None,
+        "signal_close": None,
+        "expected_entry": None,
+        "actual_entry": None,
+        "stop_price": None,
+        "target_1": None,
+        "target_2": None,
+        "risk_reward_ratio": None,
+        "risk_percent": None,
+        "rsi_2": None,
+        "invalidation_reason": None,
+        "rejection_reason": None,
+    }
+
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+    open_p = df["Open"]
+    dates = df.index
+    n = len(df)
+
+    truth_table: list[dict] = []
+
+    if n < 50:
+        res["qualified"] = False
+        res["state"] = "NOT_QUALIFIED"
+        res["invalidation_reason"] = "INSUFFICIENT_DATA"
+        truth_table.append(StrategyPredicate(
+            name="history_length_50",
+            description="At least 50 bars for rubber band evaluation",
+            observed=n,
+            required=">= 50 bars",
+            passed=False,
+            failure_reason="INSUFFICIENT_DATA"
+        ).to_dict())
+        res["truth_table"] = truth_table
+        return res
+
+    curr_close = float(close.iloc[-1])
+    curr_low = float(low.iloc[-1])
+    curr_open = float(open_p.iloc[-1])
+
+    # Step 1: Structural trend condition
+    curr_50 = float(close.rolling(50).mean().iloc[-1])
+    dma_200 = close.rolling(200).mean()
+    curr_200 = float(dma_200.iloc[-1]) if (len(close) >= 200 and pd.notna(dma_200.iloc[-1])) else curr_50
+
+    is_structural_uptrend = (curr_close >= curr_200 * 0.97) or (curr_50 >= curr_200)
+    truth_table.append(StrategyPredicate(
+        name="structural_trend_bullish",
+        description="Price >= 200 DMA (or 50 DMA >= 200 DMA)",
+        observed=f"Close={curr_close:.2f}, 200DMA={curr_200:.2f}",
+        required=">= 200 DMA * 0.97",
+        passed=is_structural_uptrend,
+        failure_reason=None if is_structural_uptrend else f"STRUCTURAL_DOWNTREND (Below 200 DMA: ₹{curr_close:.2f} < ₹{curr_200:.2f})"
+    ).to_dict())
+
+    if not is_structural_uptrend:
+        res["state"] = "NO_SETUP"
+        res["invalidation_reason"] = "STRUCTURAL_DOWNTREND"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 2: 2-period Connors/Wilder RSI extreme oversold condition
+    delta = close.diff()
+    gain_2 = delta.clip(lower=0).rolling(2).mean()
+    loss_2 = (-delta.clip(upper=0)).rolling(2).mean()
+    rs_2 = gain_2 / loss_2.replace(0, np.nan)
+    rsi_2_series = 100.0 - (100.0 / (1.0 + rs_2))
+    
+    rsi_2_yesterday = float(rsi_2_series.iloc[-2]) if len(rsi_2_series) >= 2 and pd.notna(rsi_2_series.iloc[-2]) else 50.0
+    res["rsi_2"] = round(rsi_2_yesterday, 2)
+
+    gain_14 = delta.clip(lower=0).rolling(14).mean()
+    loss_14 = (-delta.clip(upper=0)).rolling(14).mean()
+    rsi_14_series = 100.0 - (100.0 / (1.0 + (gain_14 / loss_14.replace(0, np.nan))))
+    rsi_14_val = float(rsi_14_series.iloc[-2]) if len(rsi_14_series) >= 2 and pd.notna(rsi_14_series.iloc[-2]) else 50.0
+
+    is_oversold = (rsi_2_yesterday <= 20.0) or (rsi_14_val <= 38.0)
+    truth_table.append(StrategyPredicate(
+        name="short_term_extreme_oversold",
+        description="2-period RSI <= 20 (or 14-period RSI <= 38)",
+        observed=f"RSI2={rsi_2_yesterday:.1f}, RSI14={rsi_14_val:.1f}",
+        required="RSI2 <= 20 or RSI14 <= 38",
+        passed=is_oversold,
+        failure_reason=None if is_oversold else f"NOT_OVERSOLD (RSI2: {rsi_2_yesterday:.1f})"
+    ).to_dict())
+
+    if not is_oversold:
+        res["state"] = "NO_SETUP"
+        res["invalidation_reason"] = f"NOT_OVERSOLD (RSI2: {rsi_2_yesterday:.1f})"
+        res["truth_table"] = truth_table
+        return res
+
+    res["setup_detected"] = True
+    res["state"] = "SETUP_FORMING"
+
+    # Step 3: Reversal Trigger today (Green bar & Close > Yesterday's High OR Hammer tail)
+    prev_high = float(high.iloc[-2])
+    prev_close = float(close.iloc[-2])
+
+    lower_shadow = min(curr_close, curr_open) - curr_low
+    body = abs(curr_close - curr_open)
+    is_hammer = (lower_shadow >= 1.2 * body) and (curr_close > curr_open)
+    is_break_high = curr_close > prev_high and curr_close > curr_open
+    is_bounce = curr_close > prev_close and curr_close > curr_open
+
+    reversal_pass = is_break_high or is_hammer or is_bounce
+    truth_table.append(StrategyPredicate(
+        name="oversold_reversal_confirmation",
+        description="Reversal candle (Close > Prev High, Hammer, or Green Bounce)",
+        observed=round(curr_close, 2),
+        required="Reversal confirmation",
+        passed=reversal_pass,
+        failure_reason=None if reversal_pass else "AWAITING_REVERSAL_CONFIRMATION"
+    ).to_dict())
+
+    if not reversal_pass:
+        res["state"] = "FLUSH_IN_PROGRESS"
+        res["rejection_reason"] = "AWAITING_REVERSAL_CONFIRMATION"
+        res["truth_table"] = truth_table
+        return res
+
+    # Step 4: Stop placement & Risk calculation
+    flush_low = float(low.iloc[n - 4 : n].min())
+    stop_price = round(flush_low * 0.995, 2)
+    risk_pct = round(((curr_close - stop_price) / curr_close) * 100, 2)
+
+    risk_valid = (0.8 <= risk_pct <= 7.5)
+    truth_table.append(StrategyPredicate(
+        name="rubber_band_risk_within_bounds",
+        description="Risk percent between 0.8% and 7.5%",
+        observed=risk_pct,
+        required="0.8% <= Risk <= 7.5%",
+        passed=risk_valid,
+        failure_reason=None if risk_valid else f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+    ).to_dict())
+
+    if not risk_valid:
+        res["state"] = "ENTRY_REJECTED"
+        res["rejection_reason"] = f"RISK_OUT_OF_BOUNDS ({risk_pct:.2f}%)"
+        res["truth_table"] = truth_table
+        return res
+
+    sig_date_val = dates[-1]
+    sig_date_str = sig_date_val.strftime("%Y-%m-%d") if hasattr(sig_date_val, "strftime") else str(sig_date_val)[:10]
+
+    # Target 1: Snapback to 50 DMA or 2.0R
+    target_1 = round(max(curr_50, curr_close + 2.0 * (curr_close - stop_price)), 2)
+    target_2 = round(curr_close + 3.0 * (curr_close - stop_price), 2)
+    rr_ratio = round((target_1 - curr_close) / (curr_close - stop_price), 2)
+
+    res["signal_triggered"] = True
+    res["state"] = "SIGNAL_TRIGGERED"
+    res["signal_date"] = sig_date_str
+    res["signal_close"] = round(curr_close, 2)
+    res["expected_entry"] = "NEXT_TRADING_DAY_OPEN"
+    res["stop_price"] = stop_price
+    res["target_1"] = target_1
+    res["target_2"] = target_2
+    res["risk_reward_ratio"] = rr_ratio
+    res["risk_percent"] = risk_pct
+    res["truth_table"] = truth_table
+
+    return res
+
+
+# ==============================================================================
+# 5.7 ENTRY, RISK FILTER & POSITION SIZING ENGINE
 # ==============================================================================
 
 def evaluate_entry_gap(signal_close: float, next_open: float) -> tuple[bool, Optional[str]]:
@@ -1456,16 +2028,25 @@ def evaluate_all_strategies(df: pd.DataFrame, trend_info: dict, momo_info: dict)
     s1 = evaluate_trend_pullback(df, trend_info, trend_qual, trend_reasons)
     s2 = evaluate_consolidation_breakout(df, trend_info, trend_qual, trend_reasons)
     s3 = evaluate_rs_continuation(df, momo_info, trend_qual, trend_reasons)
+    s4 = evaluate_liquidity_sweep(df, trend_info, trend_qual, trend_reasons)
+    s5 = evaluate_volatility_squeeze(df, trend_info, trend_qual, trend_reasons)
+    s6 = evaluate_rubber_band_snapback(df, trend_info, trend_qual, trend_reasons)
 
     all_strategies = {
+        "LIQUIDITY_SWEEP": s4,
+        "VOLATILITY_SQUEEZE": s5,
         "CONSOLIDATION_BREAKOUT": s2,
+        "RUBBER_BAND_SNAPBACK": s6,
         "TREND_PULLBACK": s1,
         "RELATIVE_STRENGTH_CONTINUATION": s3,
     }
 
     # Determine matching strategies that have triggered signals or active setups
     priority_order = [
+        "LIQUIDITY_SWEEP",
+        "VOLATILITY_SQUEEZE",
         "CONSOLIDATION_BREAKOUT",
+        "RUBBER_BAND_SNAPBACK",
         "TREND_PULLBACK",
         "RELATIVE_STRENGTH_CONTINUATION",
     ]
@@ -1653,8 +2234,14 @@ def score_setups(setups: list[str]) -> float:
 
         # Triggered signals get primary setup weight
         if "SIGNAL:" in s_up:
-            if "BREAKOUT" in s_up or "RESISTANCE" in s_up:
+            if "LIQUIDITY_SWEEP" in s_up or "SWEEP" in s_up:
                 score += 5.0
+            elif "VOLATILITY_SQUEEZE" in s_up or "SQUEEZE" in s_up:
+                score += 5.0
+            elif "BREAKOUT" in s_up or "RESISTANCE" in s_up:
+                score += 5.0
+            elif "RUBBER_BAND" in s_up or "SNAPBACK" in s_up:
+                score += 4.5
             elif "PULLBACK" in s_up:
                 score += 4.5
             elif "RELATIVE_STRENGTH" in s_up or "CONTINUATION" in s_up:
@@ -1664,8 +2251,14 @@ def score_setups(setups: list[str]) -> float:
 
         # Forming setups get partial setup weight
         elif "SETUP:" in s_up:
-            if "BREAKOUT" in s_up or "CONSOLIDATION" in s_up:
+            if "LIQUIDITY_SWEEP" in s_up or "SWEEP" in s_up:
+                score += 3.5
+            elif "VOLATILITY_SQUEEZE" in s_up or "SQUEEZE" in s_up:
+                score += 3.5
+            elif "BREAKOUT" in s_up or "CONSOLIDATION" in s_up:
                 score += 3.0
+            elif "RUBBER_BAND" in s_up or "SNAPBACK" in s_up:
+                score += 2.5
             elif "PULLBACK" in s_up:
                 score += 2.5
             elif "RELATIVE_STRENGTH" in s_up or "CONTINUATION" in s_up:

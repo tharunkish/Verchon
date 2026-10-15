@@ -475,9 +475,29 @@ export default function NeoScannerTab({
                         }`}>
                           #{index + 1 < 10 ? `0${index + 1}` : index + 1} {isTopRanked ? 'ALPHA LEADER' : 'PICK'}
                         </span>
-                        <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold text-zinc-300">
-                          {setupType.replace(/_/g, ' ')}
-                        </span>
+                        {(() => {
+                          let badgeClass = "border-white/10 bg-white/[0.04] text-zinc-300";
+                          let icon = "🎯";
+                          if (setupType.includes("SWEEP")) {
+                            badgeClass = "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.15)]";
+                            icon = "🛡️";
+                          } else if (setupType.includes("SQUEEZE")) {
+                            badgeClass = "border-purple-500/40 bg-purple-500/15 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.15)]";
+                            icon = "⚡";
+                          } else if (setupType.includes("SNAPBACK")) {
+                            badgeClass = "border-amber-500/40 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]";
+                            icon = "🧲";
+                          } else if (setupType.includes("BREAKOUT")) {
+                            badgeClass = "border-cyan-500/40 bg-cyan-500/15 text-cyan-300 shadow-[0_0_12px_rgba(0,242,254,0.15)]";
+                            icon = "🚀";
+                          }
+                          return (
+                            <span className={`rounded-xl border px-2.5 py-1 text-[10px] font-bold flex items-center space-x-1 ${badgeClass}`}>
+                              <span>{icon}</span>
+                              <span>{setupType.replace(/_/g, ' ')}</span>
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {/* Score Badge */}
