@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
   Play, 
@@ -10,28 +10,57 @@ import {
   ShieldAlert, 
   ShieldCheck, 
   Clock,
-  Globe,
   PieChart,
-  Layers
+  Layers,
+  LayoutGrid,
+  List,
+  Search,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
+  Zap,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 
 export default function ScannerTab({
-  candidates,
-  loadingScan,
+  candidates = [],
+  loadingScan = false,
   regime = null,
   onRunScan,
   onSelectCandidate,
   onOpenTradeModal,
   aiReport,
-  loadingAI,
+  loadingAI = false,
   onGenerateAIReport,
 }) {
   const regimeScore = regime?.regime_score ?? (regime?.regime === 'HOSTILE' ? 16 : 85);
   const isHostile = (regime?.regime === 'HOSTILE') || (regimeScore < 30);
 
+  // View mode: 'cards' or 'dense'
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('verchon_scanner_view') || 'cards';
+    } catch {
+      return 'cards';
+    }
+  });
+
+  const handleSetViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('verchon_scanner_view', mode);
+    } catch {}
+  };
+
   const [filterPriority, setFilterPriority] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedSectorFilter, setSelectedSectorFilter] = useState(null);
   const [portfolioSectors, setPortfolioSectors] = useState([]);
+  const [isGovernorCollapsed, setIsGovernorCollapsed] = useState(false);
+
+  const [sortConfig, setSortConfig] = useState({ key: 'overall_score', direction: 'desc' });
+
   const [universeSelect, setUniverseSelect] = useState(() => {
     try {
       return localStorage.getItem('verchon_scanner_universe') || 'nifty100';
@@ -39,6 +68,7 @@ export default function ScannerTab({
       return 'nifty100';
     }
   });
+
   const [limitCount, setLimitCount] = useState(() => {
     try {
       return Number(localStorage.getItem('verchon_scanner_limit')) || 100;
@@ -46,6 +76,7 @@ export default function ScannerTab({
       return 100;
     }
   });
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [scanElapsed, setScanElapsed] = useState(0);
   const [aiElapsed, setAiElapsed] = useState(0);
@@ -102,66 +133,122 @@ export default function ScannerTab({
     if (currentPct === 0) {
       return {
         type: 'NEW_SECTOR',
-        label: `🌱 New Sector: ${secName} (0% in Portfolio)`,
-        badge: 'border-emerald-500/50 bg-emerald-950/40 text-emerald-300',
+        label: `🌱 New Sector: ${secName}`,
+        badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         bonus: 35,
       };
     } else if (currentPct < 15) {
       return {
         type: 'BALANCED',
-        label: `🔵 Balances: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
-        badge: 'border-blue-500/50 bg-blue-950/40 text-blue-300',
+        label: `🔵 ${secName} (${currentPct.toFixed(1)}%)`,
+        badge: 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400',
         bonus: 15,
       };
     } else if (currentPct > 25) {
       return {
         type: 'OVERWEIGHT',
-        label: `⚠️ Overweight: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
-        badge: 'border-amber-500/60 bg-amber-950/50 text-amber-300',
+        label: `⚠️ Overweight: ${secName} (${currentPct.toFixed(1)}%)`,
+        badge: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
         bonus: -30,
       };
     }
     return {
       type: 'NEUTRAL',
       label: `${secName} (${currentPct.toFixed(1)}%)`,
-      badge: 'border-zinc-700 bg-zinc-800 text-zinc-300',
+      badge: 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)]',
       bonus: 0,
     };
   };
 
-  // Identify all scanned sectors and those completely missing from portfolio
-  const allScannedSectors = Array.from(
-    new Set(candidates.map((c) => c.sector || c.fundamentals?.sector).filter(Boolean))
-  );
-  const missingSectors = allScannedSectors.filter((sec) => getSectorExposurePct(sec) === 0);
+  // Identify all scanned sectors and those missing
+  const allScannedSectors = useMemo(() => {
+    return Array.from(
+      new Set(candidates.map((c) => c.sector || c.fundamentals?.sector).filter(Boolean))
+    );
+  }, [candidates]);
 
-  let filteredCandidates = candidates.filter((c) => {
-    if (filterPriority === 'SECTOR DIVERSITY') {
-      // Exclude AVOID / FILTERED OUT so quality is never compromised
-      if (c.priority === 'AVOID / FILTERED OUT') return false;
-      // If a specific missing sector chip was selected in the banner
-      if (selectedSectorFilter) {
-        const sec = c.sector || c.fundamentals?.sector;
-        return sec?.toLowerCase() === selectedSectorFilter.toLowerCase();
+  const missingSectors = useMemo(() => {
+    return allScannedSectors.filter((sec) => getSectorExposurePct(sec) === 0);
+  }, [allScannedSectors, portfolioSectors]);
+
+  // Unified Filtering & Sorting
+  const filteredAndSortedCandidates = useMemo(() => {
+    let result = candidates.filter((c) => {
+      // 1. Text Search Filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        const tickerMatch = (c.ticker || '').toLowerCase().includes(query);
+        const nameMatch = (c.name || c.company_name || '').toLowerCase().includes(query);
+        const sectorMatch = (c.sector || c.fundamentals?.sector || '').toLowerCase().includes(query);
+        const setupMatch = (c.setup_type || '').toLowerCase().includes(query);
+        if (!tickerMatch && !nameMatch && !sectorMatch && !setupMatch) {
+          return false;
+        }
       }
-      return true;
-    }
-    if (filterPriority === 'ALL') return true;
-    return c.priority === filterPriority;
-  });
 
-  if (filterPriority === 'SECTOR DIVERSITY') {
-    // Rank by: Overall Score + Sector Diversification Bonus
-    filteredCandidates = [...filteredCandidates].sort((a, b) => {
-      const secA = a.sector || a.fundamentals?.sector;
-      const secB = b.sector || b.fundamentals?.sector;
-      const bonusA = getSectorImpactInfo(secA)?.bonus || 0;
-      const bonusB = getSectorImpactInfo(secB)?.bonus || 0;
-      const scoreA = (a.overall_score || 0) + bonusA;
-      const scoreB = (b.overall_score || 0) + bonusB;
-      return scoreB - scoreA;
+      // 2. Priority Filter
+      if (filterPriority === 'SECTOR DIVERSITY') {
+        if (c.priority === 'AVOID / FILTERED OUT') return false;
+        if (selectedSectorFilter) {
+          const sec = c.sector || c.fundamentals?.sector;
+          return sec?.toLowerCase() === selectedSectorFilter.toLowerCase();
+        }
+        return true;
+      }
+      if (filterPriority === 'ALL') return true;
+      return c.priority === filterPriority;
     });
-  }
+
+    // 3. Sorting
+    result.sort((a, b) => {
+      let valA, valB;
+      const key = sortConfig.key;
+
+      if (key === 'ticker') {
+        valA = a.ticker || '';
+        valB = b.ticker || '';
+        return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      } else if (key === 'current_price') {
+        valA = a.current_price ?? a.technicals?.Trend_Analysis?.Current_Price ?? 0;
+        valB = b.current_price ?? b.technicals?.Trend_Analysis?.Current_Price ?? 0;
+      } else if (key === 'fundamental_score') {
+        valA = a.fundamentals?.fundamental_score ?? 0;
+        valB = b.fundamentals?.fundamental_score ?? 0;
+      } else if (key === 'technical_score') {
+        valA = a.technicals?.Scoring_Summary?.Technical_Score ?? 0;
+        valB = b.technicals?.Scoring_Summary?.Technical_Score ?? 0;
+      } else if (key === 'risk_reward_ratio') {
+        valA = a.risk_reward_ratio ?? a.strategy?.active_strategy_result?.risk_reward_ratio ?? 0;
+        valB = b.risk_reward_ratio ?? b.strategy?.active_strategy_result?.risk_reward_ratio ?? 0;
+      } else if (key === 'dma_dist') {
+        valA = a.technicals?.Trend_Analysis?.['Dist_50_DMA_%'] ?? 0;
+        valB = b.technicals?.Trend_Analysis?.['Dist_50_DMA_%'] ?? 0;
+      } else {
+        // overall_score (with sector diversity bonus if selected)
+        let bonusA = 0;
+        let bonusB = 0;
+        if (filterPriority === 'SECTOR DIVERSITY') {
+          bonusA = getSectorImpactInfo(a.sector || a.fundamentals?.sector)?.bonus || 0;
+          bonusB = getSectorImpactInfo(b.sector || b.fundamentals?.sector)?.bonus || 0;
+        }
+        valA = (a.overall_score ?? 0) + bonusA;
+        valB = (b.overall_score ?? 0) + bonusB;
+      }
+
+      return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+    });
+
+    return result;
+  }, [candidates, filterPriority, selectedSectorFilter, searchQuery, sortConfig, portfolioSectors]);
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'desc' };
+    });
+  };
 
   const handleScanSubmit = () => {
     if (universeSelect === 'fast3') {
@@ -171,582 +258,643 @@ export default function ScannerTab({
     }
   };
 
-  const getPriorityStyle = (priority) => {
+  const getPriorityBadgeStyle = (priority) => {
     switch (priority) {
       case 'SIGNAL TRIGGERED':
-        return 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300';
+        return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold';
       case 'HIGH PRIORITY':
-        return 'border-rose-600/70 bg-rose-950/50 text-rose-300 shadow-sm shadow-rose-950/50';
+        return 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 font-bold';
       case 'WATCHLIST':
-        return 'border-zinc-700 bg-zinc-900/80 text-zinc-300';
+        return 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
       case 'AVOID / FILTERED OUT':
-        return 'border-zinc-800 bg-zinc-950/60 text-zinc-500';
+        return 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-muted)]';
       default:
-        return 'border-zinc-800 bg-zinc-900 text-zinc-400';
+        return 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[var(--text-secondary)]';
     }
   };
 
+  const getStrategyBadgeInfo = (strat) => {
+    if (!strat || strat === 'None' || strat === 'SWING_MOMENTUM' || strat === 'NO_ACTIVE_SETUP' || strat === 'NO_SETUP') {
+      return null;
+    }
+    if (strat.includes("SWEEP")) {
+      return { icon: "🛡️", label: "Liquidity Sweep", style: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
+    }
+    if (strat.includes("SQUEEZE")) {
+      return { icon: "⚡", label: "Volatility Squeeze", style: "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400" };
+    }
+    if (strat.includes("SNAPBACK")) {
+      return { icon: "🧲", label: "Rubber Band Snapback", style: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+    }
+    if (strat.includes("BREAKOUT")) {
+      return { icon: "🚀", label: "Momentum Breakout", style: "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400" };
+    }
+    return { icon: "🎯", label: strat.replace(/_/g, ' '), style: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+  };
+
   return (
-    <div className="min-h-[calc(100vh-100px)] p-6">
-      {/* 1. Control Toolbar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/[0.08] bg-[#0c0c10]/80 p-4 shadow-xl backdrop-blur-xl">
-        {/* Left: Scan Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <label className="mb-1 block font-mono text-[10px] text-zinc-400">UNIVERSE</label>
-            <select
-              value={universeSelect}
-              onChange={(e) => {
-                const val = e.target.value;
-                setUniverseSelect(val);
-                try {
-                  localStorage.setItem('verchon_scanner_universe', val);
-                } catch {}
-                if (val === 'fast3') {
-                  setLimitCount(3);
-                }
-              }}
-              className="rounded-lg border border-zinc-800 bg-zinc-900/90 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-700 focus:border-rose-500"
-            >
-              <option value="fast3">⚡ 3-Stock Fast Test (ICICI, TCS, IDEA)</option>
-              <option value="nifty50">Nifty 50 Index</option>
-              <option value="nifty100">Nifty 100 Index</option>
-              <option value="niftymidcap100">Nifty Midcap 100</option>
-              <option value="nifty500">Nifty 500 Index (500 Stocks)</option>
-              <option value="niftytotalmarket">Total Market Index (750 Stocks)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block font-mono text-[10px] text-zinc-400">CANDIDATE LIMIT</label>
-            <select
-              value={universeSelect === 'fast3' ? 3 : limitCount}
-              onChange={(e) => {
-                const val = e.target.value;
-                setLimitCount(val);
-                try {
-                  localStorage.setItem('verchon_scanner_limit', val);
-                } catch {}
-              }}
-              disabled={universeSelect === 'fast3'}
-              title={universeSelect === 'fast3' ? 'Fast Test universe is locked to 3 stocks' : 'Select candidate limit'}
-              className={`rounded-lg border border-zinc-800 bg-zinc-900/90 px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-700 focus:border-rose-500 ${
-                universeSelect === 'fast3' ? 'cursor-not-allowed opacity-50' : ''
-              }`}
-            >
-              <option value="3">3 Stocks (Fast)</option>
-              <option value="10">10 Stocks</option>
-              <option value="25">25 Stocks</option>
-              <option value="50">50 Stocks</option>
-              <option value="100">100 Stocks</option>
-              <option value="250">250 Stocks</option>
-              <option value="500">500 Stocks (Full Nifty 500)</option>
-              <option value="750">750 Stocks (Total Market)</option>
-            </select>
-          </div>
-
-          <div className="self-end">
-            <button
-              onClick={handleScanSubmit}
-              disabled={loadingScan}
-              className="flex items-center space-x-2 rounded-lg bg-gradient-to-r from-[#c9183b] to-[#a1112e] px-4 py-1.5 font-mono text-xs font-bold text-white shadow-lg shadow-rose-950/60 transition hover:from-[#e11d48] hover:to-[#be123c] active:scale-95 disabled:opacity-50"
-            >
-              <Play className={`h-3.5 w-3.5 fill-current ${loadingScan ? 'animate-pulse' : ''}`} />
-              <span>{loadingScan ? `Screening Universe (${scanElapsed}s)...` : 'Run Deterministic Scan'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right: AI Synthesis Trigger */}
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => {
-              if (candidates.length > 0) {
-                onGenerateAIReport(candidates.map((c) => c.ticker));
-                setIsDrawerOpen(true);
-              }
-            }}
-            disabled={loadingAI || candidates.length === 0}
-            className="flex items-center space-x-2 rounded-lg border border-rose-500/40 bg-rose-950/30 px-4 py-1.5 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-900/40 disabled:opacity-40"
-          >
-            <Sparkles className={`h-3.5 w-3.5 ${loadingAI ? 'animate-spin' : ''}`} />
-            <span>{loadingAI ? `Synthesizing Report (${aiElapsed}s)...` : 'Generate AI Research Report'}</span>
-          </button>
-
-          {aiReport && (
-            <button
-              onClick={() => setIsDrawerOpen(true)}
-              className="rounded border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-300 hover:border-zinc-700"
-            >
-              View Report
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Priority Filter Bar */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Filter className="h-3.5 w-3.5 text-zinc-500" />
-          <span className="font-mono text-xs text-zinc-500">FILTER BY PRIORITY:</span>
-          {['ALL', 'SIGNAL TRIGGERED', 'HIGH PRIORITY', 'WATCHLIST', 'SECTOR DIVERSITY', 'AVOID / FILTERED OUT'].map((p) => (
-            <button
-              key={p}
-              onClick={() => {
-                setFilterPriority(p);
-                if (p !== 'SECTOR DIVERSITY') setSelectedSectorFilter(null);
-              }}
-              className={`rounded-full px-3 py-1 font-mono text-[11px] transition flex items-center space-x-1 ${
-                filterPriority === p
-                  ? p === 'SECTOR DIVERSITY'
-                    ? 'bg-emerald-400 font-bold text-zinc-950 shadow-md shadow-emerald-950/50'
-                    : 'bg-zinc-200 font-semibold text-zinc-900'
-                  : p === 'SECTOR DIVERSITY'
-                  ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/50 hover:bg-emerald-900/50'
-                  : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-              }`}
-            >
-              {p === 'SECTOR DIVERSITY' && <Globe className="h-3 w-3 mr-1" />}
-              <span>{p}</span>
-            </button>
-          ))}
-        </div>
-        <span className="font-mono text-xs text-zinc-500">
-          Showing {filteredCandidates.length} of {candidates.length} candidates
-        </span>
-      </div>
-
-      {/* Portfolio Sector Gap Banner (Active when SECTOR DIVERSITY filter selected) */}
-      {filterPriority === 'SECTOR DIVERSITY' && (
-        <div className="mb-5 rounded-xl border border-emerald-900/40 bg-gradient-to-r from-emerald-950/30 via-[#0a0f12] to-emerald-950/30 p-4 font-mono shadow-lg backdrop-blur-md">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-900/30 pb-2.5 mb-3">
-            <div className="flex items-center space-x-2 text-emerald-400">
-              <Globe className="h-4 w-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                PORTFOLIO SECTOR GAP ANALYSIS (DIVERSIFICATION PICK ENGINE)
-              </span>
-            </div>
-            <span className="text-[10px] text-zinc-400">
-              Underweight Sector Bonus applied · Click a sector to isolate picks
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-zinc-400">Missing Sectors (0% Exposure):</span>
-            {missingSectors.length > 0 ? (
-              missingSectors.map((sec) => {
-                const count = candidates.filter(
-                  (c) => (c.sector === sec || c.fundamentals?.sector === sec) && c.priority !== 'AVOID / FILTERED OUT'
-                ).length;
-                const isSelected = selectedSectorFilter?.toLowerCase() === sec.toLowerCase();
-
-                return (
-                  <button
-                    key={sec}
-                    onClick={() => setSelectedSectorFilter(isSelected ? null : sec)}
-                    className={`flex items-center space-x-1.5 rounded-lg border px-2.5 py-1 text-xs transition ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-500 text-zinc-950 font-bold shadow-md'
-                        : 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-700'
-                    }`}
-                  >
-                    <span>{sec}</span>
-                    <span className={`rounded px-1.5 py-0.2 text-[10px] ${
-                      isSelected ? 'bg-zinc-950 text-emerald-300' : 'bg-emerald-900/70 text-emerald-200'
-                    }`}>
-                      {count} viable
-                    </span>
-                  </button>
-                );
-              })
-            ) : (
-              <span className="text-xs text-zinc-500">All scanned sectors currently represented in portfolio.</span>
-            )}
-
-            {selectedSectorFilter && (
-              <button
-                onClick={() => setSelectedSectorFilter(null)}
-                className="flex items-center space-x-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:text-white transition"
+    <div className="min-h-[calc(100vh-100px)] p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
+      {/* 1. Apple-Grade Control Toolbar */}
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 shadow-sm backdrop-blur-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: Scan Controls & Universe Selector */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <label className="mb-1 block font-mono text-[10px] text-[var(--text-secondary)]">UNIVERSE</label>
+              <select
+                value={universeSelect}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setUniverseSelect(val);
+                  try {
+                    localStorage.setItem('verchon_scanner_universe', val);
+                  } catch {}
+                  if (val === 'fast3') setLimitCount(3);
+                }}
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-1.5 font-mono text-xs text-[var(--text-primary)] outline-none hover:border-black/20 dark:hover:border-white/20 focus:ring-1 focus:ring-blue-500 transition"
               >
-                <X className="h-3 w-3" />
-                <span>Show All Divergent</span>
+                <option value="fast3">⚡ 3-Stock Fast Test (ICICI, TCS, IDEA)</option>
+                <option value="nifty50">Nifty 50 Index</option>
+                <option value="nifty100">Nifty 100 Index</option>
+                <option value="niftymidcap100">Nifty Midcap 100</option>
+                <option value="nifty500">Nifty 500 Index (500 Stocks)</option>
+                <option value="niftytotalmarket">Total Market Index (750 Stocks)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block font-mono text-[10px] text-[var(--text-secondary)]">CANDIDATE LIMIT</label>
+              <select
+                value={universeSelect === 'fast3' ? 3 : limitCount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLimitCount(val);
+                  try {
+                    localStorage.setItem('verchon_scanner_limit', val);
+                  } catch {}
+                }}
+                disabled={universeSelect === 'fast3'}
+                className={`rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-3 py-1.5 font-mono text-xs text-[var(--text-primary)] outline-none hover:border-black/20 dark:hover:border-white/20 focus:ring-1 focus:ring-blue-500 transition ${
+                  universeSelect === 'fast3' ? 'cursor-not-allowed opacity-50' : ''
+                }`}
+              >
+                <option value="3">3 Stocks (Fast)</option>
+                <option value="10">10 Stocks</option>
+                <option value="25">25 Stocks</option>
+                <option value="50">50 Stocks</option>
+                <option value="100">100 Stocks</option>
+              </select>
+            </div>
+
+            {/* Run Deterministic Scan Trigger */}
+            <div className="self-end">
+              <button
+                onClick={handleScanSubmit}
+                disabled={loadingScan}
+                className={`flex items-center space-x-2 rounded-xl px-4 py-2 font-medium text-xs text-white shadow-md transition-all ${
+                  loadingScan
+                    ? 'cursor-not-allowed bg-blue-500/50'
+                    : 'bg-blue-500 hover:bg-blue-600 active:scale-95 shadow-blue-500/25'
+                }`}
+              >
+                <Play className={`h-3.5 w-3.5 fill-current ${loadingScan ? 'animate-pulse' : ''}`} />
+                <span>{loadingScan ? `Scanning (${scanElapsed}s)...` : 'Run Scan'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Search, Dual View Switcher, and AI Dossier Trigger */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Quick Search Box */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="Search ticker, name, setup..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 sm:w-56 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] pl-9 pr-3 py-1.5 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none hover:border-black/20 dark:hover:border-white/20 focus:ring-1 focus:ring-blue-500 transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Dual View Switcher: [Cards] vs [Dense List] */}
+            <div className="flex items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-0.5">
+              <button
+                onClick={() => handleSetViewMode('cards')}
+                title="Apple Trade Cards View"
+                className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                  viewMode === 'cards'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Cards</span>
+              </button>
+
+              <button
+                onClick={() => handleSetViewMode('dense')}
+                title="Dense Financial Table View"
+                className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                  viewMode === 'dense'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Dense List</span>
+              </button>
+            </div>
+
+            {/* AI Dossier Button */}
+            {candidates.length > 0 && (
+              <button
+                onClick={() => {
+                  if (!aiReport && !loadingAI) {
+                    onGenerateAIReport();
+                  }
+                  setIsDrawerOpen(true);
+                }}
+                disabled={loadingAI}
+                className="flex items-center space-x-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition"
+              >
+                <Sparkles className={`h-3.5 w-3.5 ${loadingAI ? 'animate-spin' : ''}`} />
+                <span>{loadingAI ? `Synthesizing (${aiElapsed}s)...` : 'AI Dossier'}</span>
               </button>
             )}
           </div>
         </div>
-      )}
 
-      {/* Macro Regime Governor Warning Banner */}
+        {/* Priority Filter Pills */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-[var(--border-subtle)] pt-3 text-xs">
+          <span className="font-mono text-[10px] text-[var(--text-secondary)] mr-1">FILTER:</span>
+          {['ALL', 'SIGNAL TRIGGERED', 'HIGH PRIORITY', 'WATCHLIST', 'SECTOR DIVERSITY', 'AVOID / FILTERED OUT'].map((p) => {
+            const isSelected = filterPriority === p;
+            const count = p === 'ALL'
+              ? candidates.length
+              : p === 'SECTOR DIVERSITY'
+              ? candidates.filter((c) => c.priority !== 'AVOID / FILTERED OUT').length
+              : candidates.filter((c) => c.priority === p).length;
+
+            return (
+              <button
+                key={p}
+                onClick={() => {
+                  setFilterPriority(p);
+                  if (p !== 'SECTOR DIVERSITY') setSelectedSectorFilter(null);
+                }}
+                className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs transition ${
+                  isSelected
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold border border-blue-500/30'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/50'
+                }`}
+              >
+                <span>{p}</span>
+                <span className="rounded-full bg-[var(--border-subtle)] px-1.5 py-0.2 font-mono text-[10px]">
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. Data-Driven Macro Governor Capsule */}
       {isHostile && (
-        <div className="mb-5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-950/70 via-red-950/40 to-black/70 p-4 font-mono shadow-2xl shadow-rose-950/40 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-300 border border-rose-500/30">
-                  MACRO REGIME GOVERNOR ACTIVE
-                </span>
-                <span className="text-xs font-bold text-rose-400">
-                  Score: {regimeScore}/100
-                </span>
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 backdrop-blur-xl transition-all">
+          <div className="flex items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400">
+                <ShieldAlert className="h-4 w-4" />
               </div>
-              <p className="text-xs text-zinc-300 mt-1">
-                NIFTY 50 is in a <strong className="text-rose-300 font-bold">HOSTILE</strong> downdraft regime. 50% position sizing is enforced to protect capital. High-beta breakouts carry elevated failure risk; prioritize tight-risk mean reversion or stay defensive.
-              </p>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="rounded-md bg-rose-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-rose-700 dark:text-rose-300">
+                    MACRO REGIME GOVERNOR ACTIVE
+                  </span>
+                  <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    Nifty Score: {regimeScore}/100
+                  </span>
+                </div>
+                {!isGovernorCollapsed && (
+                  <p className="mt-1 text-xs text-[var(--text-secondary)] max-w-2xl leading-relaxed">
+                    NIFTY 50 is in a downdraft regime. Capital preservation is active: 50% position sizing is enforced across setups. High-beta breakouts are suppressed to protect capital.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
-            <span className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-300">
-              ⚡ 50% SIZING
-            </span>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <span className="rounded-xl border border-rose-500/30 bg-rose-500/20 px-3 py-1 font-mono text-xs font-bold text-rose-700 dark:text-rose-300">
+                ⚡ 50% SIZING
+              </span>
+              <button
+                onClick={() => setIsGovernorCollapsed(!isGovernorCollapsed)}
+                className="rounded-lg p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
+                title={isGovernorCollapsed ? "Expand Macro Governor details" : "Collapse into slim capsule"}
+              >
+                {isGovernorCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 3. Candidate Grid */}
+      {/* 3. Candidate Grid / Dense Table Renderer */}
       {loadingScan ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#0c0c10]/80 p-16 text-center shadow-2xl backdrop-blur-xl">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-16 text-center shadow-sm backdrop-blur-xl">
           <div className="relative mb-4 flex h-14 w-14 items-center justify-center">
-            <div className="absolute inset-0 animate-ping rounded-full bg-rose-500/20" />
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-rose-500/40 bg-rose-950/50 text-rose-400">
+            <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
               <Play className="ml-0.5 h-5 w-5 fill-current animate-pulse" />
             </div>
           </div>
-          <div className="font-mono text-sm font-semibold text-zinc-100">
-            Screening Universe: {universeSelect === 'fast3' ? 'Fast Test (3 Stocks)' : universeSelect.toUpperCase()}
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Scanning Universe: {universeSelect === 'fast3' ? 'Fast Test (3 Stocks)' : universeSelect.toUpperCase()}
           </div>
-          <div className="mt-1.5 font-mono text-xs text-rose-400 font-semibold">
+          <div className="mt-1 font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
             Elapsed: {scanElapsed}s · Deterministic multi-factor qualification
           </div>
-          <p className="mt-2 max-w-md text-xs text-zinc-400">
-            Extracting historical OHLCV, calculating swing indicators (50/200 DMA, ATR, RSI), auditing fundamentals, and qualifying active setups.
+          <p className="mt-2 max-w-md text-xs text-[var(--text-secondary)]">
+            Calculating swing technicals (50/200 DMA, ATR, RSI), auditing corporate fundamentals, and checking strategy conditions.
           </p>
-          <div className="mt-5 flex items-center space-x-2 font-mono text-[11px] text-zinc-500">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            <span>Base Calculation Engine Running (Zero AI Latency)</span>
+        </div>
+      ) : filteredAndSortedCandidates.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-subtle)] p-16 text-center">
+          <AlertCircle className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
+          <div className="text-sm font-semibold text-[var(--text-primary)]">No matching candidates</div>
+          <div className="mt-1 text-xs text-[var(--text-secondary)]">
+            {candidates.length === 0
+              ? 'Click "Run Scan" above to screen the selected stock universe.'
+              : 'Try clearing the search query or adjusting your priority filter.'}
           </div>
         </div>
-      ) : filteredCandidates.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCandidates.map((c) => {
+      ) : viewMode === 'dense' ? (
+        /* ===================================================================
+           DENSE FINANCIAL TABLE VIEW
+           =================================================================== */
+        <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-sm">
+          <div className="overflow-x-auto no-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[960px]">
+              <thead>
+                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-canvas)] text-[11px] font-semibold text-[var(--text-secondary)] tracking-wider uppercase">
+                  <th className="py-3 px-4 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('ticker')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Ticker & Co.</span>
+                      {sortConfig.key === 'ticker' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('current_price')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Price</span>
+                      {sortConfig.key === 'current_price' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('dma_dist')}>
+                    <div className="flex items-center space-x-1">
+                      <span>50D Dist</span>
+                      {sortConfig.key === 'dma_dist' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3">Strategy</th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('overall_score')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Score</span>
+                      {sortConfig.key === 'overall_score' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('fundamental_score')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Finances</span>
+                      {sortConfig.key === 'fundamental_score' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('technical_score')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Chart</span>
+                      {sortConfig.key === 'technical_score' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3 cursor-pointer hover:text-[var(--text-primary)]" onClick={() => handleSort('risk_reward_ratio')}>
+                    <div className="flex items-center space-x-1">
+                      <span>R:R</span>
+                      {sortConfig.key === 'risk_reward_ratio' && (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-3">Stop Loss</th>
+                  <th className="py-3 px-3">Target 1</th>
+                  <th className="py-3 px-3">Priority</th>
+                  <th className="py-3 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-subtle)] text-xs">
+                {filteredAndSortedCandidates.map((c) => {
+                  const f = c.fundamentals || {};
+                  const t = c.technicals || {};
+                  const price = c.current_price ?? t.Trend_Analysis?.Current_Price;
+                  const dmaDist = t.Trend_Analysis?.['Dist_50_DMA_%'];
+                  const stratInfo = getStrategyBadgeInfo(c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy);
+                  const stop = c.stop_loss || c.strategy?.active_strategy_result?.stop_price;
+                  const t1 = c.target_1 || c.strategy?.active_strategy_result?.target_1;
+                  const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
+
+                  return (
+                    <tr
+                      key={c.ticker}
+                      onClick={() => onSelectCandidate(c.ticker)}
+                      className="cursor-pointer hover:bg-[var(--border-subtle)]/40 transition group"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-[var(--text-primary)] group-hover:text-blue-500 transition">
+                          {c.ticker}
+                        </div>
+                        <div className="text-[10px] text-[var(--text-secondary)] truncate max-w-[150px]">
+                          {c.name}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 font-mono-num font-semibold text-[var(--text-primary)]">
+                        {price != null ? `₹${Number(price).toFixed(1)}` : '—'}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num text-[11px]">
+                        {dmaDist != null ? (
+                          <span className={dmaDist >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'}>
+                            {dmaDist > 0 ? '+' : ''}{dmaDist}%
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="py-3 px-3">
+                        {stratInfo ? (
+                          <span className={`inline-flex items-center space-x-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${stratInfo.style}`}>
+                            <span>{stratInfo.icon}</span>
+                            <span>{stratInfo.label}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[var(--text-muted)]">No setup</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num font-bold text-[var(--text-primary)]">
+                        {c.overall_score ?? '—'}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num text-[var(--text-secondary)]">
+                        {f.fundamental_score ?? '—'}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num text-[var(--text-secondary)]">
+                        {t.Scoring_Summary?.Technical_Score ?? '—'}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num">
+                        {rr ? (
+                          <span className="text-blue-600 dark:text-blue-400 font-bold">{rr}x</span>
+                        ) : (
+                          <span className="text-[var(--text-muted)]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num text-rose-600 dark:text-rose-400">
+                        {stop ? `₹${Number(stop).toFixed(1)}` : '—'}
+                      </td>
+                      <td className="py-3 px-3 font-mono-num text-emerald-600 dark:text-emerald-400">
+                        {t1 ? `₹${Number(t1).toFixed(1)}` : '—'}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`rounded-full border px-2 py-0.2 font-mono text-[9px] ${getPriorityBadgeStyle(c.priority)}`}>
+                          {c.priority}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onOpenTradeModal) {
+                              onOpenTradeModal(c.ticker, c.setup_type || c.strategy?.primary_strategy);
+                            }
+                          }}
+                          className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition"
+                        >
+                          ⚡ Trade
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* ===================================================================
+           APPLE TRADE SPECTRUM CARDS VIEW
+           =================================================================== */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAndSortedCandidates.map((c) => {
             const f = c.fundamentals || {};
             const t = c.technicals || {};
             const val = f.valuation || {};
             const trend = t.Trend_Analysis || {};
+            const price = c.current_price ?? trend.Current_Price;
+            const dmaDist = trend['Dist_50_DMA_%'];
+
+            const stratInfo = getStrategyBadgeInfo(c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy);
+            const stop = c.stop_loss || c.strategy?.active_strategy_result?.stop_price;
+            const t1 = c.target_1 || c.strategy?.active_strategy_result?.target_1;
+            const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
+
+            // Mathematical Risk Spectrum Calculation
+            let hasValidSpectrum = false;
+            let riskPct = 35;
+            let rewardPct = 65;
+            if (stop != null && t1 != null && price != null && Number(stop) < Number(price) && Number(price) < Number(t1)) {
+              hasValidSpectrum = true;
+              const s = Number(stop);
+              const p = Number(price);
+              const target = Number(t1);
+              const totalSpan = target - s;
+              if (totalSpan > 0) {
+                riskPct = Math.max(15, Math.min(85, Math.round(((p - s) / totalSpan) * 100)));
+                rewardPct = 100 - riskPct;
+              }
+            }
+
+            const impact = getSectorImpactInfo(c.sector || f.sector);
 
             return (
               <div
                 key={c.ticker}
                 onClick={() => onSelectCandidate(c.ticker)}
-                className="group relative flex cursor-pointer flex-col justify-between rounded-xl border border-white/[0.07] bg-[#0c0c10]/75 p-5 backdrop-blur-lg transition-all duration-300 hover:border-rose-500/40 hover:bg-[#121218]/90 hover:shadow-[0_0_24px_rgba(201,24,59,0.14)]"
+                className="group relative flex flex-col justify-between rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 shadow-sm hover:shadow-md hover:border-blue-500/40 transition-all duration-200 cursor-pointer"
               >
                 <div>
-                  {/* Top Bar: Ticker + Priority Badge */}
-                  <div className="mb-3 flex items-start justify-between">
+                  {/* Primary Hierarchy: Big Ticker, Company Name, and Bold Price */}
+                  <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono text-base font-bold text-zinc-100 transition-colors group-hover:text-rose-400">
+                        <span className="text-base font-black tracking-tight text-[var(--text-primary)] group-hover:text-blue-500 transition">
                           {c.ticker}
                         </span>
-                        <span className="rounded border border-zinc-800 bg-zinc-900/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                        <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-1.5 py-0.2 font-mono text-[9px] text-[var(--text-secondary)]">
                           {f.company_type || 'GENERAL'}
                         </span>
                       </div>
-                      <div className="mt-0.5 text-xs text-zinc-400">
-                        {c.name} · {c.sector}
+                      <div className="text-xs text-[var(--text-secondary)] truncate max-w-[180px] mt-0.5">
+                        {c.name}
                       </div>
-
-                      {/* Dynamic Sector Impact Badge */}
-                      {(() => {
-                        const impact = getSectorImpactInfo(c.sector || f.sector);
-                        if (!impact) return null;
-                        return (
-                          <div className="mt-1.5 flex items-center">
-                            <span className={`inline-flex items-center space-x-1 rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${impact.badge}`}>
-                              <span>{impact.label}</span>
-                            </span>
-                          </div>
-                        );
-                      })()}
                     </div>
-                    <span className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold ${getPriorityStyle(c.priority)}`}>
+
+                    <div className="text-right">
+                      <div className="font-mono-num text-base font-extrabold text-[var(--text-primary)]">
+                        {price != null ? `₹${Number(price).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}` : 'N/A'}
+                      </div>
+                      {dmaDist != null && (
+                        <div className={`font-mono-num text-[11px] font-semibold ${dmaDist >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {dmaDist > 0 ? '+' : ''}{dmaDist}% vs 50D
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Strategy Badge & Priority */}
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    {stratInfo ? (
+                      <span className={`inline-flex items-center space-x-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold border ${stratInfo.style}`}>
+                        <span>{stratInfo.icon}</span>
+                        <span>{stratInfo.label}</span>
+                      </span>
+                    ) : (
+                      <span className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2 py-0.5 text-[10px] text-[var(--text-muted)]">
+                        No active setup
+                      </span>
+                    )}
+
+                    <span className={`rounded-full border px-2 py-0.2 font-mono text-[9px] ${getPriorityBadgeStyle(c.priority)}`}>
                       {c.priority}
                     </span>
                   </div>
 
-                  {/* Score Badges */}
-                  <div className="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-2.5 text-center font-mono">
-                    <div>
-                      <div className="text-[10px] text-zinc-500">TOTAL SCORE</div>
-                      <div className="text-sm font-bold text-zinc-100">
-                        {c.overall_score ?? 'N/A'}
+                  {/* Mathematical Risk Spectrum Bar */}
+                  {hasValidSpectrum ? (
+                    <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-2.5">
+                      <div className="flex items-center justify-between text-[10px] font-mono mb-1.5">
+                        <span className="text-rose-600 dark:text-rose-400 font-bold">SL ₹{Number(stop).toFixed(1)}</span>
+                        {rr && <span className="font-bold text-blue-600 dark:text-blue-400">R:R {rr}x</span>}
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">T1 ₹{Number(t1).toFixed(1)}</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-[var(--border-subtle)] overflow-hidden flex">
+                        <div style={{ width: `${riskPct}%` }} className="bg-rose-500 h-full" title={`Risk Span: ${riskPct}%`} />
+                        <div style={{ width: `${rewardPct}%` }} className="bg-emerald-500 h-full" title={`Reward Span: ${rewardPct}%`} />
                       </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500">FINANCES (60%)</div>
-                      <div className="text-sm font-bold text-zinc-300">
-                        {f.fundamental_score ?? 'N/A'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500">CHART (40%)</div>
-                      <div className="text-sm font-bold text-zinc-300">
-                        {t.Scoring_Summary?.Technical_Score ?? 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Valuation & Technical Highlights */}
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-zinc-400">
-                      <span>Valuation (P/E & P/B):</span>
-                      <span className="font-mono text-zinc-200">
-                        P/E {val.pe ? `${val.pe}x` : 'N/A'} | P/B {val.pb ? `${val.pb}x` : 'N/A'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-zinc-400">
-                      <span>Distance to 50-Day Avg:</span>
-                      <span className={`font-mono ${trend['Dist_50_DMA_%'] >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%']}%` : 'N/A'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-zinc-400">
-                      <span>Chart Pattern:</span>
-                      <span className="font-mono text-zinc-300">
-                        {c.setup_type === 'NO_ACTIVE_SETUP' ? 'No active setup' : (c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy || 'No active setup')}
-                      </span>
-                    </div>
-
-                    {/* Hostile Regime Sizing Warning */}
-                    {(c.macro_governor?.is_hostile || isHostile) && (
-                      <div className="mt-1 flex items-center space-x-1.5 rounded border border-rose-500/30 bg-rose-950/20 px-2 py-0.5 text-[10px] font-mono font-bold text-rose-300">
-                        <ShieldAlert className="h-3 w-3 text-rose-400 shrink-0" />
-                        <span>Hostile Regime: 50% Sizing Enforced</span>
-                      </div>
-                    )}
-
-                    {/* Dynamic Strategy Badge & Levels */}
-                    {(() => {
-                      const strat = c.setup_type || c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy;
-                      const stop = c.stop_loss || c.strategy?.active_strategy_result?.stop_price;
-                      const t1 = c.target_1 || c.strategy?.active_strategy_result?.target_1;
-                      const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
-                      if (!strat || strat === 'None' || strat === 'SWING_MOMENTUM' || strat === 'NO_ACTIVE_SETUP' || strat === 'NO_SETUP') return null;
-
-                      let badgeStyle = "border-zinc-700 bg-zinc-800 text-zinc-300";
-                      let icon = "🎯";
-                      if (strat.includes("SWEEP")) {
-                        badgeStyle = "border-emerald-500/50 bg-emerald-950/40 text-emerald-300";
-                        icon = "🛡️";
-                      } else if (strat.includes("SQUEEZE")) {
-                        badgeStyle = "border-purple-500/50 bg-purple-950/40 text-purple-300";
-                        icon = "⚡";
-                      } else if (strat.includes("SNAPBACK")) {
-                        badgeStyle = "border-amber-500/50 bg-amber-950/40 text-amber-300";
-                        icon = "🧲";
-                      } else if (strat.includes("BREAKOUT")) {
-                        badgeStyle = "border-cyan-500/50 bg-cyan-950/40 text-cyan-300";
-                        icon = "🚀";
-                      }
-
-                      return (
-                        <div className="mt-2 rounded border border-white/5 bg-black/40 p-2 font-mono text-[11px] space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`inline-flex items-center space-x-1 rounded px-1.5 py-0.5 text-[10px] font-bold border ${badgeStyle}`}>
-                              <span>{icon} {strat.replace(/_/g, ' ')}</span>
-                            </span>
-                            {rr && (
-                              <span className="text-[10px] text-cyan-400 font-bold">
-                                R:R {rr}x
-                              </span>
-                            )}
-                          </div>
-                          {stop && (
-                            <div className="flex items-center justify-between text-[10px] text-zinc-400 pt-0.5">
-                              <span className="text-rose-400">SL: ₹{Number(stop).toFixed(1)}</span>
-                              {t1 && <span className="text-emerald-400">T1: ₹{Number(t1).toFixed(1)}</span>}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Rejection / Filter Reason Banner */}
-                  {c.priority_reason && (
-                    <div className={`mt-3 rounded-lg border px-2.5 py-1.5 text-[11px] leading-relaxed ${
-                      c.priority === 'AVOID / FILTERED OUT'
-                        ? 'border-rose-900/50 bg-rose-950/40 text-rose-300'
-                        : c.priority === 'SIGNAL TRIGGERED'
-                        ? 'border-emerald-800/40 bg-emerald-950/30 text-emerald-300'
-                        : 'border-zinc-800 bg-zinc-900/60 text-zinc-400'
-                    }`}>
-                      <span className="font-semibold">{c.priority === 'AVOID / FILTERED OUT' ? 'Why Filtered:' : 'Status Note:'}</span> {c.priority_reason}
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-2 text-center text-[10px] text-[var(--text-muted)] font-mono">
+                      No active trade levels qualified
                     </div>
                   )}
+
+                  {/* Secondary Hierarchy: Scores & Valuation */}
+                  <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-2 text-center font-mono">
+                    <div>
+                      <div className="text-[9px] text-[var(--text-muted)]">SCORE</div>
+                      <div className="text-xs font-bold text-[var(--text-primary)]">{c.overall_score ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-[var(--text-muted)]">FINANCES</div>
+                      <div className="text-xs font-bold text-[var(--text-secondary)]">{f.fundamental_score ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-[var(--text-muted)]">CHART</div>
+                      <div className="text-xs font-bold text-[var(--text-secondary)]">{t.Scoring_Summary?.Technical_Score ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  {/* Valuation & Sector Diversity */}
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
+                    <span className="font-mono text-[10px]">
+                      P/E {val.pe ? `${val.pe}x` : 'N/A'} · P/B {val.pb ? `${val.pb}x` : 'N/A'}
+                    </span>
+                    {impact && (
+                      <span className={`rounded px-1.5 py-0.2 font-mono text-[9px] font-semibold border ${impact.badge}`}>
+                        {impact.label}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Card Footer */}
-                <div className="mt-4 flex items-center justify-between border-t border-zinc-900/80 pt-3 text-[11px] text-zinc-500 group-hover:text-zinc-300">
-                  <span>Click to view Deep Dive</span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onOpenTradeModal) {
-                          onOpenTradeModal(c.ticker, c.strategy?.primary_strategy || t.Strategy_Evaluation?.primary_strategy);
-                        }
-                      }}
-                      className="rounded border border-rose-800/80 bg-rose-950/60 px-2 py-0.5 font-mono text-[10px] font-bold text-rose-300 hover:bg-rose-900/60 transition"
-                    >
-                      ⚡ Trade
-                    </button>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </div>
+                {/* Card Action Footer */}
+                <div className="mt-4 flex items-center justify-between border-t border-[var(--border-subtle)] pt-3">
+                  <span className="text-[11px] text-blue-500 font-medium group-hover:underline flex items-center">
+                    Deep Dive <ChevronRight className="h-3 w-3 ml-0.5" />
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onOpenTradeModal) {
+                        onOpenTradeModal(c.ticker, c.setup_type || c.strategy?.primary_strategy);
+                      }
+                    }}
+                    className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-1 font-mono text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 active:scale-95 transition"
+                  >
+                    ⚡ Trade
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 p-16 text-center">
-          <AlertCircle className="mb-3 h-8 w-8 text-zinc-600" />
-          <div className="font-mono text-sm font-medium text-zinc-300">No candidates available</div>
-          <div className="mt-1 text-xs text-zinc-500">
-            Click "Run Deterministic Scan" above to screen the selected stock universe.
-          </div>
-        </div>
       )}
 
       {/* 4. Slide-Over AI Report Drawer (Executive Briefing Mode) */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm">
-          <div className="relative h-full w-full max-w-4xl overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
+          <div className="relative h-full w-full max-w-4xl overflow-y-auto border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 shadow-2xl transition-colors">
             {/* Header */}
-            <div className="sticky top-0 mb-5 flex items-center justify-between border-b border-zinc-800 bg-zinc-950/95 pb-3 backdrop-blur z-10">
+            <div className="sticky top-0 mb-5 flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 pb-3 backdrop-blur z-10">
               <div className="flex items-center space-x-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400">
                   <Sparkles className="h-4 w-4" />
                 </span>
                 <div>
-                  <div className="font-mono text-[10px] font-bold text-purple-400 tracking-wider">
-                    VERCHON VECTOR · EXECUTIVE BRIEFING
+                  <div className="font-mono text-[10px] font-bold text-purple-600 dark:text-purple-400 tracking-wider">
+                    VERCHON VECTOR · EXECUTIVE DOSSIER
                   </div>
-                  <h2 className="text-base font-bold text-zinc-100">
+                  <h2 className="text-base font-bold text-[var(--text-primary)]">
                     Multi-Factor Candidate Synthesis
                   </h2>
                 </div>
               </div>
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="rounded-lg border border-zinc-800 p-2 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                className="rounded-xl border border-[var(--border-subtle)] p-2 text-[var(--text-secondary)] hover:bg-[var(--border-subtle)] hover:text-[var(--text-primary)] transition"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            {/* AI Report Content */}
             {loadingAI ? (
-              <div className="py-20 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-purple-500/40 bg-purple-950/40 text-purple-400">
-                  <Sparkles className="h-6 w-6 animate-pulse" />
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <Sparkles className="mb-3 h-8 w-8 animate-spin text-purple-500" />
+                <div className="text-sm font-semibold text-[var(--text-primary)]">
+                  Synthesizing Market Intelligence...
                 </div>
-                <div className="mt-4 font-mono text-sm font-bold text-zinc-100">
-                  Synthesizing Multi-Factor Research Briefing
-                </div>
-                <div className="mt-1 font-mono text-xs text-purple-400">
-                  Elapsed: {aiElapsed}s · Querying Gemini 2.5 Flash
-                </div>
-                <p className="mx-auto mt-2 max-w-md text-xs text-zinc-400">
-                  Auditing candidate fundamentals against current market regime backdrop, structuring trade invalidation levels, and formulating critical research queries.
-                </p>
-                <div className="mt-6 flex items-center justify-center space-x-2 font-mono text-[11px] text-zinc-500">
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-purple-400" />
-                  <span>Institutional synthesis in progress</span>
+                <div className="mt-1 font-mono text-xs text-purple-600 dark:text-purple-400">
+                  Elapsed: {aiElapsed}s
                 </div>
               </div>
             ) : aiReport ? (
-              <div className="space-y-5">
-                {/* Macro Context Banner */}
-                {typeof aiReport === 'object' && aiReport.structured?.macro_backdrop && (
-                  <div className="rounded-lg border border-purple-900/40 bg-purple-950/20 p-4 font-mono text-xs text-purple-200">
-                    <div className="text-[10px] font-bold text-purple-400 mb-1">MACRO REGIME CONTEXT</div>
-                    <div className="leading-relaxed text-zinc-300">
-                      {aiReport.structured.macro_backdrop}
-                    </div>
-                  </div>
-                )}
-
-                {/* Candidate Quick Tabs & Summaries */}
-                {typeof aiReport === 'object' && aiReport.structured?.dossiers && Object.keys(aiReport.structured.dossiers).length > 0 ? (
-                  <div>
-                    <div className="mb-3 font-mono text-xs font-semibold text-zinc-400">
-                      CANDIDATE INTELLIGENCE DOSSIERS ({Object.keys(aiReport.structured.dossiers).filter(k => !k.endsWith('.NS')).length})
-                    </div>
-                    <div className="grid grid-cols-1 gap-4">
-                      {Object.entries(aiReport.structured.dossiers)
-                        .filter(([tick]) => !tick.endsWith('.NS'))
-                        .map(([tick, d]) => (
-                          <div key={tick} className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4 transition hover:border-zinc-700">
-                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-3">
-                              <span className="font-mono text-sm font-bold text-rose-400">{tick}</span>
-                              <button
-                                onClick={() => {
-                                  setIsDrawerOpen(false);
-                                  onSelectCandidate(`${tick}.NS`);
-                                }}
-                                className="flex items-center space-x-1 rounded bg-zinc-100 px-2.5 py-1 font-mono text-[11px] font-bold text-zinc-900 hover:bg-zinc-300"
-                              >
-                                <span>Inspect in Deep Dive</span>
-                                <ChevronRight className="h-3 w-3" />
-                              </button>
-                            </div>
-
-                            {/* Thesis Points */}
-                            <div className="mb-2.5">
-                              <span className="font-mono text-[10px] font-bold text-emerald-400">SHORTLIST THESIS:</span>
-                              <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-                                {d.thesis?.map((pt, i) => (
-                                  <li key={i} className="flex items-start space-x-1.5">
-                                    <span className="text-emerald-400 font-bold">•</span>
-                                    <span>{pt}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-
-                            {/* Invalidation Trigger */}
-                            {d.risks?.setup_invalidation && (
-                              <div className="rounded bg-rose-950/20 border border-rose-900/30 p-2 text-xs font-mono text-rose-300">
-                                <span className="font-bold text-rose-400 text-[10px]">KILL SWITCH: </span>
-                                <span>{d.risks.setup_invalidation}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {/* Full Synthesis Report Collapsible */}
-                <details className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 text-xs font-mono">
-                  <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200">
-                    ▸ View Full Institutional Research Report (Markdown Log)
-                  </summary>
-                  <div className="prose prose-invert max-w-none font-sans text-xs leading-relaxed text-zinc-300 mt-4 pt-4 border-t border-zinc-800">
-                    <ReactMarkdown>
-                      {typeof aiReport === 'object' ? aiReport.report_markdown : aiReport}
-                    </ReactMarkdown>
-                  </div>
-                </details>
+              <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-4">
+                <ReactMarkdown>{aiReport}</ReactMarkdown>
               </div>
             ) : (
-              <div className="py-20 text-center font-mono text-xs text-zinc-500">
-                No AI report generated yet. Click "Generate AI Research Report" to run synthesis.
+              <div className="py-16 text-center text-xs text-[var(--text-secondary)]">
+                No report generated yet. Click "AI Dossier" in the toolbar to synthesize candidate insights.
               </div>
             )}
           </div>
