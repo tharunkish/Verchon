@@ -167,8 +167,6 @@ export default function NeoDeepDiveTab({
             stopPrice={activeStrat.stop_price}
             ticker={data.ticker}
             markers={data.chart?.markers || []}
-            signals={data.chart?.signals || []}
-            signalStats={data.chart?.stats || {}}
           />
         </motion.div>
       )}
