@@ -663,8 +663,22 @@ def analyze_candidate(
         "warning": "⚠️ HOSTILE REGIME: 50% Position Sizing Recommended. High-beta breakouts restricted." if is_hostile_regime else None,
     }
 
+    # Strategy-Aware Fundamental Safety Qualification
+    # For mean-reversion, liquidity sweeps, and volatility squeezes, do not penalize depressed short-term price momentum.
+    # Require solvent, quality business (Business Quality >= 40, overall fundamentals >= 40, no high valuation risk).
+    if primary_strat_name in ("RUBBER_BAND_SNAPBACK", "LIQUIDITY_SWEEP", "VOLATILITY_SQUEEZE"):
+        is_strat_fund_safe = bool(
+            val_risk != "HIGH"
+            and (f_score is not None and f_score >= AVOID_MAX_FUND)
+            and (bq_score is None or bq_score >= 40.0)
+            and (fund_results.get("data_quality", {}).get("is_valid") is not False)
+        )
+    else:
+        # Standard trend-following qualification for momentum strategies
+        is_strat_fund_safe = bool(fund_qual and (val_risk != "HIGH"))
+
     priority_reason = ""
-    if fund_qual and has_active_signal and val_risk != "HIGH":
+    if has_active_signal and is_strat_fund_safe:
         priority = "SIGNAL TRIGGERED"
         priority_reason = f"Safety checks passed and active technical entry trigger confirmed ({primary_strat_name})."
     elif (f_score is not None and f_score >= HIGH_PRIORITY_MIN_FUND) and (t_score is not None and t_score >= HIGH_PRIORITY_MIN_TECH) and val_risk != "HIGH":
@@ -677,10 +691,16 @@ def analyze_candidate(
     elif (f_score is not None and f_score < AVOID_MAX_FUND) or f_score is None:
         priority = "AVOID / FILTERED OUT"
         priority_reason = f"Weak Fundamentals (Score {f_score or 'N/A'}/100 < 40). Company finances do not meet minimum safety bar."
-    elif not fund_qual:
+    elif not is_strat_fund_safe:
         priority = "AVOID / FILTERED OUT"
         reasons_summary = "; ".join(fund_failed_reasons[:2]) if fund_failed_reasons else "Failed fundamental criteria"
         priority_reason = f"Fundamental criteria failed ({reasons_summary})."
+    elif strat_eval.get("primary_strategy") and active_strat_res.get("setup_detected") and not active_strat_res.get("signal_triggered"):
+        priority = "WATCHLIST"
+        priority_reason = f"Setup forming under {primary_strat_name} ({active_strat_res.get('state', 'COILING')}). Awaiting trigger."
+    elif (t_score is not None and t_score >= 50) and val_risk != "HIGH":
+        priority = "WATCHLIST"
+        priority_reason = "Constructive technical structure; awaiting buy trigger or catalyst."
     else:
         priority = "WATCHLIST"
         if not has_active_signal:
@@ -743,7 +763,7 @@ def analyze_candidate(
         "target_1": target_1,
         "target_2": target_2,
         "risk_reward_ratio": risk_reward_ratio,
-        "fundamental_qualified": fund_qual,
+        "fundamental_qualified": is_strat_fund_safe if has_active_signal else fund_qual,
         "fundamental_failed_reasons": fund_failed_reasons,
         "fundamental_truth_table": fund_tt,
         "deterministic_truth_table": deterministic_truth_table,
