@@ -8,6 +8,7 @@ import CanvasChart from '../../components/CanvasChart';
 import AIDossierCard from '../../components/AIDossierCard';
 import CorporateRadarCard from '../../components/CorporateRadarCard';
 import RuleChecklist from '../../components/RuleChecklist';
+import PortfolioRiskBridgeCard from '../../components/PortfolioRiskBridgeCard';
 import NumberTicker from '../../components/neo/NumberTicker';
 import BorderBeam from '../../components/neo/BorderBeam';
 import SpotlightTiltCard from '../../components/neo/SpotlightTiltCard';
@@ -26,6 +27,8 @@ export default function NeoDeepDiveTab({
   aiDiagnostics,
   aiError,
   onCancelDossier,
+  portfolioImpact,
+  loadingImpact,
 }) {
   const [inputTicker, setInputTicker] = useState(ticker || 'ICICIBANK.NS');
 
@@ -149,6 +152,15 @@ export default function NeoDeepDiveTab({
           </div>
         )}
       </motion.div>
+
+      {/* Portfolio Risk Bridge Pre-Trade Impact */}
+      {data && (
+        <PortfolioRiskBridgeCard
+          portfolioImpact={portfolioImpact}
+          loading={loadingImpact}
+          onOpenTradeModal={onOpenTradeModal}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* 2. HIGH-TECH CHART MATRIX                                                 */}

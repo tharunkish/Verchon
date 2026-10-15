@@ -4,6 +4,7 @@ import CanvasChart from '../components/CanvasChart';
 import RuleChecklist from '../components/RuleChecklist';
 import AIDossierCard from '../components/AIDossierCard';
 import CorporateRadarCard from '../components/CorporateRadarCard';
+import PortfolioRiskBridgeCard from '../components/PortfolioRiskBridgeCard';
 import NeoDeepDiveTab from './neo/NeoDeepDiveTab';
 import { normalizeTicker } from '../App';
 
@@ -18,6 +19,26 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
   const [aiStreamingText, setAiStreamingText] = useState('');
   const abortControllerRef = useRef(null);
 
+  const [portfolioImpact, setPortfolioImpact] = useState(null);
+  const [loadingImpact, setLoadingImpact] = useState(false);
+
+  const fetchPortfolioImpact = async (sym) => {
+    if (!sym) return;
+    const cleanSym = normalizeTicker(sym);
+    setLoadingImpact(true);
+    try {
+      const res = await fetch(`/api/paper-trades/portfolio-impact?ticker=${encodeURIComponent(cleanSym)}`);
+      if (res.ok) {
+        const json = await res.json();
+        setPortfolioImpact(json);
+      }
+    } catch {
+      // Ignore background portfolio impact errors
+    } finally {
+      setLoadingImpact(false);
+    }
+  };
+
   const fetchDossier = async (sym) => {
     if (!sym) return;
     const cleanSym = normalizeTicker(sym);
@@ -25,6 +46,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
     setError(null);
     setAiError(null);
     setAiStreamingText('');
+    setPortfolioImpact(null);
     try {
       const res = await fetch(`/api/stocks/${encodeURIComponent(cleanSym)}`);
       if (!res.ok) {
@@ -36,6 +58,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
       if (json.ai_dossier?.diagnostics) {
         setAiDiagnostics(json.ai_dossier.diagnostics);
       }
+      fetchPortfolioImpact(json.ticker || cleanSym);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -183,6 +206,8 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
         aiDiagnostics={aiDiagnostics}
         aiError={aiError}
         onCancelDossier={handleCancelDossier}
+        portfolioImpact={portfolioImpact}
+        loadingImpact={loadingImpact}
       />
     );
   }
@@ -273,6 +298,13 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
 
       {data && (
         <div className="space-y-6">
+          {/* Institutional Portfolio Risk Bridge */}
+          <PortfolioRiskBridgeCard
+            portfolioImpact={portfolioImpact}
+            loading={loadingImpact}
+            onOpenTradeModal={onOpenTradeModal}
+          />
+
           {/* 2. Interactive TradingView Canvas Chart */}
           <CanvasChart
             candles={data.chart?.candles || []}

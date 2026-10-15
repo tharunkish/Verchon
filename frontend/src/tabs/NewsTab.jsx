@@ -20,7 +20,8 @@ export default function NewsTab({ onSelectStock }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filterCategory, setFilterCategory] = useState('ALL');
+  const [activeTier, setActiveTier] = useState('ALL'); // 'ALL', 'HIGH_ATTENTION', 'RELEVANT', 'OTHER'
+  const [showMuted, setShowMuted] = useState(false);
   const [filingSearch, setFilingSearch] = useState('');
 
   const fetchNewsHub = async () => {
@@ -47,15 +48,24 @@ export default function NewsTab({ onSelectStock }) {
   const recentFilings = data?.recent_filings || [];
   const marketNews = data?.market_news || [];
 
+  const mutedCount = recentFilings.filter((f) => f.is_muted).length;
+
   const filteredFilings = recentFilings.filter((f) => {
-    const matchesCat = filterCategory === 'ALL' || f.category === filterCategory;
+    // 1. Muted filter check
+    if (!showMuted && f.is_muted) return false;
+
+    // 2. Attention tier check
+    const matchesTier = activeTier === 'ALL' || f.tier === activeTier;
+
+    // 3. Search query check
     const matchesSearch =
       filingSearch === '' ||
       f.ticker.toLowerCase().includes(filingSearch.toLowerCase()) ||
       (f.company_name && f.company_name.toLowerCase().includes(filingSearch.toLowerCase())) ||
       f.title.toLowerCase().includes(filingSearch.toLowerCase()) ||
       (f.description && f.description.toLowerCase().includes(filingSearch.toLowerCase()));
-    return matchesCat && matchesSearch;
+
+    return matchesTier && matchesSearch;
   });
 
   return (
@@ -171,27 +181,39 @@ export default function NewsTab({ onSelectStock }) {
               </h2>
             </div>
 
-            {/* Category Filter Pills */}
+            {/* Noise Reduction Tier Filter Pills & Muted Toggle */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: 'ALL', label: 'All Filings' },
-                { id: 'RESULTS', label: 'Results' },
-                { id: 'EXPANSION', label: 'M&A' },
-                { id: 'DEALS_ORDERS', label: 'Deals/Orders' },
-                { id: 'CAUTION', label: 'Notices' },
-              ].map((c) => (
+                { id: 'ALL', label: 'All Active' },
+                { id: 'HIGH_ATTENTION', label: '🔥 High Attention' },
+                { id: 'RELEVANT', label: '📊 Relevant' },
+                { id: 'OTHER', label: 'Other' },
+              ].map((t) => (
                 <button
-                  key={c.id}
-                  onClick={() => setFilterCategory(c.id)}
+                  key={t.id}
+                  onClick={() => setActiveTier(t.id)}
                   className={`rounded-xl px-2.5 py-1 text-[10px] font-bold uppercase transition ${
-                    filterCategory === c.id
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                    activeTier === t.id
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
                       : 'bg-white/5 text-zinc-400 hover:text-zinc-200 border border-transparent'
                   }`}
                 >
-                  {c.label}
+                  {t.label}
                 </button>
               ))}
+
+              {/* Show Muted / Routine Notices Toggle */}
+              <button
+                onClick={() => setShowMuted(!showMuted)}
+                className={`rounded-xl px-2.5 py-1 text-[10px] font-mono transition border ${
+                  showMuted
+                    ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+                    : 'border-white/5 bg-white/5 text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Toggle routine compliance spam (window closures, lost share certificates)"
+              >
+                {showMuted ? `Hide Muted (${mutedCount})` : `Show Muted (${mutedCount})`}
+              </button>
             </div>
           </div>
 
@@ -248,6 +270,13 @@ export default function NewsTab({ onSelectStock }) {
                   <h3 className="mt-1.5 text-xs font-semibold text-zinc-200 line-clamp-2 leading-relaxed">
                     {f.title}
                   </h3>
+
+                  {f.rationale && (
+                    <div className="mt-1 flex items-center space-x-1.5 font-mono text-[10px] text-zinc-400">
+                      <span className="text-cyan-400">▸</span>
+                      <span className="italic">{f.rationale}</span>
+                    </div>
+                  )}
 
                   {f.description && (
                     <p className="mt-1 text-[11px] text-zinc-400 line-clamp-2 leading-normal">

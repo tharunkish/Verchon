@@ -826,3 +826,208 @@ def close_paper_position(
     _save_account_raw(account_raw)
 
     return result_returned
+
+
+# =============================================================================
+# 5. PORTFOLIO RISK BRIDGE & SECTOR EXPOSURE ENGINE
+# =============================================================================
+
+def get_portfolio_sector_and_risk_exposure() -> Dict[str, Any]:
+    """
+    Computes portfolio sector allocation (₹ and % of equity), largest position
+    concentrations, and total estimated portfolio capital at risk across open stops.
+    Uses cached company sector metadata from .screener_cache/ (no AI guesswork).
+    """
+    import screener_scraper as ss
+
+    account = get_paper_account()
+    total_equity = account.get("total_equity", DEFAULT_STARTING_CAPITAL)
+    available_cash = account.get("available_cash", DEFAULT_STARTING_CAPITAL)
+    open_positions = [p for p in _load_ledger_raw() if p.get("status") == "OPEN"]
+
+    sector_exposure: Dict[str, Dict[str, Any]] = {}
+    total_risk_at_stop = 0.0
+    position_exposures: List[Dict[str, Any]] = []
+
+    for pos in open_positions:
+        ticker = pos.get("ticker", "")
+        clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+        qty = int(pos.get("quantity", 0))
+        entry_p = float(pos.get("entry_price", 0.0))
+        curr_p = float(pos.get("current_price", entry_p))
+        stop_p = float(pos.get("stop_price", entry_p * 0.95))
+        pos_val = round(curr_p * qty, 2)
+
+        # Risk at stop for this position: (curr_p - stop_p) * qty if stop is below, or (entry_p - stop_p) * qty
+        risk_at_stop = round(max(0.0, (entry_p - stop_p) * qty), 2)
+        total_risk_at_stop += risk_at_stop
+
+        # Look up sector from screener cache
+        sector = "Unclassified / Other"
+        cache_path = os.path.join(ss.CACHE_DIR, f"{clean_sym}.json")
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                    sec = cdata.get("COMPANY", {}).get("sector")
+                    if sec and sec != "N/A":
+                        sector = sec.strip()
+            except Exception:
+                pass
+
+        if sector not in sector_exposure:
+            sector_exposure[sector] = {
+                "sector": sector,
+                "amount": 0.0,
+                "percentage": 0.0,
+                "positions_count": 0,
+                "tickers": [],
+            }
+        sector_exposure[sector]["amount"] += pos_val
+        sector_exposure[sector]["positions_count"] += 1
+        sector_exposure[sector]["tickers"].append(ticker)
+
+        pos_pct = round((pos_val / total_equity) * 100, 2) if total_equity > 0 else 0.0
+        position_exposures.append({
+            "ticker": ticker,
+            "sector": sector,
+            "market_value": pos_val,
+            "equity_pct": pos_pct,
+            "risk_at_stop": risk_at_stop,
+        })
+
+    # Calculate sector percentages
+    sector_list = []
+    for sec_data in sector_exposure.values():
+        sec_amt = round(sec_data["amount"], 2)
+        sec_pct = round((sec_amt / total_equity) * 100, 2) if total_equity > 0 else 0.0
+        sec_data["amount"] = sec_amt
+        sec_data["percentage"] = sec_pct
+        sector_list.append(sec_data)
+
+    sector_list.sort(key=lambda x: x["amount"], reverse=True)
+    position_exposures.sort(key=lambda x: x["market_value"], reverse=True)
+
+    risk_at_stop_pct = round((total_risk_at_stop / total_equity) * 100, 2) if total_equity > 0 else 0.0
+
+    return {
+        "total_equity": total_equity,
+        "available_cash": available_cash,
+        "total_risk_at_stop": round(total_risk_at_stop, 2),
+        "total_risk_at_stop_pct": risk_at_stop_pct,
+        "sectors": sector_list,
+        "position_exposures": position_exposures,
+        "open_trades_count": len(open_positions),
+    }
+
+
+def get_proposed_trade_impact(
+    ticker: str,
+    custom_entry: Optional[float] = None,
+    custom_stop: Optional[float] = None,
+    custom_qty: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Pre-computes the portfolio impact of taking a proposed trade on `ticker`:
+    - Native trade setup quote (entry, stop, targets, recommended quantity)
+    - Before & after sector concentration (% and ₹)
+    - Before & after total capital at risk at stop
+    - Flags existing position in the same stock or same sector
+    - Returns concentration warning if sector > 30% or position > 20%
+    """
+    import screener_scraper as ss
+
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    formatted_ticker = ta.format_nse_ticker(clean_sym)
+
+    # 1. Fetch current portfolio exposure state
+    current_portfolio = get_portfolio_sector_and_risk_exposure()
+    total_equity = current_portfolio["total_equity"]
+
+    # 2. Fetch native deterministic trade quote
+    quote = get_trade_setup_quote(formatted_ticker, portfolio_value=total_equity)
+
+    entry_p = custom_entry if custom_entry and custom_entry > 0 else quote["suggested_entry"]
+    stop_p = custom_stop if custom_stop and custom_stop > 0 else quote["suggested_stop"]
+    qty = custom_qty if custom_qty and custom_qty > 0 else quote["recommended_quantity"]
+
+    pos_val = round(entry_p * qty, 2)
+    risk_per_share = max(0.0, entry_p - stop_p)
+    gross_loss_at_stop = round(risk_per_share * qty, 2)
+
+    # Transaction cost at entry & stop exit
+    buy_costs = calculate_transaction_costs(entry_p, qty, is_buy=True)["total_charges"]
+    sell_stop_costs = calculate_transaction_costs(stop_p, qty, is_buy=False)["total_charges"]
+    net_loss_at_stop = round(gross_loss_at_stop + buy_costs + sell_stop_costs, 2)
+
+    # 3. Resolve sector from screener cache
+    stock_sector = "Unclassified / Other"
+    cache_path = os.path.join(ss.CACHE_DIR, f"{clean_sym}.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cdata = json.load(f)
+                sec = cdata.get("COMPANY", {}).get("sector")
+                if sec and sec != "N/A":
+                    stock_sector = sec.strip()
+        except Exception:
+            pass
+
+    # 4. Find existing holdings in this stock & sector
+    existing_stock_pos = next(
+        (p for p in current_portfolio["position_exposures"] if p["ticker"] == formatted_ticker),
+        None
+    )
+    existing_sector_info = next(
+        (s for s in current_portfolio["sectors"] if s["sector"] == stock_sector),
+        {"sector": stock_sector, "amount": 0.0, "percentage": 0.0, "positions_count": 0, "tickers": []}
+    )
+
+    current_sec_amt = existing_sector_info["amount"]
+    current_sec_pct = existing_sector_info["percentage"]
+
+    new_sec_amt = round(current_sec_amt + pos_val, 2)
+    new_sec_pct = round((new_sec_amt / total_equity) * 100, 2) if total_equity > 0 else 0.0
+
+    current_total_risk = current_portfolio["total_risk_at_stop"]
+    new_total_risk = round(current_total_risk + gross_loss_at_stop, 2)
+    new_total_risk_pct = round((new_total_risk / total_equity) * 100, 2) if total_equity > 0 else 0.0
+
+    position_equity_pct = round((pos_val / total_equity) * 100, 2) if total_equity > 0 else 0.0
+
+    # 5. Concentration Warnings (Non-blocking safeguards)
+    warnings = []
+    if new_sec_pct > 30.0:
+        warnings.append(f"Sector Concentration: {stock_sector} exposure will reach {new_sec_pct}% of total equity (>30% threshold).")
+    if position_equity_pct > 20.0:
+        warnings.append(f"Single Position Sizing: This trade represents {position_equity_pct}% of your total portfolio (>20% cap).")
+    if existing_stock_pos:
+        warnings.append(f"Already Holding: You currently hold an active paper position in {clean_sym} ({existing_stock_pos['equity_pct']}% of equity).")
+
+    return {
+        "ticker": formatted_ticker,
+        "clean_symbol": clean_sym,
+        "sector": stock_sector,
+        "strategy_name": quote["strategy_name"],
+        "proposed_entry": entry_p,
+        "proposed_stop": stop_p,
+        "proposed_target_1": quote["target_1"],
+        "proposed_target_2": quote["target_2"],
+        "proposed_quantity": qty,
+        "position_value": pos_val,
+        "position_equity_pct": position_equity_pct,
+        "estimated_loss_at_stop_gross": gross_loss_at_stop,
+        "estimated_loss_at_stop_net": net_loss_at_stop,
+        "estimated_charges": round(buy_costs + sell_stop_costs, 2),
+        "sector_exposure_before_pct": current_sec_pct,
+        "sector_exposure_after_pct": new_sec_pct,
+        "sector_amount_before": current_sec_amt,
+        "sector_amount_after": new_sec_amt,
+        "portfolio_risk_before_pct": current_portfolio["total_risk_at_stop_pct"],
+        "portfolio_risk_after_pct": new_total_risk_pct,
+        "total_risk_before": current_total_risk,
+        "total_risk_after": new_total_risk,
+        "existing_position_in_stock": existing_stock_pos is not None,
+        "warnings": warnings,
+    }
+

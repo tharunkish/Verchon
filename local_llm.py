@@ -597,51 +597,45 @@ def build_stock_dossier_prompts(ticker: str, candidate_data: Dict[str, Any]) -> 
     ann_distilled_text = "; ".join(distilled_filings) if distilled_filings else "No high-impact corporate filings or upcoming earnings within 30 days."
 
     system_prompt = (
-        "You are an Elite Institutional Bear Thesis Strategist and Risk Devil's Advocate for Indian Equities (NSE). "
-        "Your mission is NOT to cheerlead or regurgitate obvious bullish points. "
-        "Your sole job is to aggressively stress-test the proposed 3-week to 2-month swing setup, identify the exact blind spots, "
-        "surface critical fundamental contradictions, and tell the trader why this trade could fail before they risk real money. "
-        "Write articulate, professional, information-dense complete sentences without conversational preamble."
+        "You are an Institutional Senior Investment Committee Chair evaluating an Indian Equity (NSE) candidate for a 3-week to 2-month swing trade. "
+        "Your task is to conduct an adversarial stress-test between the Bull Thesis and the Bear Counterevidence, followed by an objective Risk Judge adjudication. "
+        "Strict Rule: Under no circumstance invent a new stop-loss level. The stop loss is deterministically fixed by the technical engine at ₹{stop_price}. "
+        "The Risk Judge must verify claims against the provided empirical data, identify unverified retail assumptions, and state clearly whether evidence is sufficient or inconclusive. "
+        "Write precise, institutional-grade, information-dense complete sentences without conversational preamble."
     )
 
     prompt = f"""
-Analyze {clean_sym} ({sector} | {industry}):
+FROZEN EMPIRICAL EVIDENCE SNAPSHOT FOR {clean_sym} ({sector} | {industry}):
 - Price: ₹{price} | 50 DMA: ₹{dma50} ({dma50_dist}% dist) | 200 DMA: ₹{dma200} ({dma200_dist}% dist)
-- Proposed Setup: {strategy_name} (Status: {setup_status}, Guardrail Stop Level: ₹{stop_price})
+- Deterministic Strategy Setup: {strategy_name} (Status: {setup_status}, Guardrail Stop Loss: ₹{stop_price})
 - Corporate Actions & Calendar: {earnings_warning} | Ex-Dividend: {corp_radar.get('ex_dividend_date') or 'N/A'}
-- Valuation & Quality: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
-- Positive Drivers: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
-- Red Flags / Audit Alerts: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
-- Distilled Corporate Radar & Filings: {ann_distilled_text}
-- Key Seed Questions: {'; '.join(existing_questions[:2]) if existing_questions else 'Concall guidance sustainability'}
+- Valuation & Financials: P/E {pe}x (5Y Median: {pe_5y_median}x), P/B {pb}x, ROE: {roe}%, 3Y Sales Growth: {sales_growth}%
+- Positive Fundamentals: {', '.join(positives[:3]) if positives else 'Sound operating structure'}
+- Red Flags & Governance Alerts: {', '.join(red_flags[:2]) if red_flags else 'General sector cycle risk'}
+- Distilled Corporate Filings: {ann_distilled_text}
+- Seed Research Questions: {'; '.join(existing_questions[:2]) if existing_questions else 'Concall guidance sustainability'}
 
 Generate the research dossier adhering EXACTLY to this markdown layout so our visual parser maps each card:
 
 ### {clean_sym}
 - **Why it entered the shortlist**:
-  - Write 1 sentence acknowledging the technical setup ({strategy_name} at ₹{price} vs 50 DMA ₹{dma50}).
-  - Write 1 sentence on the business context for a 3-week to 2-month swing window.
-- **Key evidence**:
-  - Detail the technical price structure, moving average slope, and volume confirmation relative to ₹{dma200}.
-  - Detail the valuation profile with P/E {pe}x (vs 5Y median {pe_5y_median}x), ROE {roe}%, and sales growth {sales_growth}%.
-- **Corporate Catalysts & Filings**:
-  - Write 1 concise sentence highlighting the operational significance of recent filings ({ann_distilled_text}).
-  - Write 1 concise sentence on how the earnings event window ({earnings_warning}) affects position holding strategy.
-- **Important contradiction**:
-  - Evidence: Act as the Devil's Advocate. Detail the starkest contradiction between the bullish chart and the business/valuation reality (P/E {pe}x vs 5Y median {pe_5y_median}x or sector headwinds).
-  - Interpretation: Explain what naive retail bulls are missing that institutional sellers might exploit.
-  - Why it matters: Explain how this contradiction could trigger a sudden breakdown or trap buyers.
-  - What would resolve it: Specify what concrete earnings beat or breakout volume must happen to prove the bears wrong.
-- **Research risks / unresolved issues**:
-  - Setup Invalidation: The hard mathematical exit below ₹{stop_price} that kills the trade immediately.
-  - Trend Deterioration: The danger signal if price loses the 50 DMA ₹{dma50} or 200 DMA ₹{dma200}.
-  - Research / Fundamental Risk: The #1 fundamental bear catalyst (e.g. debt, working capital stretch, margin squeeze, or governance concern).
-- **Research questions**:
-  - Formulate 2 sharp, skeptical questions the trader must investigate in concall transcripts or notes to accounts before entering.
-- **What would strengthen the thesis**:
-  - Specify the precise volume expansion and breakout confirmation above ₹{price} required to invalidate the bear case.
-- **What would weaken the thesis**:
-  - Detail the early distribution volume or lower-high breakdown pattern that confirms the bear case is playing out.
+  - Write 1 sentence on why the deterministic scanner shortlisted {clean_sym} ({strategy_name} at ₹{price} vs 50 DMA ₹{dma50}).
+- **Bull Case (The Setup)**:
+  - Present the strongest technical and volume evidence supporting upside momentum towards new swing highs.
+  - Detail the fundamental improvement, ROE {roe}%, and operating growth supporting an accumulation thesis.
+  - Highlight key operational catalyst from filings or earnings window ({earnings_warning}).
+- **Bear Case (The Trap & Counterevidence)**:
+  - Detail valuation headwinds (P/E {pe}x vs 5Y median {pe_5y_median}x) and sector resistance.
+  - Expose fundamental risks: working capital stretch, promoter pledge, governance watch-outs, or upcoming event traps.
+  - Detail the distribution pattern or trap scenario where naive retail buyers get caught.
+- **Risk Judge Verdict (Adjudication & Verification)**:
+  - Verdict: State objective adjudication (whether evidence favors the Bull setup, Bear trap, or is INCONCLUSIVE / HIGH RISK).
+  - Confirmed Facts: List 2 empirical facts from the data verified to be true.
+  - Unsupported Claims: List 1 assumption retail bulls are making that is NOT backed by the empirical numbers.
+  - Invalidation Boundary: Reiterate the strict deterministic exit rule below ₹{stop_price} (do NOT suggest any alternate stop).
+- **Observable Confirmation Conditions**:
+  - What would strengthen the thesis: The exact volume expansion and breakout confirmation above ₹{price} that confirms the Bull Case.
+  - What would weaken the thesis: The exact price action or distribution breakdown confirming the Bear Case is underway.
 """
     return system_prompt, prompt
 

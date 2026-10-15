@@ -14,7 +14,10 @@ import {
   XCircle,
   X,
   MessageSquare,
-  Send
+  Send,
+  TrendingUp,
+  TrendingDown,
+  ShieldCheck
 } from 'lucide-react';
 
 function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
@@ -368,6 +371,9 @@ export default function AIDossierCard({
 
   const {
     thesis = [],
+    bull_case = [],
+    bear_case = [],
+    risk_judge = {},
     key_evidence = [],
     announcements = [],
     contradiction = {},
@@ -396,7 +402,7 @@ export default function AIDossierCard({
                   VERCHON VECTOR DOSSIER
                 </span>
                 <span className="rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-rose-300">
-                  STAGE 2 REASONING
+                  ADVERSARIAL STRESS TEST
                 </span>
               </div>
             </div>
@@ -413,7 +419,7 @@ export default function AIDossierCard({
                   ? 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
               }`}
-              title="Inspect Gemini model attempts, rate limit denials & fallbacks"
+              title="Inspect model execution & diagnostics"
             >
               <Terminal className="h-3 w-3" />
               <span>Dev Output</span>
@@ -449,7 +455,6 @@ export default function AIDossierCard({
           </div>
         </div>
 
-
       {/* 2. Executive View vs Raw Markdown */}
       {showFullRaw ? (
         <div className="p-6">
@@ -459,9 +464,53 @@ export default function AIDossierCard({
         </div>
       ) : (
         <div className="p-5 space-y-4">
-          {/* A. Core Shortlist Thesis & Key Evidence (2-Column Grid) */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* Bull Thesis / Shortlist Rationale */}
+          {/* A. Adversarial Split Duel: Bull Thesis vs Bear Counterevidence */}
+          {(bull_case.length > 0 || bear_case.length > 0) ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Left Column: Bull Case */}
+              <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/20 p-4 shadow-lg">
+                <div className="mb-2.5 flex items-center justify-between border-b border-emerald-900/50 pb-2">
+                  <div className="flex items-center space-x-2 text-emerald-400 font-mono text-xs font-bold">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>BULL CASE (THE SETUP)</span>
+                  </div>
+                  <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-300">
+                    UPSIDE DRIVERS
+                  </span>
+                </div>
+                <ul className="space-y-2 text-xs text-zinc-200">
+                  {bull_case.map((point, idx) => (
+                    <li key={idx} className="flex items-start space-x-2">
+                      <span className="text-emerald-400 font-bold mt-0.5">🟢</span>
+                      <span className="leading-relaxed">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Right Column: Bear Case */}
+              <div className="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4 shadow-lg">
+                <div className="mb-2.5 flex items-center justify-between border-b border-rose-900/50 pb-2">
+                  <div className="flex items-center space-x-2 text-rose-400 font-mono text-xs font-bold">
+                    <TrendingDown className="h-4 w-4" />
+                    <span>BEAR CASE (THE TRAP & COUNTEREVIDENCE)</span>
+                  </div>
+                  <span className="rounded bg-rose-500/20 border border-rose-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-rose-300">
+                    DEVIL'S ADVOCATE
+                  </span>
+                </div>
+                <ul className="space-y-2 text-xs text-zinc-200">
+                  {bear_case.map((point, idx) => (
+                    <li key={idx} className="flex items-start space-x-2">
+                      <span className="text-rose-400 font-bold mt-0.5">🔴</span>
+                      <span className="leading-relaxed">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            /* Fallback to Shortlist Thesis if Bull/Bear not present */
             <div className="rounded-lg border border-emerald-950/60 bg-emerald-950/15 p-4">
               <div className="mb-2 flex items-center space-x-2 text-emerald-400 font-mono text-xs font-semibold">
                 <CheckCircle className="h-3.5 w-3.5" />
@@ -480,6 +529,50 @@ export default function AIDossierCard({
                 )}
               </ul>
             </div>
+          )}
+
+          {/* B. Risk Judge Adjudication & Invalidation Banner */}
+          {risk_judge && (risk_judge.verdict || risk_judge.invalidation_boundary) && (
+            <div className="rounded-xl border border-purple-900/60 bg-gradient-to-r from-purple-950/30 via-zinc-950/60 to-purple-950/30 p-4 font-mono text-xs shadow-xl">
+              <div className="flex flex-wrap items-center justify-between border-b border-purple-900/40 pb-2 mb-3">
+                <div className="flex items-center space-x-2 text-purple-300 font-bold">
+                  <ShieldCheck className="h-4 w-4 text-purple-400" />
+                  <span>RISK JUDGE ADJUDICATION (EVALUATION & VERIFICATION)</span>
+                </div>
+                <span className="text-[10px] text-zinc-400">Strict Non-Predictive Guardrail</span>
+              </div>
+
+              {risk_judge.verdict && (
+                <div className="mb-3 text-zinc-200 text-xs font-sans leading-relaxed bg-black/40 p-3 rounded-lg border border-purple-900/30">
+                  <span className="font-mono text-purple-300 font-bold uppercase text-[10px] block mb-1">
+                    JUDGE'S ASSESSMENT:
+                  </span>
+                  {risk_judge.verdict}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {risk_judge.confirmed_facts && (
+                  <div className="rounded-lg bg-emerald-950/20 border border-emerald-900/30 p-2.5">
+                    <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">VERIFIED FACTS:</span>
+                    <span className="text-zinc-300 font-sans text-xs">{risk_judge.confirmed_facts}</span>
+                  </div>
+                )}
+                {risk_judge.unsupported_claims && (
+                  <div className="rounded-lg bg-amber-950/20 border border-amber-900/30 p-2.5">
+                    <span className="text-[10px] font-bold text-amber-400 block mb-0.5">UNSUPPORTED RETAIL CLAIMS:</span>
+                    <span className="text-zinc-300 font-sans text-xs">{risk_judge.unsupported_claims}</span>
+                  </div>
+                )}
+                <div className="rounded-lg bg-rose-950/20 border border-rose-900/30 p-2.5">
+                  <span className="text-[10px] font-bold text-rose-400 block mb-0.5">DETERMINISTIC STOP BOUNDARY:</span>
+                  <span className="text-zinc-300 font-mono text-xs">
+                    {risk_judge.invalidation_boundary || risks.setup_invalidation || 'Break below strategy stop level kills the setup.'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
             {/* Key Fundamental & Technical Evidence */}
             <div className="rounded-lg border border-rose-950/60 bg-rose-950/15 p-4">
@@ -500,7 +593,6 @@ export default function AIDossierCard({
                 )}
               </ul>
             </div>
-          </div>
 
           {/* Corporate Catalysts & Distilled Regulation 30 Filings */}
           {announcements && announcements.length > 0 && (

@@ -840,6 +840,41 @@ def update_paper_account(req: PaperAccountUpdateRequest) -> Dict[str, Any]:
 
 
 
+@app.get("/api/paper-trades/sector-exposure")
+def get_paper_sector_exposure() -> Dict[str, Any]:
+    """Returns real-time sector allocation, capital at risk, and position concentration."""
+    try:
+        return serialize_for_json(ps.get_portfolio_sector_and_risk_exposure())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to calculate sector exposure: {e}")
+
+
+@app.get("/api/paper-trades/portfolio-impact")
+def get_paper_portfolio_impact(
+    ticker: str,
+    custom_entry: Optional[float] = None,
+    custom_stop: Optional[float] = None,
+    custom_qty: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Portfolio Risk Bridge Endpoint:
+    Previews the before/after sector exposure, portfolio risk at stop,
+    and concentration warnings for a proposed position on `ticker`.
+    """
+    if not ticker or not ticker.strip():
+        raise HTTPException(status_code=400, detail="Ticker symbol is required")
+    try:
+        impact = ps.get_proposed_trade_impact(
+            ticker=ticker.strip().upper(),
+            custom_entry=custom_entry,
+            custom_stop=custom_stop,
+            custom_qty=custom_qty,
+        )
+        return serialize_for_json(impact)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to calculate trade impact for {ticker}: {e}")
+
+
 @app.get("/api/paper-trades/quote")
 def get_paper_trade_quote(
     ticker: str,

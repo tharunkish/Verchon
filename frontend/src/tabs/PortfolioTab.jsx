@@ -16,7 +16,8 @@ import {
   Sliders,
   DollarSign,
   Scale,
-  RotateCcw
+  RotateCcw,
+  PieChart
 } from 'lucide-react';
 import OrderExecutionModal from '../components/OrderExecutionModal';
 
@@ -80,10 +81,33 @@ export default function PortfolioTab({
     0
   );
 
+  const [sectorData, setSectorData] = useState(null);
+  const [loadingSector, setLoadingSector] = useState(false);
+
+  const fetchSectorExposure = async () => {
+    setLoadingSector(true);
+    try {
+      const res = await fetch('/api/paper-trades/sector-exposure');
+      if (res.ok) {
+        const json = await res.json();
+        setSectorData(json);
+      }
+    } catch {
+      // Background sector fetch failure safely ignored
+    } finally {
+      setLoadingSector(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSectorExposure();
+  }, [positions, account]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       if (onRefreshQuotes) await onRefreshQuotes();
+      await fetchSectorExposure();
     } finally {
       setRefreshing(false);
     }
@@ -249,6 +273,151 @@ export default function PortfolioTab({
         </div>
       </div>
 
+      {/* Sector Allocation & Portfolio Risk Breakdown */}
+      <div className="mb-6 rounded-xl border border-white/[0.08] bg-[#0c0c10]/80 p-5 shadow-lg backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between border-b border-zinc-900 pb-3 gap-2">
+          <div className="flex items-center space-x-2">
+            <PieChart className="h-4 w-4 text-rose-400" />
+            <h2 className="font-mono text-xs font-bold tracking-wider uppercase text-zinc-200">
+              PORTFOLIO SECTOR COVERAGE & RISK EXPOSURE
+            </h2>
+          </div>
+          <div className="flex items-center space-x-4 font-mono text-xs text-zinc-400">
+            <div>
+              Total Risk at Stop:{' '}
+              <span className="font-bold text-rose-400">
+                ₹{sectorData?.total_risk_at_stop != null ? Math.round(sectorData.total_risk_at_stop).toLocaleString('en-IN') : Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}
+              </span>{' '}
+              <span className="text-[10px] text-zinc-500">
+                ({sectorData?.total_risk_at_stop_pct ?? 0}% equity)
+              </span>
+            </div>
+            <div>
+              Active Sectors:{' '}
+              <span className="font-bold text-zinc-200">
+                {sectorData?.sectors?.length || 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Stacked Progress Bar */}
+        {sectorData?.sectors && sectorData.sectors.length > 0 ? (
+          <div className="mt-4">
+            <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-zinc-900 p-0.5 border border-zinc-800">
+              {sectorData.sectors.map((sec, idx) => {
+                const colors = [
+                  'bg-rose-500',
+                  'bg-blue-500',
+                  'bg-emerald-500',
+                  'bg-amber-500',
+                  'bg-purple-500',
+                  'bg-cyan-500',
+                  'bg-pink-500',
+                  'bg-indigo-500',
+                ];
+                const color = colors[idx % colors.length];
+                const widthPct = Math.min(100, Math.max(1, sec.percentage));
+                return (
+                  <div
+                    key={sec.sector}
+                    style={{ width: `${widthPct}%` }}
+                    className={`${color} h-full transition-all duration-500 first:rounded-l-full last:rounded-r-full relative group cursor-pointer`}
+                    title={`${sec.sector}: ${sec.percentage}% (₹${Math.round(sec.amount).toLocaleString('en-IN')})`}
+                  />
+                );
+              })}
+              {/* Remaining Cash Allocation segment */}
+              {sectorData.available_cash > 0 && sectorData.total_equity > 0 && (
+                <div
+                  style={{
+                    width: `${Math.min(100, Math.max(1, (sectorData.available_cash / sectorData.total_equity) * 100))}%`,
+                  }}
+                  className="bg-zinc-700/60 h-full transition-all duration-500 last:rounded-r-full cursor-pointer"
+                  title={`Available Cash: ${((sectorData.available_cash / sectorData.total_equity) * 100).toFixed(1)}% (₹${Math.round(sectorData.available_cash).toLocaleString('en-IN')})`}
+                />
+              )}
+            </div>
+
+            {/* Sector detail cards grid */}
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 font-mono text-xs">
+              {sectorData.sectors.map((sec, idx) => {
+                const isOverweight = sec.percentage > 30.0;
+                const dotColors = [
+                  'bg-rose-500',
+                  'bg-blue-500',
+                  'bg-emerald-500',
+                  'bg-amber-500',
+                  'bg-purple-500',
+                  'bg-cyan-500',
+                  'bg-pink-500',
+                  'bg-indigo-500',
+                ];
+                const dotColor = dotColors[idx % dotColors.length];
+                return (
+                  <div
+                    key={sec.sector}
+                    className={`rounded-lg border p-3 ${
+                      isOverweight
+                        ? 'border-amber-800/60 bg-amber-950/20'
+                        : 'border-zinc-800/80 bg-zinc-900/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-2 truncate">
+                        <span className={`h-2.5 w-2.5 rounded-full ${dotColor} shrink-0`} />
+                        <span className="font-semibold text-zinc-200 truncate" title={sec.sector}>
+                          {sec.sector}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                        isOverweight
+                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                          : 'bg-zinc-800 text-zinc-300'
+                      }`}>
+                        {sec.percentage}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                      <span>₹{Math.round(sec.amount).toLocaleString('en-IN')}</span>
+                      <span>{sec.positions_count} trade{sec.positions_count > 1 ? 's' : ''} ({sec.tickers.join(', ')})</span>
+                    </div>
+                    {isOverweight && (
+                      <div className="mt-1.5 flex items-center space-x-1 text-[10px] text-amber-400">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        <span>Concentration Alert &gt;30%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Cash allocation chip */}
+              <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-3 font-mono text-xs">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center space-x-2 truncate">
+                    <span className="h-2.5 w-2.5 rounded-full bg-zinc-500 shrink-0" />
+                    <span className="font-semibold text-zinc-300">Unallocated Cash</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">
+                    {sectorData.total_equity > 0
+                      ? ((sectorData.available_cash / sectorData.total_equity) * 100).toFixed(1)
+                      : 100}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>₹{Math.round(sectorData.available_cash).toLocaleString('en-IN')}</span>
+                  <span>Dry Powder</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="py-6 text-center font-mono text-xs text-zinc-500">
+            No active positions open. Deploy capital from Deep Dive to see live sector coverage and risk allocations.
+          </div>
+        )}
+      </div>
 
       {/* 2. Active Positions Section */}
       <div className="mb-8">

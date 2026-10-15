@@ -145,26 +145,137 @@ def fetch_corporate_radar(ticker: str, recent_announcements: Optional[List[Dict[
     return result
 
 
-def classify_filing_category(title: str, description: str = "") -> Dict[str, str]:
+def classify_filing_category(title: str, description: str = "") -> Dict[str, Any]:
     """
-    Classifies a Regulation 30 corporate filing into trading-relevant categories:
-    - RESULTS: Board meetings, quarterly numbers, dividend declarations
-    - EXPANSION: Acquisitions, new ventures, plant commissioning, overseas deals
-    - DEALS_ORDERS: Large contract wins, distribution agreements
-    - CAUTION: Auditor resignations, legal disputes, ESOP dilution, trading window closures
-    - GENERAL: Routine administrative filings
+    Classifies an official NSE/BSE Regulation 30 corporate filing into 3 distinct attention tiers:
+    1. HIGH_ATTENTION: Major orders/contracts, acquisitions, auditor resignations, pledge changes, regulatory/legal actions.
+    2. RELEVANT: Financial results, material updates, senior management changes, capacity expansions.
+    3. ROUTINE (Muted): Trading window closures, loss of share certificates, routine meeting notices, clerical filings.
+    4. OTHER: Unclassified/ambiguous filings.
+
+    Crucial: Direction (bullish/bearish) is kept separate from materiality tier.
     """
     text = f"{title} {description}".lower()
 
-    if any(k in text for k in ["financial results", "quarterly results", "board meeting", "dividend", "audited", "unaudited"]):
-        return {"category": "RESULTS", "badge": "border-purple-500/40 bg-purple-500/20 text-purple-300", "label": "Results / Dividend"}
-    if any(k in text for k in ["acquisition", "takeover", "merger", "amalgamation", "joint venture", "incorporat"]):
-        return {"category": "EXPANSION", "badge": "border-emerald-500/40 bg-emerald-500/20 text-emerald-300", "label": "M&A / Expansion"}
-    if any(k in text for k in ["order", "contract", "distribution deal", "agreement", "partnership", "tie-up", "pact"]):
-        return {"category": "DEALS_ORDERS", "badge": "border-cyan-500/40 bg-cyan-500/20 text-cyan-300", "label": "Deal / Order Win"}
-    if any(k in text for k in ["esop", "allotment", "closure of trading window", "resignation", "dispute", "penalty", "strike"]):
-        return {"category": "CAUTION", "badge": "border-amber-500/40 bg-amber-500/20 text-amber-300", "label": "Notice / Caution"}
-    return {"category": "GENERAL", "badge": "border-zinc-700 bg-zinc-800 text-zinc-300", "label": "Disclosure"}
+    # TIER 1: HIGH ATTENTION (Market-moving catalysts or critical governance/audit events)
+    if any(k in text for k in ["auditor resignation", "resignation of statutory auditor", "resignation of auditor"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "AUDIT_RISK",
+            "badge": "border-rose-500/60 bg-rose-500/20 text-rose-300",
+            "label": "Auditor Resignation",
+            "rationale": "High-priority governance event: statutory auditor resignation.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["pledge", "revocation of pledge", "creation of pledge", "encumbrance"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "PROMOTER_PLEDGE",
+            "badge": "border-amber-500/60 bg-amber-500/20 text-amber-300",
+            "label": "Promoter Pledge Change",
+            "rationale": "High-priority promoter financing: change in encumbered/pledged shares.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["order win", "contract win", "bags order", "awarded contract", "receipt of order", "secures order", "major contract"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "MAJOR_ORDER",
+            "badge": "border-emerald-500/60 bg-emerald-500/20 text-emerald-300",
+            "label": "Major Order Win",
+            "rationale": "High-priority commercial catalyst: significant new contract award.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["acquisition", "takeover", "merger", "amalgamation", "slump sale", "demerger"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "MA_DEAL",
+            "badge": "border-cyan-500/60 bg-cyan-500/20 text-cyan-300",
+            "label": "M&A / Corporate Action",
+            "rationale": "High-priority capital allocation: acquisition or corporate restructuring.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["promoter buying", "insider purchase", "preferential allotment to promoter", "open offer"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "PROMOTER_ACTIVITY",
+            "badge": "border-emerald-500/60 bg-emerald-500/20 text-emerald-300",
+            "label": "Promoter Open Market Buying",
+            "rationale": "High-priority capital signaling: promoter equity acquisition.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["cancellation of order", "terminated contract", "penalty", "sebi order", "tax search", "raid", "cbi", "ed investigation"]):
+        return {
+            "tier": "HIGH_ATTENTION",
+            "category": "REGULATORY_LEGAL",
+            "badge": "border-rose-500/60 bg-rose-500/20 text-rose-300",
+            "label": "Regulatory / Legal Action",
+            "rationale": "High-priority risk alert: regulatory enforcement or material litigation.",
+            "is_muted": False,
+        }
+
+    # TIER 3: ROUTINE / LOW-SIGNAL (Muted by default to eliminate exchange noise)
+    if any(k in text for k in [
+        "trading window", "closure of trading window", "closing of trading window",
+        "loss of share", "duplicate share", "share certificate", "issue of duplicate",
+        "postal ballot notice", "newspaper publication", "advertisement", "audio recording of earnings call",
+        "transcript of earnings", "investor meet intimation", "schedule of analyst",
+    ]):
+        return {
+            "tier": "ROUTINE",
+            "category": "ROUTINE_ADMIN",
+            "badge": "border-zinc-800 bg-zinc-900/60 text-zinc-500",
+            "label": "Routine Admin (Muted)",
+            "rationale": "Low-information administrative/compliance notice.",
+            "is_muted": True,
+        }
+
+    # TIER 2: RELEVANT (Consequential financial results and operational updates)
+    if any(k in text for k in ["financial results", "quarterly results", "unaudited financial", "audited financial", "board meeting to consider financial"]):
+        return {
+            "tier": "RELEVANT",
+            "category": "RESULTS",
+            "badge": "border-purple-500/40 bg-purple-500/20 text-purple-300",
+            "label": "Financial Results",
+            "rationale": "Relevant financial disclosure: earnings statement or board meeting.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["dividend", "interim dividend", "final dividend", "bonus issue", "stock split"]):
+        return {
+            "tier": "RELEVANT",
+            "category": "DIVIDEND_SPLIT",
+            "badge": "border-purple-500/40 bg-purple-500/20 text-purple-300",
+            "label": "Dividend / Bonus / Split",
+            "rationale": "Relevant shareholder return or share restructuring announcement.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["joint venture", "incorporat", "plant commissioning", "capacity expansion", "commercial production"]):
+        return {
+            "tier": "RELEVANT",
+            "category": "EXPANSION",
+            "badge": "border-blue-500/40 bg-blue-500/20 text-blue-300",
+            "label": "Capacity Expansion",
+            "rationale": "Relevant operational update: expansion or production milestone.",
+            "is_muted": False,
+        }
+    if any(k in text for k in ["resignation of director", "appointment of director", "appointment of ceo", "appointment of cfo", "key managerial personnel", "kmp"]):
+        return {
+            "tier": "RELEVANT",
+            "category": "MANAGEMENT",
+            "badge": "border-indigo-500/40 bg-indigo-500/20 text-indigo-300",
+            "label": "Management Change",
+            "rationale": "Relevant leadership update: changes in Key Managerial Personnel.",
+            "is_muted": False,
+        }
+
+    # TIER 4: OTHER / UNCLASSIFIED (Unknown or ambiguous disclosures)
+    return {
+        "tier": "OTHER",
+        "category": "GENERAL_DISCLOSURE",
+        "badge": "border-zinc-700 bg-zinc-800 text-zinc-300",
+        "label": "General Disclosure",
+        "rationale": "Unclassified Regulation 30 corporate disclosure.",
+        "is_muted": False,
+    }
 
 
 def get_aggregate_corporate_announcements(limit: int = 50) -> List[Dict[str, Any]]:
@@ -212,9 +323,12 @@ def get_aggregate_corporate_announcements(limit: int = 50) -> List[Dict[str, Any
                             "date": date_str,
                             "title": title,
                             "description": desc,
+                            "tier": cat_info.get("tier", "OTHER"),
                             "category": cat_info["category"],
                             "badge_class": cat_info["badge"],
                             "badge_label": cat_info["label"],
+                            "rationale": cat_info.get("rationale", ""),
+                            "is_muted": cat_info.get("is_muted", False),
                         })
             except Exception:
                 continue

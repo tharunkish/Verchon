@@ -20,6 +20,27 @@ SECTION_DEFINITIONS = {
         "Why it entered",
         "Shortlist rationale",
     ],
+    "bull_case": [
+        "Bull Case (The Setup)",
+        "Bull Case",
+        "Bull Thesis",
+        "The Bull Case",
+        "The Bullish Setup",
+    ],
+    "bear_case": [
+        "Bear Case (The Trap & Counterevidence)",
+        "Bear Case",
+        "Bear Counterevidence",
+        "The Bear Case",
+        "The Bear Trap",
+    ],
+    "risk_judge": [
+        "Risk Judge Verdict (Adjudication & Verification)",
+        "Risk Judge Verdict",
+        "Risk Judge Assessment",
+        "Risk Judge",
+        "Judge Verdict",
+    ],
     "key_evidence": [
         "Key evidence",
         "Key empirical evidence",
@@ -203,7 +224,25 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
     if risks_text and not any(risks.values()):
         risks["setup_invalidation"] = risks_text.strip()
 
-    # 5. Build final structured payload
+    # 5. Parse bull_case, bear_case, and risk_judge subfields
+    bull_raw = extracted_blocks.get("bull_case", "")
+    bull_case = to_bullet_list(bull_raw)
+
+    bear_raw = extracted_blocks.get("bear_case", "")
+    bear_case = to_bullet_list(bear_raw)
+
+    judge_raw = extracted_blocks.get("risk_judge", "")
+    judge_fields = {
+        "verdict": ["Verdict", "Adjudication", "Assessment", "Conclusion"],
+        "confirmed_facts": ["Confirmed Facts", "Verified Facts", "Facts"],
+        "unsupported_claims": ["Unsupported Claims", "Unverified Claims", "Concerns"],
+        "invalidation_boundary": ["Invalidation Boundary", "Stop Boundary", "Hard Boundary", "Stop Level"],
+    }
+    risk_judge = parse_subfields(judge_raw, judge_fields) if judge_raw else {k: "" for k in judge_fields}
+    if judge_raw and not any(risk_judge.values()):
+        risk_judge["verdict"] = judge_raw.strip()
+
+    # 6. Build final structured payload
     thesis = to_bullet_list(extracted_blocks.get("thesis", ""))
     key_evidence = to_bullet_list(extracted_blocks.get("key_evidence", ""))
     announcements = to_bullet_list(extracted_blocks.get("announcements", ""))
@@ -214,6 +253,9 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
     return {
         "ticker": clean_tick,
         "thesis": thesis,
+        "bull_case": bull_case,
+        "bear_case": bear_case,
+        "risk_judge": risk_judge,
         "key_evidence": key_evidence,
         "announcements": announcements,
         "contradiction": contradiction,
