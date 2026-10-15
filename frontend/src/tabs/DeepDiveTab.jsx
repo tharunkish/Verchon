@@ -244,6 +244,9 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
             dma200={data.chart?.dma_200 || []}
             stopPrice={activeStrat.stop_price}
             ticker={data.ticker}
+            markers={data.chart?.markers || []}
+            signals={data.chart?.signals || []}
+            signalStats={data.chart?.stats || {}}
           />
 
           {/* 3. Integrated Gemini AI Research Dossier Card */}

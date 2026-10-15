@@ -554,8 +554,18 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
                         dma_50_line.append({"time": date_str, "value": round(float(ma50.iloc[idx]), 2)})
                     if pd.notna(ma200.iloc[idx]):
                         dma_200_line.append({"time": date_str, "value": round(float(ma200.iloc[idx]), 2)})
+
+            # 2.1 Calculate historical setup buy signals & TradingView markers
+            chart_signal_data = {"signals": [], "stats": {}, "markers": []}
+            try:
+                import chart_signals
+                strat_info = candidate_dossier.get("technicals", {}).get("Strategy_Evaluation", {})
+                chart_signal_data = chart_signals.compute_chart_signals(stock_df, strat_info)
+            except Exception as sig_err:
+                print(f"[!] Chart signal calculation warning for {ticker}: {sig_err}")
         except Exception as chart_err:
             print(f"[!] Chart bar retrieval warning for {ticker}: {chart_err}")
+            chart_signal_data = {"signals": [], "stats": {}, "markers": []}
 
         # 3. Strategy Pass/Fail Rule Breakdown Checklist
         t_data = candidate_dossier.get("technicals", {})
@@ -618,6 +628,9 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
                 "candles": candles,
                 "dma_50": dma_50_line,
                 "dma_200": dma_200_line,
+                "signals": chart_signal_data.get("signals", []),
+                "stats": chart_signal_data.get("stats", {}),
+                "markers": chart_signal_data.get("markers", []),
             },
             "rule_breakdown": rule_breakdown,
             "corporate_radar": corporate_radar,
