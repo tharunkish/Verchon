@@ -75,3 +75,8 @@ Stop exploring when available evidence is sufficient to answer the prompt or exe
 4. *Has the relevant behavior already been established earlier in context?*
 
 If further inspection is genuinely needed for safety and correctness, proceed without hesitation.
+
+---
+
+## 8. Process & Server Lifecycle Rule
+- **Never start background servers autonomously**: Do not launch background processes or servers (`launch.py`, FastAPI backend, or AI model servers) on your own after completing an edit or task. Compile and test as needed, but leave server startup strictly to explicit user instructions.
