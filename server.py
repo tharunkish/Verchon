@@ -510,6 +510,7 @@ class StockChatRequest(BaseModel):
     history: List[Dict[str, str]] = []
 
 @app.post("/api/ai-chat/{ticker}")
+@app.post("/api/stocks/{ticker}/chat")
 def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, Any]:
     """
     Interactive Q&A chat endpoint for a specific stock (non-streaming).
@@ -536,6 +537,7 @@ def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, An
 
 
 @app.post("/api/ai-chat/{ticker}/stream")
+@app.post("/api/stocks/{ticker}/chat/stream")
 def stream_chat_with_stock_endpoint(ticker: str, req: StockChatRequest):
     """
     Interactive Q&A chat endpoint with word-by-word token streaming via SSE.

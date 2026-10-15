@@ -167,7 +167,7 @@ export default function AIDossierCard({
     setChatLoading(true);
 
     try {
-      const res = await fetch(`/api/stocks/${encodeURIComponent(ticker)}/chat`, {
+      const res = await fetch(`/api/ai-chat/${encodeURIComponent(ticker)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
