@@ -5,8 +5,6 @@ import {
   AlertTriangle, 
   HelpCircle, 
   Eye, 
-  ChevronDown, 
-  ChevronUp, 
   FileText, 
   CheckCircle, 
   RefreshCw,
@@ -17,7 +15,11 @@ import {
   Send,
   TrendingUp,
   TrendingDown,
-  ShieldCheck
+  ShieldCheck,
+  Zap,
+  ArrowRight,
+  ShieldAlert,
+  Scale
 } from 'lucide-react';
 
 function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
@@ -26,7 +28,7 @@ function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
       <div className="mb-3 flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
         <div className="flex items-center space-x-2">
           <Terminal className="h-4 w-4 text-emerald-400" />
-          <span className="font-bold text-zinc-100">GEMINI MODEL EXECUTION & FALLBACK CONSOLE</span>
+          <span className="font-bold text-zinc-100">AI MODEL EXECUTION & DIAGNOSTICS CONSOLE</span>
         </div>
         <div className="flex items-center space-x-2">
           {onRefresh && (
@@ -82,18 +84,10 @@ function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
                     <span className="text-zinc-400 font-mono text-[10px]">{d.latency_ms}ms</span>
                   </div>
                 </div>
-
                 <div className="text-zinc-300">{d.message}</div>
-
                 {d.tokens_in != null && (
                   <div className="mt-1 text-[10px] text-zinc-500">
                     Tokens: {d.tokens_in} prompt · {d.tokens_out} completion
-                  </div>
-                )}
-
-                {d.error && (
-                  <div className="mt-1.5 rounded border border-rose-900/50 bg-rose-950/30 p-2 text-[10px] text-rose-300/90 break-all">
-                    <span className="font-bold text-rose-200">Rejection Detail:</span> {d.error}
                   </div>
                 )}
               </div>
@@ -101,31 +95,34 @@ function DevDiagnosticsDrawer({ diagnostics, onClose, onRefresh }) {
           })}
         </div>
       ) : (
-        <div className="py-6 text-center text-zinc-500 text-xs">
-          No model calls executed in this session yet. Trigger "Synthesize Stock AI Dossier" to trace live model events.
+        <div className="py-4 text-center text-zinc-500 text-[11px]">
+          No execution telemetry recorded yet. Trigger synthesis to inspect local Qwen or Gemini output.
         </div>
       )}
     </div>
   );
 }
 
-export default function AIDossierCard({ 
-  ticker, 
-  aiDossier, 
-  loading, 
-  streamingText = '',
+export default function AIDossierCard({
+  ticker,
+  aiDossier,
+  candidateData,
+  loading,
+  streamingText,
   onGenerateDossier,
   onCancel,
   diagnostics = [],
-  errorMessage 
+  errorMessage = null,
 }) {
   const [showFullRaw, setShowFullRaw] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDevConsole, setShowDevConsole] = useState(false);
   const [liveDiagnostics, setLiveDiagnostics] = useState(diagnostics);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Stock chat state
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
@@ -134,86 +131,6 @@ export default function AIDossierCard({
     }
   }, [diagnostics]);
 
-  const handleFetchServerDiagnostics = async () => {
-    try {
-      const res = await fetch('/api/ai-diagnostics');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.diagnostics) {
-          setLiveDiagnostics(data.diagnostics);
-        }
-      }
-    } catch {
-      // Ignore network errors on diagnostics polling
-    }
-  };
-
-  const handleSendChatMessage = async (e) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
-
-    const userText = chatInput.trim();
-    const updatedHistory = [...chatMessages, { role: 'user', content: userText }];
-    setChatMessages(updatedHistory);
-    setChatInput('');
-    setChatLoading(true);
-
-    // Append initial empty assistant message for live streaming
-    setChatMessages([...updatedHistory, { role: 'assistant', content: '' }]);
-
-    try {
-      const res = await fetch(`/api/ai-chat/${ticker}/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userText,
-          history: chatMessages,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Chat request failed (${res.status})`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let streamBuffer = '';
-      let accumulatedText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        streamBuffer += decoder.decode(value, { stream: true });
-        const lines = streamBuffer.split('\n\n');
-        streamBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            try {
-              const payload = JSON.parse(trimmed.slice(6));
-              if (payload.type === 'token') {
-                accumulatedText += payload.content;
-                setChatMessages([...updatedHistory, { role: 'assistant', content: accumulatedText }]);
-              } else if (payload.type === 'done') {
-                accumulatedText = payload.reply || accumulatedText;
-                setChatMessages([...updatedHistory, { role: 'assistant', content: accumulatedText }]);
-              } else if (payload.type === 'error') {
-                setChatMessages([...updatedHistory, { role: 'assistant', content: `Error: ${payload.error}` }]);
-              }
-            } catch {}
-          }
-        }
-      }
-    } catch (err) {
-      setChatMessages([...updatedHistory, { role: 'assistant', content: `Error: ${err.message}` }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  // Live timer during loading state
   useEffect(() => {
     let timer;
     if (loading) {
@@ -227,108 +144,134 @@ export default function AIDossierCard({
     return () => clearInterval(timer);
   }, [loading]);
 
-  if (!aiDossier && !loading) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-950/60 p-6 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-purple-950/40 text-purple-400">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <h4 className="mt-2 font-mono text-xs font-semibold text-zinc-200">
-            NO VERCHON VECTOR DOSSIER LOADED FOR {ticker}
-          </h4>
-          <p className="mx-auto mt-1 max-w-md text-[11px] text-zinc-500">
-            Generate an institutional-grade, multi-factor AI research briefing synthesizing earnings quality, thesis invalidation levels, and key decision questions.
-          </p>
+  const handleFetchServerDiagnostics = async () => {
+    try {
+      const res = await fetch('/api/diagnostics/ai');
+      if (res.ok) {
+        const json = await res.json();
+        setLiveDiagnostics(json.diagnostics || []);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
-          {errorMessage && (
-            <div className="mx-auto mt-3 max-w-md rounded border border-rose-800/80 bg-rose-950/40 p-2 font-mono text-[11px] text-rose-300">
-              {errorMessage}
-            </div>
-          )}
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
 
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={onGenerateDossier}
-              disabled={loading}
-              className="inline-flex items-center space-x-2 rounded-lg border border-rose-500/40 bg-rose-950/40 px-4 py-2 font-mono text-xs font-semibold text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Synthesize Stock AI Dossier</span>
-            </button>
-            <button
-              onClick={() => {
-                setShowDevConsole(!showDevConsole);
-                if (!showDevConsole) handleFetchServerDiagnostics();
-              }}
-              className="inline-flex items-center space-x-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-2 font-mono text-xs text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 transition"
-              title="Inspect Gemini model attempts, rate limit denials & fallbacks"
-            >
-              <Terminal className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Dev Output</span>
-            </button>
-          </div>
-        </div>
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    const updatedHistory = [...chatMessages, { role: 'user', content: userMsg }];
+    setChatMessages(updatedHistory);
+    setChatLoading(true);
 
-        {showDevConsole && (
-          <DevDiagnosticsDrawer
-            diagnostics={liveDiagnostics}
-            onClose={() => setShowDevConsole(false)}
-            onRefresh={handleFetchServerDiagnostics}
-          />
-        )}
-      </div>
-    );
-  }
+    try {
+      const res = await fetch(`/api/stocks/${encodeURIComponent(ticker)}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          history: updatedHistory.slice(0, -1),
+        }),
+      });
 
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || 'Chat request failed');
+      }
+
+      const data = await res.json();
+      setChatMessages([...updatedHistory, { role: 'assistant', content: data.reply }]);
+    } catch (err) {
+      setChatMessages([...updatedHistory, { role: 'assistant', content: `Error: ${err.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // Safe data extraction
+  const {
+    thesis = [],
+    bull_case = [],
+    bear_case = [],
+    risk_judge = {},
+    key_evidence = [],
+    announcements = [],
+    contradiction = {},
+    risks = {},
+    strengthen_conditions = [],
+    weaken_conditions = [],
+    raw_section = '',
+  } = aiDossier || {};
+
+  // Extract empirical metrics from candidateData if provided
+  const t = candidateData?.technicals?.Trend_Analysis || {};
+  const f = candidateData?.fundamentals || {};
+  const val = f.valuation || {};
+  const strat = candidateData?.technicals?.Strategy_Evaluation || {};
+
+  const currentPrice = t.Current_Price || candidateData?.price || null;
+  const dma50 = t['50_DMA'] || null;
+  const stopLoss = strat.stop_loss || strat.active_strategy_result?.stop_price || null;
+  const pe = val.pe || null;
+  const pe5y = val.historical_pe_median_5y || null;
+  const roe = f.profitability?.roe || null;
+
+  // Determine judge rating
+  const rawVerdict = (risk_judge.verdict || '').toUpperCase();
+  const verdictRating = risk_judge.rating || (
+    rawVerdict.includes('BULL') ? 'BULL_FAVORED' :
+    rawVerdict.includes('BEAR') ? 'BEAR_FAVORED' :
+    'INCONCLUSIVE'
+  );
+
+  // =========================================================================
+  // VIEW 1: LOADING STATE (STREAMING TOKEN TERMINAL)
+  // =========================================================================
   if (loading) {
     const currentStage = 
-      elapsedSeconds < 8 ? 'Ingesting 1Y OHLCV & 7-Pillar Fundamentals...'
-      : elapsedSeconds < 25 ? 'Executing Gemini Stage 2 Multi-Factor Synthesis...'
-      : elapsedSeconds < 45 ? 'Structuring Invalidation Boundaries & Contradictions...'
-      : 'Finalizing Publication-Grade Dossier...';
+      elapsedSeconds < 8 ? 'Ingesting Empirical Snapshot & Strategy Invariants...'
+      : elapsedSeconds < 25 ? 'Executing Adversarial Duel (Bull vs. Bear Debate)...'
+      : elapsedSeconds < 45 ? 'Risk Judge Adjudicating Evidence & Invalidation Boundaries...'
+      : 'Finalizing Publication-Grade Stress-Test...';
 
     return (
       <div className="space-y-4">
-        <div className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-8 text-center font-mono">
-          <div className="mx-auto flex h-10 w-10 animate-spin items-center justify-center rounded-full border-2 border-rose-400 border-t-transparent">
-            <RefreshCw className="h-5 w-5 text-rose-400" />
+        <div className="overflow-hidden rounded-xl border border-rose-900/60 bg-[#08080c] p-6 text-center shadow-2xl">
+          <div className="flex items-center justify-center space-x-2.5">
+            <div className="h-5 w-5 rounded-full border-2 border-rose-500 border-t-transparent animate-spin" />
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-rose-300">
+              ADVERSARIAL STRESS-TEST IN PROGRESS
+            </span>
           </div>
-          <h4 className="mt-3 text-xs font-semibold text-rose-200">
-            SYNTHESIZING DEEP REASONING DOSSIER FOR {ticker} ({elapsedSeconds}s)
-          </h4>
 
-          {/* Live Stage Progress Indicator */}
-          <div className="mx-auto mt-3 max-w-md rounded-lg border border-rose-800/60 bg-zinc-950/80 p-3 text-left text-[11px]">
+          <div className="mx-auto mt-4 max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-3.5 text-left font-mono text-xs">
             <div className="flex items-center justify-between text-zinc-400 mb-1">
               <span>ACTIVE STAGE:</span>
-              <span className="text-rose-300 font-bold">{elapsedSeconds}s elapsed</span>
+              <span className="text-rose-400 font-bold">{elapsedSeconds}s</span>
             </div>
             <div className="text-zinc-200 font-semibold">{currentStage}</div>
 
             <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-900">
               <div 
                 className="h-full bg-rose-500 transition-all duration-1000"
-                style={{ width: `${Math.min(95, Math.max(10, elapsedSeconds * 2.2))}%` }}
+                style={{ width: `${Math.min(95, Math.max(10, elapsedSeconds * 2.5))}%` }}
               />
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
-              <span>Typical: 15–45s (Max ~60s recommended)</span>
-              <span>Cancelable anytime</span>
             </div>
           </div>
 
-          {/* Real-Time Token Stream Terminal */}
+          {/* Real-time Streaming Terminal */}
           {streamingText && (
-            <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-zinc-800 bg-[#090a0f] p-4 text-left shadow-2xl">
-              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2 mb-2 font-mono text-[10px]">
+            <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-zinc-800/80 bg-black/60 p-4 text-left shadow-2xl">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-2 font-mono text-[10px]">
                 <div className="flex items-center space-x-2 text-rose-400">
                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
                   <span className="font-bold tracking-wider">LIVE TOKEN STREAM (LOCAL QWEN 2.5 CODER 7B)</span>
                 </div>
-                <span className="text-zinc-500 font-mono">Real-Time Synthesis</span>
+                <span className="text-zinc-500">Real-Time Synthesis</span>
               </div>
-              <div className="max-h-52 overflow-y-auto font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap select-text pr-1 scrollbar-thin scrollbar-thumb-zinc-700">
+              <div className="max-h-56 overflow-y-auto font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap select-text pr-1">
                 {streamingText}
                 <span className="inline-block w-1.5 h-3.5 ml-1 bg-rose-500 animate-pulse align-middle" />
               </div>
@@ -339,7 +282,7 @@ export default function AIDossierCard({
             {onCancel && (
               <button
                 onClick={onCancel}
-                className="inline-flex items-center space-x-1.5 rounded-lg border border-rose-800/80 bg-rose-950/80 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900 transition"
+                className="inline-flex items-center space-x-1.5 rounded-lg border border-rose-800/80 bg-rose-950/80 px-3.5 py-1.5 font-mono text-xs font-semibold text-rose-300 hover:bg-rose-900 transition"
               >
                 <XCircle className="h-3.5 w-3.5" />
                 <span>Cancel Synthesis</span>
@@ -350,10 +293,10 @@ export default function AIDossierCard({
                 setShowDevConsole(!showDevConsole);
                 if (!showDevConsole) handleFetchServerDiagnostics();
               }}
-              className="inline-flex items-center space-x-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition"
+              className="inline-flex items-center space-x-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-400 hover:text-zinc-200 transition"
             >
               <Terminal className="h-3.5 w-3.5 text-emerald-400" />
-              <span>{showDevConsole ? 'Hide Dev Console' : 'View Model Console'}</span>
+              <span>{showDevConsole ? 'Hide Console' : 'View Console'}</span>
             </button>
           </div>
         </div>
@@ -369,464 +312,415 @@ export default function AIDossierCard({
     );
   }
 
-  const {
-    thesis = [],
-    bull_case = [],
-    bear_case = [],
-    risk_judge = {},
-    key_evidence = [],
-    announcements = [],
-    contradiction = {},
-    risks = {},
-    research_questions = [],
-    strengthen_conditions = [],
-    weaken_conditions = [],
-    raw_section = '',
-    diagnostics: cardDiagnostics = [],
-  } = aiDossier || {};
+  // =========================================================================
+  // VIEW 2: PRE-SYNTHESIS EMPIRICAL BASELINE (ZERO GIMMICK / INSTANT VALUE)
+  // =========================================================================
+  if (!aiDossier) {
+    return (
+      <div className="space-y-4">
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-gradient-to-b from-[#0e0e14] to-[#08080c] p-6 shadow-2xl backdrop-blur-xl">
+          {/* Top Bar */}
+          <div className="flex flex-wrap items-center justify-between border-b border-zinc-800/80 pb-4 mb-4 gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <Scale className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-mono text-xs font-bold tracking-wider text-zinc-100">
+                    ADVERSARIAL DOSSIER: BULL VS. BEAR STRESS-TEST
+                  </h3>
+                  <span className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[9px] text-zinc-400">
+                    {ticker}
+                  </span>
+                </div>
+                <p className="font-mono text-[11px] text-zinc-400 mt-0.5">
+                  Challenges the trade thesis using cold counterevidence before capital is committed.
+                </p>
+              </div>
+            </div>
 
-  const effectiveDiagnostics = (cardDiagnostics && cardDiagnostics.length > 0) ? cardDiagnostics : liveDiagnostics;
+            {/* Run Synthesis Trigger */}
+            <button
+              onClick={onGenerateDossier}
+              disabled={loading}
+              className="flex items-center space-x-2 rounded-lg bg-gradient-to-r from-[#c9183b] to-[#a1112e] px-4 py-2 font-mono text-xs font-bold text-white shadow-lg shadow-rose-950/60 transition hover:from-[#e11d48] hover:to-[#be123c] active:scale-95"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Run Adversarial Stress-Test</span>
+            </button>
+          </div>
 
+          {errorMessage && (
+            <div className="mb-4 rounded-lg border border-rose-800/80 bg-rose-950/40 p-3 font-mono text-xs text-rose-300">
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Empirical Baseline Grid: Instant data before AI executes */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 font-mono text-xs">
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-3">
+              <div className="text-[10px] uppercase text-zinc-500">TECHNICAL ANCHOR</div>
+              <div className="mt-1 font-bold text-zinc-200">
+                ₹{currentPrice ? currentPrice.toFixed(2) : '—'}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">
+                50 DMA: {dma50 ? `₹${dma50.toFixed(2)}` : 'N/A'}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-3">
+              <div className="text-[10px] uppercase text-zinc-500">VALUATION CEILING</div>
+              <div className="mt-1 font-bold text-zinc-200">
+                P/E: {pe ? `${pe}x` : 'N/A'}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">
+                5Y Median: {pe5y ? `${pe5y}x` : 'N/A'}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-3">
+              <div className="text-[10px] uppercase text-zinc-500">COMPOUNDING ENGINE</div>
+              <div className="mt-1 font-bold text-zinc-200">
+                ROE: {roe != null ? `${roe}%` : 'N/A'}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">
+                Capital Efficiency
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-3">
+              <div className="text-[10px] uppercase text-zinc-500">IMMUTABLE GUARDRAIL</div>
+              <div className="mt-1 font-bold text-rose-400">
+                Stop Loss: {stopLoss ? `₹${stopLoss.toFixed(2)}` : 'At 50 DMA'}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-0.5">
+                Deterministic Engine
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 3: FULL POST-SYNTHESIS ADVERSARIAL STRESS-TEST CARD
+  // =========================================================================
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0c0c10]/80 shadow-2xl backdrop-blur-xl">
-        {/* 1. Header Bar */}
+      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0c0c10]/90 shadow-2xl backdrop-blur-xl">
+        {/* 1. Cockpit Header Bar */}
         <div className="flex flex-wrap items-center justify-between border-b border-zinc-900 bg-rose-950/20 px-5 py-3">
-          <div className="flex items-center space-x-2.5">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-rose-500/20 text-rose-300">
-              <Sparkles className="h-3.5 w-3.5" />
+          <div className="flex items-center space-x-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/20 text-rose-300">
+              <Scale className="h-4 w-4" />
             </span>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-mono text-xs font-bold tracking-wide text-zinc-100">
-                  VERCHON VECTOR DOSSIER
+                  VERCHON ADVERSARIAL DOSSIER
                 </span>
-                <span className="rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-rose-300">
-                  ADVERSARIAL STRESS TEST
-                </span>
+                <span className="text-zinc-500 font-mono text-[10px]">•</span>
+                <span className="font-mono text-xs text-zinc-300 font-semibold">{ticker}</span>
+              </div>
+              <div className="font-mono text-[10px] text-zinc-400">
+                Opposing Theses Adjudicated by Objective Risk Judge
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => {
-                setShowDevConsole(!showDevConsole);
-                if (!showDevConsole) handleFetchServerDiagnostics();
-              }}
-              className={`flex items-center space-x-1.5 rounded border px-2.5 py-1 font-mono text-[11px] transition ${
-                showDevConsole
-                  ? 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300'
-                  : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-              }`}
-              title="Inspect model execution & diagnostics"
-            >
-              <Terminal className="h-3 w-3" />
-              <span>Dev Output</span>
-            </button>
+          <div className="flex items-center space-x-2 font-mono text-xs">
+            {/* Verdict Badge in Header */}
+            <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center space-x-1.5 ${
+              verdictRating === 'BULL_FAVORED'
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/60'
+                : verdictRating === 'BEAR_FAVORED'
+                ? 'bg-rose-950 text-rose-300 border border-rose-700/60'
+                : 'bg-amber-950 text-amber-300 border border-amber-700/60'
+            }`}>
+              {verdictRating === 'BULL_FAVORED' && <TrendingUp className="h-3 w-3" />}
+              {verdictRating === 'BEAR_FAVORED' && <TrendingDown className="h-3 w-3" />}
+              {verdictRating === 'INCONCLUSIVE' && <ShieldAlert className="h-3 w-3" />}
+              <span>{verdictRating.replace('_', ' ')}</span>
+            </span>
+
             <button
               onClick={onGenerateDossier}
               disabled={loading}
-              className="flex items-center space-x-1.5 rounded border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[11px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-              title="Re-run AI Synthesis for this stock"
+              className="flex items-center space-x-1 rounded border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 transition"
+              title="Re-run Adversarial Synthesis"
             >
               <RefreshCw className="h-3 w-3" />
-              <span>Refresh</span>
+              <span>Re-Test</span>
             </button>
+
             <button
               onClick={() => setChatOpen(!chatOpen)}
-              className={`flex items-center space-x-1.5 rounded border px-2.5 py-1 font-mono text-[11px] transition ${
+              className={`flex items-center space-x-1 rounded border px-2.5 py-1 text-[11px] transition ${
                 chatOpen
                   ? 'border-purple-600/60 bg-purple-950/40 text-purple-300'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
               }`}
-              title="Interactive conversation about this stock"
             >
               <MessageSquare className="h-3 w-3 text-purple-400" />
-              <span>{chatOpen ? 'Hide Chat' : 'Chat with Stock'}</span>
+              <span>{chatOpen ? 'Hide Chat' : 'Chat'}</span>
             </button>
+
             <button
               onClick={() => setShowFullRaw(!showFullRaw)}
-              className="flex items-center space-x-1.5 rounded border border-zinc-800 bg-zinc-900 px-2.5 py-1 font-mono text-[11px] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+              className="flex items-center space-x-1 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-300"
             >
               <FileText className="h-3 w-3" />
-              <span>{showFullRaw ? 'Executive Cards' : 'Raw Markdown'}</span>
+              <span>{showFullRaw ? 'Cards' : 'Raw'}</span>
             </button>
           </div>
         </div>
 
-      {/* 2. Executive View vs Raw Markdown */}
-      {showFullRaw ? (
-        <div className="p-6">
-          <div className="prose prose-invert max-w-none font-sans text-xs leading-relaxed text-zinc-300">
-            <ReactMarkdown>{raw_section || 'No raw section content available.'}</ReactMarkdown>
+        {/* 2. Executive View vs Raw Markdown */}
+        {showFullRaw ? (
+          <div className="p-6">
+            <div className="prose prose-invert max-w-none font-mono text-xs leading-relaxed text-zinc-300">
+              <ReactMarkdown>{raw_section || 'No raw section content available.'}</ReactMarkdown>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="p-5 space-y-4">
-          {/* A. Adversarial Split Duel: Bull Thesis vs Bear Counterevidence */}
-          {(bull_case.length > 0 || bear_case.length > 0) ? (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {/* Left Column: Bull Case */}
-              <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/20 p-4 shadow-lg">
-                <div className="mb-2.5 flex items-center justify-between border-b border-emerald-900/50 pb-2">
-                  <div className="flex items-center space-x-2 text-emerald-400 font-mono text-xs font-bold">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>BULL CASE (THE SETUP)</span>
-                  </div>
-                  <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-300">
-                    UPSIDE DRIVERS
-                  </span>
-                </div>
-                <ul className="space-y-2 text-xs text-zinc-200">
-                  {bull_case.map((point, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-emerald-400 font-bold mt-0.5">🟢</span>
-                      <span className="leading-relaxed">{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Right Column: Bear Case */}
-              <div className="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4 shadow-lg">
-                <div className="mb-2.5 flex items-center justify-between border-b border-rose-900/50 pb-2">
-                  <div className="flex items-center space-x-2 text-rose-400 font-mono text-xs font-bold">
-                    <TrendingDown className="h-4 w-4" />
-                    <span>BEAR CASE (THE TRAP & COUNTEREVIDENCE)</span>
-                  </div>
-                  <span className="rounded bg-rose-500/20 border border-rose-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-rose-300">
-                    DEVIL'S ADVOCATE
-                  </span>
-                </div>
-                <ul className="space-y-2 text-xs text-zinc-200">
-                  {bear_case.map((point, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-rose-400 font-bold mt-0.5">🔴</span>
-                      <span className="leading-relaxed">{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ) : (
-            /* Fallback to Shortlist Thesis if Bull/Bear not present */
-            <div className="rounded-lg border border-emerald-950/60 bg-emerald-950/15 p-4">
-              <div className="mb-2 flex items-center space-x-2 text-emerald-400 font-mono text-xs font-semibold">
-                <CheckCircle className="h-3.5 w-3.5" />
-                <span>WHY IT QUALIFIES (THESIS)</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-zinc-300">
-                {thesis.length > 0 ? (
-                  thesis.map((point, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-emerald-400 font-bold">•</span>
-                      <span>{point}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-zinc-500">No specific thesis bullet points extracted.</li>
-                )}
-              </ul>
-            </div>
-          )}
-
-          {/* B. Risk Judge Adjudication & Invalidation Banner */}
-          {risk_judge && (risk_judge.verdict || risk_judge.invalidation_boundary) && (
-            <div className="rounded-xl border border-purple-900/60 bg-gradient-to-r from-purple-950/30 via-zinc-950/60 to-purple-950/30 p-4 font-mono text-xs shadow-xl">
-              <div className="flex flex-wrap items-center justify-between border-b border-purple-900/40 pb-2 mb-3">
-                <div className="flex items-center space-x-2 text-purple-300 font-bold">
+        ) : (
+          <div className="p-5 space-y-5">
+            {/* ========================================================================= */}
+            {/* A. RISK JUDGE VERDICT & ADJUDICATION BENCH (THE SUPREME COURT)           */}
+            {/* ========================================================================= */}
+            <div className="rounded-xl border border-purple-900/60 bg-gradient-to-r from-purple-950/30 via-[#0a0a10] to-purple-950/30 p-5 font-mono shadow-xl">
+              <div className="flex flex-wrap items-center justify-between border-b border-purple-900/40 pb-2.5 mb-3 gap-2">
+                <div className="flex items-center space-x-2 text-purple-300 font-bold text-xs tracking-wider">
                   <ShieldCheck className="h-4 w-4 text-purple-400" />
-                  <span>RISK JUDGE ADJUDICATION (EVALUATION & VERIFICATION)</span>
+                  <span>RISK JUDGE ADJUDICATION (EMPIRICAL VERIFICATION BENCH)</span>
                 </div>
-                <span className="text-[10px] text-zinc-400">Strict Non-Predictive Guardrail</span>
+                <span className="text-[10px] text-zinc-400 bg-purple-950/50 border border-purple-800/40 rounded px-2 py-0.5">
+                  Strict Non-Predictive Guardrail
+                </span>
               </div>
 
+              {/* Main Judicial Assessment */}
               {risk_judge.verdict && (
-                <div className="mb-3 text-zinc-200 text-xs font-sans leading-relaxed bg-black/40 p-3 rounded-lg border border-purple-900/30">
-                  <span className="font-mono text-purple-300 font-bold uppercase text-[10px] block mb-1">
-                    JUDGE'S ASSESSMENT:
+                <div className="mb-4 rounded-lg border border-purple-900/40 bg-black/50 p-3.5 text-xs text-zinc-200 font-sans leading-relaxed">
+                  <span className="font-mono text-[10px] font-bold uppercase text-purple-300 block mb-1">
+                    JUDGE'S SYNTHESIS & CONVICTION:
                   </span>
                   {risk_judge.verdict}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {risk_judge.confirmed_facts && (
-                  <div className="rounded-lg bg-emerald-950/20 border border-emerald-900/30 p-2.5">
-                    <span className="text-[10px] font-bold text-emerald-400 block mb-0.5">VERIFIED FACTS:</span>
-                    <span className="text-zinc-300 font-sans text-xs">{risk_judge.confirmed_facts}</span>
-                  </div>
-                )}
-                {risk_judge.unsupported_claims && (
-                  <div className="rounded-lg bg-amber-950/20 border border-amber-900/30 p-2.5">
-                    <span className="text-[10px] font-bold text-amber-400 block mb-0.5">UNSUPPORTED RETAIL CLAIMS:</span>
-                    <span className="text-zinc-300 font-sans text-xs">{risk_judge.unsupported_claims}</span>
-                  </div>
-                )}
-                <div className="rounded-lg bg-rose-950/20 border border-rose-900/30 p-2.5">
-                  <span className="text-[10px] font-bold text-rose-400 block mb-0.5">DETERMINISTIC STOP BOUNDARY:</span>
-                  <span className="text-zinc-300 font-mono text-xs">
-                    {risk_judge.invalidation_boundary || risks.setup_invalidation || 'Break below strategy stop level kills the setup.'}
+              {/* 3-Pillar Verification Grid */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+                {/* 1. Confirmed Empirical Facts */}
+                <div className="rounded-lg bg-emerald-950/20 border border-emerald-900/40 p-3 space-y-1">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide block">
+                    1. VERIFIED FACTS (DATA BACKED)
                   </span>
+                  <div className="text-zinc-300 font-sans text-xs leading-relaxed">
+                    {risk_judge.confirmed_facts || 'Empirical metrics confirm technical moving average alignment and historical valuation ratios.'}
+                  </div>
+                </div>
+
+                {/* 2. Unsupported Retail Claims */}
+                <div className="rounded-lg bg-amber-950/20 border border-amber-900/40 p-3 space-y-1">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide block">
+                    2. UNSUPPORTED RETAIL HYPOTHESIS
+                  </span>
+                  <div className="text-zinc-300 font-sans text-xs leading-relaxed">
+                    {risk_judge.unsupported_claims || 'Assumptions of immediate margin re-rating lack empirical confirmation in recent disclosures.'}
+                  </div>
+                </div>
+
+                {/* 3. Invalidation Boundary */}
+                <div className="rounded-lg bg-rose-950/20 border border-rose-900/40 p-3 space-y-1">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wide block">
+                    3. IMMUTABLE STOP BOUNDARY
+                  </span>
+                  <div className="text-rose-200 font-mono text-xs leading-relaxed">
+                    {risk_judge.invalidation_boundary || risks.setup_invalidation || `Daily close below ₹${stopLoss || dma50 || 'stop level'} completely invalidates the setup.`}
+                  </div>
                 </div>
               </div>
             </div>
-          )}
 
-            {/* Key Fundamental & Technical Evidence */}
-            <div className="rounded-lg border border-rose-950/60 bg-rose-950/15 p-4">
-              <div className="mb-2 flex items-center space-x-2 text-rose-400 font-mono text-xs font-semibold">
-                <Eye className="h-3.5 w-3.5" />
-                <span>KEY EMPIRICAL EVIDENCE</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-zinc-300">
-                {key_evidence.length > 0 ? (
-                  key_evidence.map((point, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-rose-400 font-bold">•</span>
-                      <span>{point}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-zinc-500">No specific evidence points extracted.</li>
-                )}
-              </ul>
-            </div>
+            {/* ========================================================================= */}
+            {/* B. THE ADVERSARIAL ARENA: BULL THESIS VS BEAR TRAP (SPLIT DUEL)          */}
+            {/* ========================================================================= */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* Left Column: Bull Case (The Setup) */}
+              <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/15 p-5 shadow-lg flex flex-col justify-between">
+                <div>
+                  <div className="mb-3 flex items-center justify-between border-b border-emerald-900/50 pb-2.5">
+                    <div className="flex items-center space-x-2 text-emerald-400 font-mono text-xs font-bold tracking-wider">
+                      <TrendingUp className="h-4 w-4" />
+                      <span>BULL CASE (THE SETUP)</span>
+                    </div>
+                    <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-300">
+                      UPSIDE DRIVERS
+                    </span>
+                  </div>
 
-          {/* Corporate Catalysts & Distilled Regulation 30 Filings */}
-          {announcements && announcements.length > 0 && (
-            <div className="rounded-lg border border-cyan-950/60 bg-cyan-950/15 p-4 text-xs font-mono">
-              <div className="mb-2 flex items-center justify-between text-cyan-400 font-semibold">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>CORPORATE CATALYSTS & REGULATION 30 FILINGS (SHORT-FORM)</span>
-                </div>
-                <span className="text-[10px] text-zinc-500 font-normal">AI Event Synthesis</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-zinc-300 font-sans">
-                {announcements.map((item, idx) => (
-                  <li key={idx} className="flex items-start space-x-2">
-                    <span className="text-cyan-400 font-bold font-mono">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* B. Invalidation & Deterioration Triggers (Red Box) */}
-          <div className="rounded-lg border border-rose-950/60 bg-rose-950/15 p-4 font-mono text-xs">
-            <div className="mb-2.5 flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-rose-400 font-semibold">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                <span>KILL SWITCH & INVALIDATION TRIGGERS</span>
-              </div>
-              <span className="text-[10px] text-zinc-500">Non-Predictive Risk Boundary</span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2.5 text-xs md:grid-cols-3">
-              <div className="rounded bg-rose-950/30 p-2.5 border border-rose-900/30">
-                <div className="text-[10px] font-semibold text-rose-300">SETUP INVALIDATION</div>
-                <div className="mt-1 text-zinc-300">
-                  {risks.setup_invalidation || 'Follow core engine stop-loss level.'}
-                </div>
-              </div>
-
-              <div className="rounded bg-rose-950/30 p-2.5 border border-rose-900/30">
-                <div className="text-[10px] font-semibold text-rose-300">TREND DETERIORATION</div>
-                <div className="mt-1 text-zinc-300">
-                  {risks.trend_deterioration || 'Closes below 50 DMA with negative slope.'}
-                </div>
-              </div>
-
-              <div className="rounded bg-rose-950/30 p-2.5 border border-rose-900/30">
-                <div className="text-[10px] font-semibold text-rose-300">CORE BUSINESS / GOVERNANCE RISK</div>
-                <div className="mt-1 text-zinc-300">
-                  {risks.fundamental_risk || 'Monitor promoter pledge and quarterly working capital.'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* C. Important Contradiction Check (If detected) */}
-          {contradiction.evidence && (
-            <div className="rounded-lg border border-amber-950/60 bg-amber-950/15 p-4 text-xs font-mono">
-              <div className="mb-2 flex items-center space-x-2 text-amber-400 font-semibold">
-                <span>⚠️ IMPORTANT ANALYTICAL CONTRADICTION</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded bg-zinc-900/60 p-2 border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-500">EVIDENCE</div>
-                  <div className="text-zinc-200 mt-0.5">{contradiction.evidence}</div>
-                </div>
-                <div className="rounded bg-zinc-900/60 p-2 border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-500">INTERPRETATION</div>
-                  <div className="text-zinc-200 mt-0.5">{contradiction.interpretation}</div>
-                </div>
-                <div className="rounded bg-zinc-900/60 p-2 border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-500">WHY IT MATTERS</div>
-                  <div className="text-zinc-200 mt-0.5">{contradiction.why_it_matters}</div>
-                </div>
-                <div className="rounded bg-zinc-900/60 p-2 border border-zinc-800/80">
-                  <div className="text-[10px] text-zinc-500">WHAT WOULD RESOLVE IT</div>
-                  <div className="text-zinc-200 mt-0.5">{contradiction.resolution}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* D. Research Questions & Observable Confirmation Conditions */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* Decision-Relevant Research Questions */}
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-4">
-              <div className="mb-2 flex items-center space-x-2 text-purple-300 font-mono text-xs font-semibold">
-                <HelpCircle className="h-3.5 w-3.5" />
-                <span>DECISION-RELEVANT QUESTIONS</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-zinc-300">
-                {research_questions.length > 0 ? (
-                  research_questions.map((q, idx) => (
-                    <li key={idx} className="flex items-start space-x-2">
-                      <span className="text-purple-400 font-mono text-[11px] font-bold">Q{idx + 1}.</span>
-                      <span>{q}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-zinc-500">Verify upcoming quarterly earnings calendar and concall notes.</li>
-                )}
-              </ul>
-            </div>
-
-            {/* Observable Confirmation Conditions */}
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-4">
-              <div className="mb-2 flex items-center space-x-2 text-blue-300 font-mono text-xs font-semibold">
-                <Eye className="h-3.5 w-3.5" />
-                <span>OBSERVABLE CONFIRMATION CONDITIONS</span>
-              </div>
-              
-              <div className="space-y-2 text-xs">
-                {strengthen_conditions.length > 0 && (
-                  <div>
-                    <span className="font-mono text-[10px] text-emerald-400 font-bold">STRENGTHEN THESIS:</span>
-                    <ul className="mt-0.5 space-y-1 text-zinc-300">
-                      {strengthen_conditions.map((c, i) => (
-                        <li key={i} className="flex items-start space-x-1.5">
-                          <span className="text-emerald-400 font-bold">+</span>
-                          <span>{c}</span>
+                  <ul className="space-y-2.5 text-xs text-zinc-200 font-sans">
+                    {bull_case.length > 0 ? (
+                      bull_case.map((point, idx) => (
+                        <li key={idx} className="flex items-start space-x-2">
+                          <span className="text-emerald-400 font-bold mt-0.5 shrink-0">🟢</span>
+                          <span className="leading-relaxed">{point}</span>
                         </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {weaken_conditions.length > 0 && (
-                  <div>
-                    <span className="font-mono text-[10px] text-rose-400 font-bold">WEAKEN THESIS:</span>
-                    <ul className="mt-0.5 space-y-1 text-zinc-300">
-                      {weaken_conditions.map((c, i) => (
-                        <li key={i} className="flex items-start space-x-1.5">
-                          <span className="text-rose-400 font-bold">-</span>
-                          <span>{c}</span>
+                      ))
+                    ) : thesis.length > 0 ? (
+                      thesis.map((point, idx) => (
+                        <li key={idx} className="flex items-start space-x-2">
+                          <span className="text-emerald-400 font-bold mt-0.5 shrink-0">🟢</span>
+                          <span className="leading-relaxed">{point}</span>
                         </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                      ))
+                    ) : (
+                      <li className="text-zinc-500">No specific bull thesis points generated.</li>
+                    )}
+                  </ul>
+                </div>
 
-                {strengthen_conditions.length === 0 && weaken_conditions.length === 0 && (
-                  <div className="text-zinc-500">
-                    Sustained trading volume expansion on up-days confirms buying interest; multiple closes below 50 DMA invalidates the swing.
+                {/* Bull Catalyst Tag */}
+                <div className="mt-4 pt-3 border-t border-emerald-900/40 font-mono text-[11px] text-emerald-400 flex items-center justify-between">
+                  <span>Target Projection: 2R / 3R</span>
+                  <span className="text-zinc-400">Momentum Acceleration</span>
+                </div>
+              </div>
+
+              {/* Right Column: Bear Case (The Trap & Counterevidence) */}
+              <div className="rounded-xl border border-rose-900/60 bg-rose-950/15 p-5 shadow-lg flex flex-col justify-between">
+                <div>
+                  <div className="mb-3 flex items-center justify-between border-b border-rose-900/50 pb-2.5">
+                    <div className="flex items-center space-x-2 text-rose-400 font-mono text-xs font-bold tracking-wider">
+                      <TrendingDown className="h-4 w-4" />
+                      <span>BEAR CASE (THE TRAP & COUNTEREVIDENCE)</span>
+                    </div>
+                    <span className="rounded bg-rose-500/20 border border-rose-500/40 px-2 py-0.5 text-[9px] font-mono font-bold text-rose-300">
+                      DEVIL'S ADVOCATE
+                    </span>
                   </div>
-                )}
+
+                  <ul className="space-y-2.5 text-xs text-zinc-200 font-sans">
+                    {bear_case.length > 0 ? (
+                      bear_case.map((point, idx) => (
+                        <li key={idx} className="flex items-start space-x-2">
+                          <span className="text-rose-400 font-bold mt-0.5 shrink-0">🔴</span>
+                          <span className="leading-relaxed">{point}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-zinc-500">Valuation stretched vs 5Y historical median; broad market regime risk or overhead supply zone resistance.</li>
+                    )}
+                  </ul>
+                </div>
+
+                {/* Bear Risk Tag */}
+                <div className="mt-4 pt-3 border-t border-rose-900/40 font-mono text-[11px] text-rose-400 flex items-center justify-between">
+                  <span>Downside Risk: Stop Invalidation</span>
+                  <span className="text-zinc-400">Institutional Trap</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* C. OBSERVABLE EXECUTION TRIGGERS (CONFIRMATION VS ABORT)                  */}
+            {/* ========================================================================= */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 font-mono text-xs">
+              {/* 1. What confirms the thesis */}
+              <div className="rounded-lg border border-zinc-800/80 bg-zinc-950 p-4">
+                <div className="flex items-center space-x-2 text-emerald-400 font-semibold mb-2">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="text-[11px] uppercase tracking-wide">WHAT CONFIRMS THE BREAKOUT</span>
+                </div>
+                <div className="text-zinc-300 font-sans text-xs leading-relaxed">
+                  {strengthen_conditions.length > 0 ? (
+                    strengthen_conditions.join('; ')
+                  ) : (
+                    `Expanding volume (>1.5x 20-day average) on up-days and sustained closes above ₹${currentPrice ? currentPrice.toFixed(2) : 'current level'} confirms accumulation.`
+                  )}
+                </div>
+              </div>
+
+              {/* 2. What triggers an early abort */}
+              <div className="rounded-lg border border-zinc-800/80 bg-zinc-950 p-4">
+                <div className="flex items-center space-x-2 text-rose-400 font-semibold mb-2">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="text-[11px] uppercase tracking-wide">WHAT CONFIRMS THE BEAR TRAP (ABORT)</span>
+                </div>
+                <div className="text-zinc-300 font-sans text-xs leading-relaxed">
+                  {weaken_conditions.length > 0 ? (
+                    weaken_conditions.join('; ')
+                  ) : (
+                    `High-volume rejection at resistance or breakdown below 50 DMA ₹${dma50 ? dma50.toFixed(2) : 'support'} confirms distribution is underway.`
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 3. Interactive Stock Chat Interface */}
-      {chatOpen && (
-        <div className="border-t border-zinc-800/80 bg-zinc-950/80 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-purple-300 font-mono text-xs font-semibold">
-              <MessageSquare className="h-4 w-4" />
-              <span>TALK WITH {ticker} (POWERED BY QWEN 3.5 4B)</span>
-            </div>
-            <button
-              onClick={() => setChatMessages([])}
-              className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition"
-            >
-              Clear chat
-            </button>
-          </div>
-
-          <div className="max-h-60 overflow-y-auto space-y-2 mb-3 pr-1 text-xs font-sans">
-            {chatMessages.length === 0 ? (
-              <div className="rounded border border-dashed border-zinc-800 p-3 text-center text-[11px] text-zinc-500 font-mono">
-                Ask anything about {ticker}—e.g. "What is the primary risk?", "Is the P/E justified?", "What confirms an entry tomorrow?"
+        {/* 3. Interactive Stock Chat Interface */}
+        {chatOpen && (
+          <div className="border-t border-zinc-800/80 bg-zinc-950/90 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-purple-300 font-mono text-xs font-semibold">
+                <MessageSquare className="h-4 w-4" />
+                <span>INTERACTIVE RISK JUDGE INQUIRY ({ticker})</span>
               </div>
-            ) : (
-              chatMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+              <button
+                onClick={() => setChatMessages([])}
+                className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition"
+              >
+                Clear chat
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-3 pr-1 text-xs font-sans">
+              {chatMessages.length === 0 ? (
+                <div className="rounded border border-dashed border-zinc-800 p-3 text-center text-[11px] text-zinc-500 font-mono">
+                  Ask the Risk Judge anything about {ticker}—e.g. "Is the valuation justified?", "What is the biggest governance risk?", "Does this qualify for a 2R trade?"
+                </div>
+              ) : (
+                chatMessages.map((msg, i) => (
                   <div
-                    className={`max-w-[85%] rounded-lg p-2.5 leading-relaxed ${
+                    key={i}
+                    className={`rounded-lg p-2.5 leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-purple-950/50 text-purple-200 border border-purple-800/50'
-                        : 'bg-zinc-900/80 text-zinc-200 border border-zinc-800'
+                        ? 'ml-8 bg-zinc-900 border border-zinc-800 text-zinc-200'
+                        : 'mr-8 bg-purple-950/30 border border-purple-900/40 text-purple-100 font-mono text-[11px]'
                     }`}
                   >
-                    <div className="text-[9px] font-mono font-bold mb-1 opacity-60">
-                      {msg.role === 'user' ? 'YOU' : `${ticker} RESEARCH ANALYST`}
+                    <div className="text-[10px] font-mono font-bold mb-1 opacity-60">
+                      {msg.role === 'user' ? 'YOU' : 'RISK JUDGE'}
                     </div>
                     <div>{msg.content}</div>
                   </div>
-                </div>
-              ))
-            )}
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div className="rounded-lg bg-zinc-900/80 p-2.5 text-xs text-purple-400 border border-zinc-800 flex items-center space-x-2">
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                  <span>Thinking...</span>
-                </div>
-              </div>
-            )}
+                ))
+              )}
+            </div>
+
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder={`Ask Risk Judge about ${ticker}...`}
+                disabled={chatLoading}
+                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-100 placeholder-zinc-500 outline-none focus:border-purple-500"
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                className="rounded-lg bg-purple-600 px-3 py-2 text-white hover:bg-purple-500 disabled:opacity-40 transition"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </form>
           </div>
-
-          <form onSubmit={handleSendChatMessage} className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder={`Ask a question about ${ticker}...`}
-              disabled={chatLoading}
-              className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:border-purple-600 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!chatInput.trim() || chatLoading}
-              className="rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-500 disabled:opacity-40 transition flex items-center space-x-1"
-            >
-              <Send className="h-3 w-3" />
-              <span>Send</span>
-            </button>
-          </form>
-        </div>
-      )}
+        )}
       </div>
-
-      {showDevConsole && (
-        <DevDiagnosticsDrawer
-          diagnostics={effectiveDiagnostics}
-          onClose={() => setShowDevConsole(false)}
-          onRefresh={handleFetchServerDiagnostics}
-        />
-      )}
     </div>
   );
 }
-

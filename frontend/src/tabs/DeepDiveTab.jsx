@@ -208,6 +208,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
         onCancelDossier={handleCancelDossier}
         portfolioImpact={portfolioImpact}
         loadingImpact={loadingImpact}
+        aiStreamingText={aiStreamingText}
       />
     );
   }
@@ -319,6 +320,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
           <AIDossierCard
             ticker={data.ticker}
             aiDossier={data.ai_dossier}
+            candidateData={data.dossier || data}
             loading={aiLoading}
             streamingText={aiStreamingText}
             onGenerateDossier={handleGenerateStockDossier}

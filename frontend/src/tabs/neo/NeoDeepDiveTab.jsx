@@ -29,6 +29,7 @@ export default function NeoDeepDiveTab({
   onCancelDossier,
   portfolioImpact,
   loadingImpact,
+  aiStreamingText = '',
 }) {
   const [inputTicker, setInputTicker] = useState(ticker || 'ICICIBANK.NS');
 
@@ -190,7 +191,9 @@ export default function NeoDeepDiveTab({
         <AIDossierCard
           ticker={data.ticker}
           aiDossier={data.ai_dossier}
+          candidateData={data.dossier || data}
           loading={aiLoading}
+          streamingText={aiStreamingText}
           onGenerateDossier={onGenerateStockDossier}
           onCancel={onCancelDossier}
           diagnostics={data.ai_dossier?.diagnostics || aiDiagnostics}

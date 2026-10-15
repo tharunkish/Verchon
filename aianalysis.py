@@ -878,23 +878,25 @@ Your output must be clean, publication-grade Markdown strictly following this st
 (Concise synthesis of macro and sector themes across the universe. Highlight where multiple candidates share overlapping risks or technical postures without causal speculation.)
 
 ## 3. Finalist Research Dossiers
-(For EACH finalist, adhere strictly to this concise format:)
+(For EACH finalist, adhere strictly to this adversarial stress-test format:)
 ### [TICKER] - Company Name
-- **Why it entered the shortlist**: (2–4 evidence-backed bullets combining fundamental profile and setup context)
-- **Key evidence**: (Important fundamental + technical facts with appropriate numerical precision; compare P/E to 5Y/3Y median where available)
-- **Recent Announcements & Filings**: (Bullet summary of supplied recent filings/actions, or note if none material)
-- **Important contradiction**: (If one exists, structure as:
-  * *Evidence*: ...
-  * *Interpretation*: ...
-  * *Why it matters*: ...
-  * *What would resolve it*: ...)
-- **Research risks / unresolved issues**:
-  * *Setup Invalidation*: (Technical condition that invalidates the setup; cite exact supplied deterministic reason or 'Chart-level confirmation required')
-  * *Trend Deterioration*: (Structural technical weakening condition, e.g. sustained closes below supplied 50/200 DMA)
-  * *Research / Fundamental Risk*: (Core business, valuation, governance, or cash conversion risk)
-- **Research questions**: (2–3 specific, decision-relevant questions that could materially change the thesis. Every question must answer why resolving it matters.)
-- **What would strengthen the thesis**: (Observable confirmation conditions, not price forecasts)
-- **What would weaken the thesis**: (Observable invalidation conditions, not price forecasts)
+- **Why it entered the shortlist**: (1–2 concise sentences combining technical setup and fundamental trigger)
+- **Bull Case (The Setup)**:
+  - Strongest technical momentum and volume accumulation evidence supporting swing upside towards 2R/3R targets.
+  - Fundamental compounding: ROE trajectory, sales growth, operating margin expansion, or sector tailwind.
+  - Corporate catalysts: order wins, management updates, or earnings cycle holding window.
+- **Bear Case (The Trap & Counterevidence)**:
+  - Valuation headwinds: stretched P/E vs historical 5Y median, peer comparison, growth deceleration.
+  - Structural risks: working capital stretch, promoter pledge, governance watch-outs, or raw material input cost pressure.
+  - Distribution trap: retail FOMO pattern, overhead technical supply, or upcoming event risks.
+- **Risk Judge Verdict (Adjudication & Verification)**:
+  - Verdict: [FAVORS BULL SETUP | FAVORS BEAR TRAP | INCONCLUSIVE / HIGH RISK] - (Objective adjudication stating which thesis is supported by data and who has the probability edge).
+  - Confirmed Facts: (Exactly 2 verified empirical facts from the data snapshot).
+  - Unsupported Claims: (1 speculative retail assumption lacking empirical backing).
+  - Invalidation Boundary: Strict deterministic exit at the supplied strategy stop loss level (never suggest an alternate stop).
+- **Observable Confirmation & Invalidation Conditions**:
+  - What would strengthen the thesis: (Observable volume expansion and price breakout level that confirms the Bull Case).
+  - What would weaken the thesis: (Observable distribution pattern or support breakdown that confirms the Bear Case).
 
 ## 4. Cross-Stock Comparison (Trade-Off Analysis)
 (Direct dimensional comparison across the finalists. Do NOT output a ranking or leaderboard. Do NOT declare a 'winner', 'best stock', or 'highest conviction'. Contrast the trade-offs:)

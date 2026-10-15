@@ -629,9 +629,9 @@ Generate the research dossier adhering EXACTLY to this markdown layout so our vi
   - Expose fundamental risks: working capital stretch, promoter pledge, governance watch-outs, or upcoming event traps.
   - Detail the distribution pattern or trap scenario where naive retail buyers get caught.
 - **Risk Judge Verdict (Adjudication & Verification)**:
-  - Verdict: State objective adjudication (whether evidence favors the Bull setup, Bear trap, or is INCONCLUSIVE / HIGH RISK).
-  - Confirmed Facts: List 2 empirical facts from the data verified to be true.
-  - Unsupported Claims: List 1 assumption retail bulls are making that is NOT backed by the empirical numbers.
+  - Verdict: [FAVORS BULL SETUP | FAVORS BEAR TRAP | INCONCLUSIVE / HIGH RISK] - (State objective adjudication on which side has the empirical probability edge).
+  - Confirmed Facts: List 2 empirical metrics verified directly from the data snapshot.
+  - Unsupported Claims: List 1 speculative retail assumption lacking data support.
   - Invalidation Boundary: Reiterate the strict deterministic exit rule below ₹{stop_price} (do NOT suggest any alternate stop).
 - **Observable Confirmation Conditions**:
   - What would strengthen the thesis: The exact volume expansion and breakout confirmation above ₹{price} that confirms the Bull Case.

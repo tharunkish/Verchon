@@ -242,6 +242,15 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
     if judge_raw and not any(risk_judge.values()):
         risk_judge["verdict"] = judge_raw.strip()
 
+    # Determine structured adjudication rating
+    raw_verdict_str = (risk_judge.get("verdict") or judge_raw or "").upper()
+    if any(b in raw_verdict_str for b in ["FAVOR BULL", "FAVORS BULL", "BULL SETUP", "BULLISH"]):
+        risk_judge["rating"] = "BULL_FAVORED"
+    elif any(b in raw_verdict_str for b in ["FAVOR BEAR", "FAVORS BEAR", "BEAR TRAP", "BEARISH"]):
+        risk_judge["rating"] = "BEAR_FAVORED"
+    else:
+        risk_judge["rating"] = "INCONCLUSIVE"
+
     # 6. Build final structured payload
     thesis = to_bullet_list(extracted_blocks.get("thesis", ""))
     key_evidence = to_bullet_list(extracted_blocks.get("key_evidence", ""))
