@@ -5,7 +5,6 @@ import RuleChecklist from '../components/RuleChecklist';
 import AIDossierCard from '../components/AIDossierCard';
 import CorporateRadarCard from '../components/CorporateRadarCard';
 import PortfolioRiskBridgeCard from '../components/PortfolioRiskBridgeCard';
-import NeoDeepDiveTab from './neo/NeoDeepDiveTab';
 import { normalizeTicker } from '../App';
 
 export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaperTrade, onOpenTradeModal, themeMode }) {
@@ -186,32 +185,6 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
   const vol = t.Volume_Analysis || {};
   const strat = t.Strategy_Evaluation || {};
   const activeStrat = strat.active_strategy_result || {};
-
-  if (themeMode === 'neo-vision') {
-    return (
-      <NeoDeepDiveTab
-        ticker={tickerInput}
-        setTicker={(sym) => {
-          setTickerInput(sym);
-          onSelectTicker(sym);
-        }}
-        data={data}
-        loading={loading}
-        error={error}
-        onFetchData={fetchDossier}
-        onOpenTradeModal={onOpenTradeModal}
-        onLogPaperTrade={onLogPaperTrade}
-        onGenerateStockDossier={handleGenerateStockDossier}
-        aiLoading={aiLoading}
-        aiDiagnostics={aiDiagnostics}
-        aiError={aiError}
-        onCancelDossier={handleCancelDossier}
-        portfolioImpact={portfolioImpact}
-        loadingImpact={loadingImpact}
-        aiStreamingText={aiStreamingText}
-      />
-    );
-  }
 
   return (
     <div className="min-h-[calc(100vh-100px)] p-6">

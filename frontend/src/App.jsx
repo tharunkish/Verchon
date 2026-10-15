@@ -7,12 +7,6 @@ import ScannerTab from './tabs/ScannerTab';
 import PortfolioTab from './tabs/PortfolioTab';
 import DeepDiveTab from './tabs/DeepDiveTab';
 import NewsTab from './tabs/NewsTab';
-import NeoScannerTab from './tabs/neo/NeoScannerTab';
-import NeoPortfolioTab from './tabs/neo/NeoPortfolioTab';
-import NeoDeepDiveTab from './tabs/neo/NeoDeepDiveTab';
-import FloatingDock from './components/neo/FloatingDock';
-import DynamicIsland from './components/neo/DynamicIsland';
-import AuroraBackground from './components/neo/AuroraBackground';
 import OrderExecutionModal from './components/OrderExecutionModal';
 import SystemRestartModal from './components/SystemRestartModal';
 import { useToast } from './components/Toast';
@@ -521,8 +515,6 @@ export default function App() {
     setIsGlobalOrderModalOpen(true);
   };
 
-  const isNeo = themeStyle === 'neo-vision';
-
   return (
     <div className={`relative min-h-screen w-full overflow-x-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-200 ${themeStyle === 'terminal' ? 'font-mono' : 'font-sans'}`}>
       {/* Ambient Lighting Canvas */}
@@ -531,111 +523,59 @@ export default function App() {
           <div className="absolute -top-[25%] -left-[10%] h-[600px] w-[600px] rounded-full bg-blue-500/10 blur-[140px] dark:bg-blue-600/15" />
           <div className="absolute top-[20%] -right-[15%] h-[600px] w-[600px] rounded-full bg-indigo-500/10 blur-[150px] dark:bg-indigo-600/15" />
         </div>
-      ) : isNeo ? (
-        <AuroraBackground />
       ) : (
         <BackgroundAura />
       )}
 
-      {/* Option B: Neo Dynamic Island */}
-      {isNeo && (
-        <DynamicIsland
-          regime={regime}
-          loadingScan={loadingScan}
-          scanElapsed={scanElapsed}
-          loadingAI={loadingAI}
-          aiElapsed={aiElapsed}
-          openPositionsCount={paperPositions.filter((p) => p.status === 'OPEN').length}
-          unrealizedPnl={paperAccount?.open_unrealized_pnl || 0}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenRestartModal={() => setIsRestartModalOpen(true)}
-        />
-      )}
-
       {/* Header */}
-      {!isNeo && (
-        <Header
-          regime={regime}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          onOpenCommandK={() => setIsCommandKOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenRestartModal={() => setIsRestartModalOpen(true)}
-          themeStyle={themeStyle}
-          colorMode={colorMode}
-          setColorMode={setColorMode}
-        />
-      )}
+      <Header
+        regime={regime}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenCommandK={() => setIsCommandKOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenRestartModal={() => setIsRestartModalOpen(true)}
+        themeStyle={themeStyle}
+        colorMode={colorMode}
+        setColorMode={setColorMode}
+      />
 
       {/* Main Full-Screen Workspace Body */}
-      <main className={`relative z-10 w-full ${isNeo ? 'max-w-7xl mx-auto px-4 sm:px-6' : ''}`}>
+      <main className="relative z-10 w-full">
         {/* Scanner Tab */}
         {activeTab === 'scanner' && (
-          isNeo ? (
-            <NeoScannerTab
-              candidates={candidates}
-              loadingScan={loadingScan}
-              regime={regime}
-              onRunScan={handleRunScan}
-              onSelectCandidate={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-              onOpenTradeModal={handleOpenTradeModal}
-              aiReport={aiReport}
-              loadingAI={loadingAI}
-              onGenerateAIReport={handleGenerateAIReport}
-            />
-          ) : (
-            <ScannerTab
-              candidates={candidates}
-              loadingScan={loadingScan}
-              regime={regime}
-              onRunScan={handleRunScan}
-              onSelectCandidate={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-              onOpenTradeModal={handleOpenTradeModal}
-              aiReport={aiReport}
-              loadingAI={loadingAI}
-              onGenerateAIReport={handleGenerateAIReport}
-            />
-          )
+          <ScannerTab
+            candidates={candidates}
+            loadingScan={loadingScan}
+            regime={regime}
+            onRunScan={handleRunScan}
+            onSelectCandidate={(ticker) => {
+              setSelectedTicker(ticker);
+              setActiveTab('deepdive');
+            }}
+            onOpenTradeModal={handleOpenTradeModal}
+            aiReport={aiReport}
+            loadingAI={loadingAI}
+            onGenerateAIReport={handleGenerateAIReport}
+          />
         )}
 
         {/* Portfolio Tab */}
         {activeTab === 'portfolio' && (
-          isNeo ? (
-            <NeoPortfolioTab
-              positions={paperPositions}
-              account={paperAccount}
-              onClosePosition={handleClosePaperPosition}
-              onResetAccount={handleResetAccount}
-              onUpdateCapital={(starting_capital, risk_per_trade_pct) =>
-                handleUpdateAccount({ starting_capital, risk_per_trade_pct })
-              }
-              onRefresh={() => {
-                fetchPaperPositions();
-                fetchPaperAccount();
-              }}
-            />
-          ) : (
-            <PortfolioTab
-              positions={paperPositions}
-              account={paperAccount}
-              onAddPosition={handleAddPaperPosition}
-              onClosePosition={handleClosePaperPosition}
-              onUpdateStop={handleUpdateStop}
-              onUpdateAccount={handleUpdateAccount}
-              onResetAccount={handleResetAccount}
-              onRefreshQuotes={() => {
-                fetchPaperPositions();
-                fetchPaperAccount();
-              }}
-              candidates={candidates}
-            />
-          )
+          <PortfolioTab
+            positions={paperPositions}
+            account={paperAccount}
+            onAddPosition={handleAddPaperPosition}
+            onClosePosition={handleClosePaperPosition}
+            onUpdateStop={handleUpdateStop}
+            onUpdateAccount={handleUpdateAccount}
+            onResetAccount={handleResetAccount}
+            onRefreshQuotes={() => {
+              fetchPaperPositions();
+              fetchPaperAccount();
+            }}
+            candidates={candidates}
+          />
         )}
 
         {/* Deep Dive Tab */}
@@ -646,6 +586,8 @@ export default function App() {
             onLogPaperTrade={handleAddPaperPosition}
             onOpenTradeModal={handleOpenTradeModal}
             themeMode={themeMode}
+            themeStyle={themeStyle}
+            colorMode={colorMode}
           />
         )}
 
@@ -659,17 +601,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Option B: Neo Floating Magnetic Glass Dock */}
-      {isNeo && (
-        <FloatingDock
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenCommandK={() => setIsCommandKOpen(true)}
-          onOpenRestartModal={() => setIsRestartModalOpen(true)}
-        />
-      )}
 
       {/* Global Order Execution Modal */}
       <OrderExecutionModal
