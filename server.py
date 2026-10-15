@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -394,7 +394,7 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
 
             AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
             AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
-            diagnostics = [{"step": "local_qwen_dossier", "model": "Huihui-Qwen3.5-4B-Abliterated", "status": "SUCCESS"}]
+            diagnostics = [{"step": "local_qwen_dossier", "model": "Qwen 2.5 Coder 7B", "status": "SUCCESS"}]
             AI_REPORT_CACHE["diagnostics"] = diagnostics
             print(f"[AI Pipeline] Successfully completed research dossier for {clean_sym}.\n")
 
@@ -436,6 +436,74 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to generate AI dossier for {ticker}: {e}")
 
 
+@app.post("/api/ai-dossier/{ticker}/stream")
+def stream_single_stock_ai_dossier(ticker: str):
+    """
+    Streams an on-demand structured AI Dossier token-by-token using Server-Sent Events (SSE).
+    Sends individual tokens while Qwen generates, then emits a final structured payload.
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    formatted_sym = ta.format_nse_ticker(clean_sym)
+
+    def event_stream():
+        # Check cache first
+        if clean_sym in AI_REPORT_CACHE["dossiers"]:
+            cached_data = {
+                "type": "done",
+                "ticker": formatted_sym,
+                "cached": True,
+                "dossier": AI_REPORT_CACHE["dossiers"][clean_sym],
+                "raw_markdown": AI_REPORT_CACHE["dossiers"][clean_sym].get("raw_section", ""),
+                "diagnostics": AI_REPORT_CACHE.get("diagnostics", []),
+            }
+            yield f"data: {json.dumps(cached_data)}\n\n"
+            return
+
+        try:
+            cand_data = ra.analyze_candidate(formatted_sym)
+            token_list = []
+            for token in local_llm.stream_qwen_stock_dossier(formatted_sym, cand_data):
+                token_list.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            full_md = "".join(token_list)
+            stock_dossier = ai_parser.parse_stock_ai_section(clean_sym, full_md)
+            if not stock_dossier:
+                stock_dossier = {
+                    "raw_section": full_md,
+                    "thesis": [f"Local Qwen qualitative assessment generated for {clean_sym}."],
+                    "risks": {"setup_invalidation": "Break below recent swing support."},
+                }
+
+            AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
+            AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
+            diagnostics = [{"step": "local_qwen_dossier_stream", "model": "Qwen 2.5 Coder 7B", "status": "SUCCESS"}]
+            AI_REPORT_CACHE["diagnostics"] = diagnostics
+
+            done_payload = {
+                "type": "done",
+                "ticker": formatted_sym,
+                "cached": False,
+                "dossier": stock_dossier,
+                "raw_markdown": full_md,
+                "diagnostics": diagnostics,
+            }
+            yield f"data: {json.dumps(done_payload)}\n\n"
+        except Exception as err:
+            err_payload = {"type": "error", "error": str(err)}
+            yield f"data: {json.dumps(err_payload)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 class StockChatRequest(BaseModel):
     message: str
     history: List[Dict[str, str]] = []
@@ -443,7 +511,7 @@ class StockChatRequest(BaseModel):
 @app.post("/api/ai-chat/{ticker}")
 def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, Any]:
     """
-    Interactive Q&A chat endpoint for a specific stock.
+    Interactive Q&A chat endpoint for a specific stock (non-streaming).
     Grounds local Qwen on candidate fundamentals & technicals.
     """
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
@@ -463,6 +531,93 @@ def chat_with_stock_endpoint(ticker: str, req: StockChatRequest) -> Dict[str, An
         })
     except Exception as e:
         print(f"[!] Stock chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai-chat/{ticker}/stream")
+def stream_chat_with_stock_endpoint(ticker: str, req: StockChatRequest):
+    """
+    Interactive Q&A chat endpoint with word-by-word token streaming via SSE.
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    formatted_sym = ta.format_nse_ticker(clean_sym)
+
+    def event_stream():
+        try:
+            cand_data = ra.analyze_candidate(formatted_sym)
+            token_list = []
+            for token in local_llm.stream_chat_with_stock(
+                ticker=formatted_sym,
+                candidate_data=cand_data,
+                chat_history=req.history,
+                user_message=req.message,
+            ):
+                token_list.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            full_reply = "".join(token_list)
+            done_payload = {"type": "done", "reply": full_reply}
+            yield f"data: {json.dumps(done_payload)}\n\n"
+        except Exception as err:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/ai-report/stream")
+def stream_ai_report_endpoint(req: AIReportRequest):
+    """
+    Streams the executive market research briefing across candidate stocks via SSE.
+    """
+    tickers_list = [t.strip().upper() for t in req.tickers if t.strip()] if req.tickers else []
+    cand_items = [{"ticker": t, "current_price": "N/A", "score": 75} for t in tickers_list]
+
+    def event_stream():
+        try:
+            regime_obj = None
+            try:
+                regime_obj = mr.fetch_market_regime()
+            except Exception:
+                pass
+
+            token_list = []
+            for token in local_llm.stream_qwen_market_briefing(cand_items, regime_obj):
+                token_list.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            full_md = "".join(token_list)
+            AI_REPORT_CACHE["report_markdown"] = full_md
+            AI_REPORT_CACHE["finalist_tickers"] = tickers_list
+            AI_REPORT_CACHE["updated_at"] = datetime.now().isoformat()
+
+            done_payload = {
+                "type": "done",
+                "report_markdown": full_md,
+                "finalist_tickers": tickers_list,
+                "structured": {"executive_summary": full_md},
+                "diagnostics": [{"step": "local_qwen_market_briefing_stream", "model": "Qwen 2.5 Coder 7B", "status": "SUCCESS"}],
+            }
+            yield f"data: {json.dumps(done_payload)}\n\n"
+        except Exception as err:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 @app.get("/api/news-hub")
 def get_news_hub_data() -> Dict[str, Any]:
     """

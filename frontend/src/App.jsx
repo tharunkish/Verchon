@@ -300,19 +300,57 @@ export default function App() {
     }
   };
 
-  // 4. Actions: Generate AI Report
+  // 4. Actions: Generate AI Report (with SSE Token Streaming)
   const handleGenerateAIReport = async (tickers) => {
     setLoadingAI(true);
+    // Initialize temporary report shell for live token updates
+    setAiReport({ report_markdown: '', finalist_tickers: tickers || [] });
+
     try {
-      const res = await fetch('/api/ai-report', {
+      const res = await fetch('/api/ai-report/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tickers }),
       });
       if (!res.ok) throw new Error(`AI Report failed: ${res.statusText}`);
-      const data = await res.json();
-      setAiReport(data);
-      addToast('Institutional AI Briefing generated successfully', 'success');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let streamBuffer = '';
+      let accumulatedText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n\n');
+        streamBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const payload = JSON.parse(trimmed.slice(6));
+              if (payload.type === 'token') {
+                accumulatedText += payload.content;
+                setAiReport((prev) => ({
+                  ...(typeof prev === 'object' ? prev : {}),
+                  report_markdown: accumulatedText,
+                  finalist_tickers: tickers || [],
+                }));
+              } else if (payload.type === 'done') {
+                setAiReport(payload);
+                addToast('Institutional AI Briefing generated successfully', 'success');
+              } else if (payload.type === 'error') {
+                throw new Error(payload.error || 'Stream error');
+              }
+            } catch (pErr) {
+              // Ignore single chunk JSON parse issues
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error('AI Report error:', err);
       addToast(`AI Report error: ${err.message}`, 'error');

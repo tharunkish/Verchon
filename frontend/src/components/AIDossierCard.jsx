@@ -110,6 +110,7 @@ export default function AIDossierCard({
   ticker, 
   aiDossier, 
   loading, 
+  streamingText = '',
   onGenerateDossier,
   onCancel,
   diagnostics = [],
@@ -149,13 +150,16 @@ export default function AIDossierCard({
     if (!chatInput.trim() || chatLoading) return;
 
     const userText = chatInput.trim();
-    const newHistory = [...chatMessages, { role: 'user', content: userText }];
-    setChatMessages(newHistory);
+    const updatedHistory = [...chatMessages, { role: 'user', content: userText }];
+    setChatMessages(updatedHistory);
     setChatInput('');
     setChatLoading(true);
 
+    // Append initial empty assistant message for live streaming
+    setChatMessages([...updatedHistory, { role: 'assistant', content: '' }]);
+
     try {
-      const res = await fetch(`/api/ai-chat/${ticker}`, {
+      const res = await fetch(`/api/ai-chat/${ticker}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,14 +167,44 @@ export default function AIDossierCard({
           history: chatMessages,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setChatMessages([...newHistory, { role: 'assistant', content: data.reply || 'No response.' }]);
-      } else {
-        setChatMessages([...newHistory, { role: 'assistant', content: 'Error communicating with AI model.' }]);
+
+      if (!res.ok) {
+        throw new Error(`Chat request failed (${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let streamBuffer = '';
+      let accumulatedText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n\n');
+        streamBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const payload = JSON.parse(trimmed.slice(6));
+              if (payload.type === 'token') {
+                accumulatedText += payload.content;
+                setChatMessages([...updatedHistory, { role: 'assistant', content: accumulatedText }]);
+              } else if (payload.type === 'done') {
+                accumulatedText = payload.reply || accumulatedText;
+                setChatMessages([...updatedHistory, { role: 'assistant', content: accumulatedText }]);
+              } else if (payload.type === 'error') {
+                setChatMessages([...updatedHistory, { role: 'assistant', content: `Error: ${payload.error}` }]);
+              }
+            } catch {}
+          }
+        }
       }
     } catch (err) {
-      setChatMessages([...newHistory, { role: 'assistant', content: `Network error: ${err.message}` }]);
+      setChatMessages([...updatedHistory, { role: 'assistant', content: `Error: ${err.message}` }]);
     } finally {
       setChatLoading(false);
     }
@@ -280,6 +314,23 @@ export default function AIDossierCard({
               <span>Cancelable anytime</span>
             </div>
           </div>
+
+          {/* Real-Time Token Stream Terminal */}
+          {streamingText && (
+            <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-zinc-800 bg-[#090a0f] p-4 text-left shadow-2xl">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2 mb-2 font-mono text-[10px]">
+                <div className="flex items-center space-x-2 text-rose-400">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="font-bold tracking-wider">LIVE TOKEN STREAM (LOCAL QWEN 2.5 CODER 7B)</span>
+                </div>
+                <span className="text-zinc-500 font-mono">Real-Time Synthesis</span>
+              </div>
+              <div className="max-h-52 overflow-y-auto font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap select-text pr-1 scrollbar-thin scrollbar-thumb-zinc-700">
+                {streamingText}
+                <span className="inline-block w-1.5 h-3.5 ml-1 bg-rose-500 animate-pulse align-middle" />
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 flex items-center justify-center space-x-3">
             {onCancel && (

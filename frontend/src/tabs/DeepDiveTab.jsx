@@ -15,6 +15,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
   const [error, setError] = useState(null);
   const [aiError, setAiError] = useState(null);
   const [aiDiagnostics, setAiDiagnostics] = useState([]);
+  const [aiStreamingText, setAiStreamingText] = useState('');
   const abortControllerRef = useRef(null);
 
   const fetchDossier = async (sym) => {
@@ -23,6 +24,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
     setLoading(true);
     setError(null);
     setAiError(null);
+    setAiStreamingText('');
     try {
       const res = await fetch(`/api/stocks/${encodeURIComponent(cleanSym)}`);
       if (!res.ok) {
@@ -47,6 +49,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
       abortControllerRef.current = null;
     }
     setAiLoading(false);
+    setAiStreamingText('');
     setAiError('Generation cancelled by user.');
   };
 
@@ -54,13 +57,14 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
     if (!data?.ticker) return;
     setAiLoading(true);
     setAiError(null);
+    setAiStreamingText('');
 
-    // User-controlled cancellation controller (no hard 60s auto-abort)
+    // User-controlled cancellation controller
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     try {
-      const res = await fetch(`/api/ai-dossier/${encodeURIComponent(data.ticker)}`, {
+      const res = await fetch(`/api/ai-dossier/${encodeURIComponent(data.ticker)}/stream`, {
         method: 'POST',
         signal: controller.signal,
       });
@@ -69,17 +73,49 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
         const errDetail = await res.text();
         throw new Error(`AI Dossier generation failed (${res.status}: ${errDetail || res.statusText})`);
       }
-      const resJson = await res.json();
-      const updatedDiagnostics = resJson.diagnostics || [];
-      setData((prev) => ({
-        ...prev,
-        ai_dossier: {
-          ...resJson.dossier,
-          diagnostics: updatedDiagnostics,
-        },
-      }));
-      if (updatedDiagnostics.length > 0) {
-        setAiDiagnostics(updatedDiagnostics);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let streamBuffer = '';
+      let accumulatedTokens = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n\n');
+        streamBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const payload = JSON.parse(trimmed.slice(6));
+              if (payload.type === 'token') {
+                accumulatedTokens += payload.content;
+                setAiStreamingText(accumulatedTokens);
+              } else if (payload.type === 'done') {
+                const updatedDiagnostics = payload.diagnostics || [];
+                setData((prev) => ({
+                  ...prev,
+                  ai_dossier: {
+                    ...payload.dossier,
+                    diagnostics: updatedDiagnostics,
+                  },
+                }));
+                if (updatedDiagnostics.length > 0) {
+                  setAiDiagnostics(updatedDiagnostics);
+                }
+                setAiStreamingText('');
+              } else if (payload.type === 'error') {
+                throw new Error(payload.error || 'Stream error');
+              }
+            } catch (parseErr) {
+              // Ignore single malformed chunk
+            }
+          }
+        }
       }
     } catch (err) {
       if (err.name === 'AbortError') {
@@ -252,6 +288,7 @@ export default function DeepDiveTab({ selectedTicker, onSelectTicker, onLogPaper
             ticker={data.ticker}
             aiDossier={data.ai_dossier}
             loading={aiLoading}
+            streamingText={aiStreamingText}
             onGenerateDossier={handleGenerateStockDossier}
             onCancel={handleCancelDossier}
             diagnostics={data.ai_dossier?.diagnostics || aiDiagnostics}

@@ -253,14 +253,14 @@ def query_local_qwen(
     temperature: float = 0.2,
 ) -> str:
     """
-    Query the local Qwen 3.5 4B model via OpenAI-compatible endpoint.
+    Query the local Qwen model via OpenAI-compatible endpoint.
     Returns plain string text (extracts reasoning and content cleanly).
     """
     if not is_server_healthy():
         print("  [*] Local Qwen server is offline. Starting server process...")
         success = start_local_server()
         if not success:
-            raise RuntimeError("Local Qwen 3.5 server is not available.")
+            raise RuntimeError("Local Qwen server is not available.")
 
     messages = []
     if system_prompt:
@@ -268,7 +268,7 @@ def query_local_qwen(
     messages.append({"role": "user", "content": prompt})
 
     payload = {
-        "model": "qwen3.5-4b-abliterated",
+        "model": "qwen2.5-coder-7b",
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -313,17 +313,76 @@ def query_local_qwen(
         raise
 
 
-def chat_with_stock(
+def stream_local_qwen(
+    prompt: str,
+    system_prompt: Optional[str] = None,
+    max_tokens: int = 900,
+    temperature: float = 0.2,
+):
+    """
+    Generator that streams tokens one by one from local Qwen via SSE.
+    Yields string text chunks as they are generated.
+    """
+    if not is_server_healthy():
+        print("  [*] Local Qwen server is offline. Starting server process...")
+        success = start_local_server()
+        if not success:
+            raise RuntimeError("Local Qwen server is not available.")
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": "qwen2.5-coder-7b",
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "stream": True,
+    }
+
+    t_start = time.time()
+    prompt_len = len(prompt)
+    print(f"  [->] [Local Qwen Stream] Starting stream (Prompt: ~{prompt_len} chars, Max Tokens: {max_tokens})...")
+
+    with requests.post(
+        f"{LOCAL_SERVER_URL}/v1/chat/completions",
+        json=payload,
+        headers={"Content-Type": "application/json"},
+        stream=True,
+        timeout=240,
+    ) as res:
+        res.raise_for_status()
+        token_count = 0
+        for line in res.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            line = line.strip()
+            if line.startswith("data: "):
+                data_part = line[6:].strip()
+                if data_part == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_part)
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    token = delta.get("content") or delta.get("reasoning_content") or ""
+                    if token:
+                        token_count += 1
+                        yield token
+                except Exception:
+                    continue
+
+        elapsed = time.time() - t_start
+        tok_sec = round(token_count / elapsed, 1) if elapsed > 0 else 0
+        print(f"  [OK] [Local Qwen Stream] Completed in {elapsed:.2f}s | Output: {token_count} tokens ({tok_sec} tok/s)")
+
+
+def build_stock_chat_context(
     ticker: str,
     candidate_data: Dict[str, Any],
-    chat_history: List[Dict[str, str]],
-    user_message: str,
 ) -> str:
-    """
-    Interactive Q&A chat for a specific stock.
-    Injects the stock's full technicals, fundamentals, and dossier context
-    as system grounding, then appends conversation history and the user's question.
-    """
+    """Build grounded system prompt for interactive stock chat."""
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     tech = candidate_data.get("technicals", {})
     fund = candidate_data.get("fundamentals", {})
@@ -342,7 +401,7 @@ def chat_with_stock(
     positives = fund.get("positives", [])
     red_flags = [f.get("name") if isinstance(f, dict) else str(f) for f in fund.get("red_flags", [])]
 
-    system_prompt = (
+    return (
         f"You are the senior trading analyst defending the thesis on {clean_sym} on an Indian equity swing desk.\n"
         f"Live Context for {clean_sym}:\n"
         f"- Price: ₹{price} | 50 DMA: ₹{dma50} | 200 DMA: ₹{dma200}\n"
@@ -356,17 +415,29 @@ def chat_with_stock(
         "- Be realistic about risk; do not give blind promotional advice."
     )
 
+
+def chat_with_stock(
+    ticker: str,
+    candidate_data: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    user_message: str,
+) -> str:
+    """
+    Interactive Q&A chat for a specific stock (non-streaming).
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    system_prompt = build_stock_chat_context(ticker, candidate_data)
+
     if not is_server_healthy():
         start_local_server()
 
-    # Build multi-turn messages array
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in chat_history[-6:]:  # Keep recent turns
+    for msg in chat_history[-6:]:
         messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
     messages.append({"role": "user", "content": user_message})
 
     payload = {
-        "model": "qwen3.5-4b-abliterated",
+        "model": "qwen2.5-coder-7b",
         "messages": messages,
         "max_tokens": 400,
         "temperature": 0.2,
@@ -394,18 +465,75 @@ def chat_with_stock(
         return f"Unable to answer right now: {e}"
 
 
-def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> str:
+def stream_chat_with_stock(
+    ticker: str,
+    candidate_data: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    user_message: str,
+):
     """
-    Generate an institutional qualitative dossier for a single stock using local Qwen.
-    Formats the markdown section so ai_parser extracts ALL dashboard cards:
-    - Why it entered the shortlist (Thesis)
-    - Key evidence (Empirical fundamentals + technicals)
-    - Recent Announcements & Filings
-    - Important contradiction
-    - Research risks / unresolved issues (Setup Invalidation, Trend Deterioration, Fundamental Risk)
-    - Research questions
-    - What would strengthen the thesis
-    - What would weaken the thesis
+    Interactive Q&A chat for a specific stock (token streaming generator).
+    Yields string text chunks as they arrive from local Qwen.
+    """
+    clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+    system_prompt = build_stock_chat_context(ticker, candidate_data)
+
+    if not is_server_healthy():
+        start_local_server()
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history[-6:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {
+        "model": "qwen2.5-coder-7b",
+        "messages": messages,
+        "max_tokens": 400,
+        "temperature": 0.2,
+        "stream": True,
+    }
+
+    t_start = time.time()
+    try:
+        with requests.post(
+            f"{LOCAL_SERVER_URL}/v1/chat/completions",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            stream=True,
+            timeout=120,
+        ) as res:
+            res.raise_for_status()
+            tok_count = 0
+            for line in res.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                line = line.strip()
+                if line.startswith("data: "):
+                    data_part = line[6:].strip()
+                    if data_part == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_part)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        token = delta.get("content") or delta.get("reasoning_content") or ""
+                        if token:
+                            tok_count += 1
+                            yield token
+                    except Exception:
+                        continue
+            elapsed = time.time() - t_start
+            tok_sec = round(tok_count / elapsed, 1) if elapsed > 0 else 0
+            print(f"  [OK] [Chat Stream with {clean_sym}] Completed in {elapsed:.2f}s | {tok_count} tokens ({tok_sec} tok/s)")
+    except Exception as e:
+        print(f"  [FAIL] [Chat Stream with {clean_sym}] Error: {e}")
+        yield f"Unable to answer right now: {e}"
+
+
+def build_stock_dossier_prompts(ticker: str, candidate_data: Dict[str, Any]) -> tuple[str, str]:
+    """
+    Builds the system prompt and user prompt for generating a detailed qualitative stock dossier.
+    Shared by both batch and streaming endpoints.
     """
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     tech = candidate_data.get("technicals", {})
@@ -443,10 +571,8 @@ def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> 
     corp_radar = event_engine.fetch_corporate_radar(clean_sym, recent_announcements=announcements)
     next_earnings = corp_radar.get("next_earnings_date") or "Unannounced"
     days_to_earnings = corp_radar.get("days_to_earnings")
-    risk_badge = corp_radar.get("event_risk_badge", "MONITOR")
     earnings_warning = f"Q2/Q3 Results in {days_to_earnings} days ({next_earnings})" if days_to_earnings is not None else f"Earnings Date: {next_earnings}"
     
-    # Format high-signal short-form corporate announcements
     distilled_filings = []
     if days_to_earnings is not None:
         if days_to_earnings <= 14:
@@ -517,14 +643,28 @@ Generate the research dossier adhering EXACTLY to this markdown layout so our vi
 - **What would weaken the thesis**:
   - Detail the early distribution volume or lower-high breakdown pattern that confirms the bear case is playing out.
 """
+    return system_prompt, prompt
 
+
+def generate_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]) -> str:
+    """
+    Generate an institutional qualitative dossier for a single stock using local Qwen (non-streaming).
+    """
+    system_prompt, prompt = build_stock_dossier_prompts(ticker, candidate_data)
     return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=900, temperature=0.3)
 
 
-def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:
+def stream_qwen_stock_dossier(ticker: str, candidate_data: Dict[str, Any]):
     """
-    Generate an executive market briefing across shortlisted candidates using local Qwen.
+    Stream an institutional qualitative dossier for a single stock using local Qwen.
+    Yields string text tokens in real time.
     """
+    system_prompt, prompt = build_stock_dossier_prompts(ticker, candidate_data)
+    return stream_local_qwen(prompt, system_prompt=system_prompt, max_tokens=900, temperature=0.3)
+
+
+def build_market_briefing_prompts(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> tuple[str, str]:
+    """Build prompts for executive market briefing."""
     regime_name = regime.get("regime", "SUPPORTIVE") if regime else "SUPPORTIVE"
     regime_score = regime.get("regime_score", 85) if regime else 85
     
@@ -554,8 +694,24 @@ Provide an Executive Research Briefing with:
 ## 2. Top Conviction Swings (Ranked evaluation of the best 2-3 setups)
 ## 3. Risk & Capital Guardrails (Specific stop loss and cash management advice)
 """
+    return system_prompt, prompt
 
+
+def generate_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Generate an executive market briefing across shortlisted candidates using local Qwen (non-streaming).
+    """
+    system_prompt, prompt = build_market_briefing_prompts(candidates, regime)
     return query_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1800, temperature=0.3)
+
+
+def stream_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Optional[Dict[str, Any]] = None):
+    """
+    Stream an executive market briefing across shortlisted candidates using local Qwen.
+    Yields string text tokens in real time.
+    """
+    system_prompt, prompt = build_market_briefing_prompts(candidates, regime)
+    return stream_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1800, temperature=0.3)
 
 
 
