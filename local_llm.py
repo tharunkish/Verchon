@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 # Paths and configuration
 MODEL_PATH = r"D:\lmmodels\Huihui-Qwen3.5-4B-abliterated.Q4_K_M.gguf"
-BINARY_PATH = r"D:\lmmodels\llama-bin\llama-server.exe"
+BINARY_PATH = r"D:\lmmodels\llama-cuda-bin\llama-server.exe"
 LOCAL_SERVER_PORT = 8085
 LOCAL_SERVER_URL = f"http://127.0.0.1:{LOCAL_SERVER_PORT}"
 
@@ -121,8 +121,9 @@ def start_local_server() -> bool:
         "-m", MODEL_PATH,
         "-c", "4096",
         "-ngl", "99",
-        "--device", "Vulkan0",
         "-t", "6",
+        "--reasoning", "off",
+        "--reasoning-format", "none",
         "--reasoning-budget", "0",
         "--port", str(LOCAL_SERVER_PORT),
         "--host", "127.0.0.1",
@@ -156,7 +157,7 @@ def start_local_server() -> bool:
             time.sleep(0.5)
             if is_server_healthy():
                 print(f"  [OK] Local Qwen server ready at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
-                print(f"  [OK] Model: {os.path.basename(MODEL_PATH)} | Context: 4096 tokens | GPU: Vulkan0 (100% layers offloaded)")
+                print(f"  [OK] Model: {os.path.basename(MODEL_PATH)} | Context: 4096 tokens | GPU: NVIDIA CUDA (100% layers offloaded)")
                 logging.info(f"Local Qwen server successfully online at {LOCAL_SERVER_URL} (pid {_server_process.pid})")
                 return True
 
