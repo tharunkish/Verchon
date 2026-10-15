@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
+import TerminalHeader from './components/terminal/TerminalHeader';
+import AppleHeader from './components/apple/AppleHeader';
 import CommandK from './components/CommandK';
 import BackgroundAura from './components/BackgroundAura';
 import SettingsModal from './components/SettingsModal';
-import ScannerTab from './tabs/ScannerTab';
+import TerminalScannerTab from './tabs/terminal/TerminalScannerTab';
+import AppleScannerTab from './tabs/apple/AppleScannerTab';
 import PortfolioTab from './tabs/PortfolioTab';
 import DeepDiveTab from './tabs/DeepDiveTab';
 import NewsTab from './tabs/NewsTab';
@@ -515,49 +517,83 @@ export default function App() {
     setIsGlobalOrderModalOpen(true);
   };
 
+  const isTerminal = themeStyle === 'terminal';
+
   return (
-    <div className={`relative min-h-screen w-full overflow-x-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-200 ${themeStyle === 'terminal' ? 'font-mono' : 'font-sans'}`}>
-      {/* Ambient Lighting Canvas */}
-      {themeStyle === 'apple' ? (
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-40 dark:opacity-25 transition-opacity duration-500">
+    <div className={`relative min-h-screen w-full overflow-x-hidden transition-colors duration-200 ${
+      isTerminal 
+        ? 'bg-[#050508] text-zinc-100 font-mono' 
+        : 'bg-[var(--bg-canvas)] text-[var(--text-primary)] font-sans'
+    }`}>
+      {/* Background Ambience */}
+      {isTerminal ? (
+        <BackgroundAura />
+      ) : (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-30 dark:opacity-20 transition-opacity duration-500">
           <div className="absolute -top-[25%] -left-[10%] h-[600px] w-[600px] rounded-full bg-blue-500/10 blur-[140px] dark:bg-blue-600/15" />
           <div className="absolute top-[20%] -right-[15%] h-[600px] w-[600px] rounded-full bg-indigo-500/10 blur-[150px] dark:bg-indigo-600/15" />
         </div>
-      ) : (
-        <BackgroundAura />
       )}
 
-      {/* Header */}
-      <Header
-        regime={regime}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenCommandK={() => setIsCommandKOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenRestartModal={() => setIsRestartModalOpen(true)}
-        themeStyle={themeStyle}
-        colorMode={colorMode}
-        setColorMode={setColorMode}
-      />
+      {/* Header: Exact Classic Terminal or Humane Apple Header */}
+      {isTerminal ? (
+        <TerminalHeader
+          regime={regime}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenCommandK={() => setIsCommandKOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenRestartModal={() => setIsRestartModalOpen(true)}
+          themeMode="terminal"
+        />
+      ) : (
+        <AppleHeader
+          regime={regime}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenCommandK={() => setIsCommandKOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenRestartModal={() => setIsRestartModalOpen(true)}
+          colorMode={colorMode}
+          setColorMode={setColorMode}
+        />
+      )}
 
       {/* Main Full-Screen Workspace Body */}
       <main className="relative z-10 w-full">
-        {/* Scanner Tab */}
+        {/* Scanner Tab: Exact Classic Monospace Terminal or Humane Apple Scanner */}
         {activeTab === 'scanner' && (
-          <ScannerTab
-            candidates={candidates}
-            loadingScan={loadingScan}
-            regime={regime}
-            onRunScan={handleRunScan}
-            onSelectCandidate={(ticker) => {
-              setSelectedTicker(ticker);
-              setActiveTab('deepdive');
-            }}
-            onOpenTradeModal={handleOpenTradeModal}
-            aiReport={aiReport}
-            loadingAI={loadingAI}
-            onGenerateAIReport={handleGenerateAIReport}
-          />
+          isTerminal ? (
+            <TerminalScannerTab
+              candidates={candidates}
+              loadingScan={loadingScan}
+              regime={regime}
+              onRunScan={handleRunScan}
+              onSelectCandidate={(ticker) => {
+                setSelectedTicker(ticker);
+                setActiveTab('deepdive');
+              }}
+              onOpenTradeModal={handleOpenTradeModal}
+              aiReport={aiReport}
+              loadingAI={loadingAI}
+              onGenerateAIReport={handleGenerateAIReport}
+            />
+          ) : (
+            <AppleScannerTab
+              candidates={candidates}
+              loadingScan={loadingScan}
+              regime={regime}
+              onRunScan={handleRunScan}
+              onSelectCandidate={(ticker) => {
+                setSelectedTicker(ticker);
+                setActiveTab('deepdive');
+              }}
+              onOpenTradeModal={handleOpenTradeModal}
+              aiReport={aiReport}
+              loadingAI={loadingAI}
+              onGenerateAIReport={handleGenerateAIReport}
+            />
+          )
         )}
 
         {/* Portfolio Tab */}
