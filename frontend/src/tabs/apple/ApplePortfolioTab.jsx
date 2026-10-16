@@ -10,13 +10,17 @@ import {
   ArrowUpRight, 
   ArrowDownRight, 
   CheckCircle2, 
-  X,
-  Compass,
-  Clock,
-  Sparkles,
-  Lock,
-  Scissors,
-  Check
+  X, 
+  Compass, 
+  Clock, 
+  Sparkles, 
+  Lock, 
+  Scissors, 
+  Check,
+  PieChart,
+  DollarSign,
+  Scale,
+  Layers
 } from 'lucide-react';
 import OrderExecutionModal from '../../components/OrderExecutionModal';
 
@@ -260,28 +264,97 @@ export default function ApplePortfolioTab({
                 {winRate}%
               </strong> ({closedPositions.length} closed)
             </div>
+            <span className="opacity-30">|</span>
+            <div>
+              Risk at Stop:{' '}
+              <strong className="text-rose-600 dark:text-rose-400">
+                ₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}
+              </strong> ({((totalCapitalAtRisk / (totalEquity || 1)) * 100).toFixed(1)}%)
+            </div>
           </div>
 
-          {/* Sector Allocation Ribbon */}
-          {sectorData?.sectors && sectorData.sectors.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] font-mono text-zinc-400 uppercase font-semibold">Allocations:</span>
-              <div className="flex h-2 w-36 rounded-full overflow-hidden bg-black/[0.05] dark:bg-white/[0.08] p-0.5">
-                {sectorData.sectors.map((sec, idx) => {
-                  const palette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500'];
-                  return (
-                    <div
-                      key={sec.sector}
-                      style={{ width: `${Math.max(3, sec.percentage)}%` }}
-                      className={`${palette[idx % palette.length]} h-full`}
-                      title={`${sec.sector}: ${sec.percentage}%`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Quick Stats */}
+          <div className="flex items-center space-x-3 text-zinc-400 font-mono text-[11px]">
+            <span>Profit Factor: <strong className="text-zinc-700 dark:text-zinc-300">{profitFactor}x</strong></span>
+            <span>·</span>
+            <span>Avg R: <strong className="text-zinc-700 dark:text-zinc-300">{avgRMultiple}R</strong></span>
+          </div>
         </div>
+
+        {/* Comprehensive Sector Coverage & Risk Breakdown */}
+        {sectorData?.sectors && sectorData.sectors.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-black/[0.05] dark:border-white/[0.06]">
+            <div className="flex flex-wrap items-center justify-between mb-2.5 text-xs gap-2">
+              <div className="flex items-center space-x-2">
+                <PieChart className="h-3.5 w-3.5 text-zinc-400" />
+                <span className="font-mono text-[10px] tracking-wider text-zinc-400 uppercase font-semibold">
+                  Portfolio Sector Exposure ({sectorData.sectors.length} Active Sectors)
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-400">
+                Total Risk at Stop: <strong className="text-rose-600 dark:text-rose-400">₹{Math.round(sectorData?.total_risk_at_stop != null ? sectorData.total_risk_at_stop : totalCapitalAtRisk).toLocaleString('en-IN')}</strong> ({sectorData?.total_risk_at_stop_pct ?? ((totalCapitalAtRisk / (totalEquity || 1)) * 100).toFixed(1)}% equity)
+              </span>
+            </div>
+
+            {/* Visual Stacked Progress Bar */}
+            <div className="flex h-2 w-full rounded-full overflow-hidden bg-black/[0.04] dark:bg-white/[0.06] p-0.5 mb-3">
+              {sectorData.sectors.map((sec, idx) => {
+                const palette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'];
+                return (
+                  <div
+                    key={sec.sector}
+                    style={{ width: `${Math.max(2, sec.percentage)}%` }}
+                    className={`${palette[idx % palette.length]} h-full transition-all`}
+                    title={`${sec.sector}: ${sec.percentage}% (₹${Math.round(sec.amount).toLocaleString('en-IN')})`}
+                  />
+                );
+              })}
+              {sectorData.available_cash > 0 && (
+                <div
+                  style={{ width: `${Math.min(100, Math.max(2, (sectorData.available_cash / totalEquity) * 100))}%` }}
+                  className="bg-zinc-300 dark:bg-zinc-700/60 h-full"
+                  title={`Available Cash: ${((sectorData.available_cash / totalEquity) * 100).toFixed(1)}%`}
+                />
+              )}
+            </div>
+
+            {/* Sector detail cards grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+              {sectorData.sectors.map((sec, idx) => {
+                const isOverweight = sec.percentage > 30.0;
+                const dotPalette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'];
+                return (
+                  <div
+                    key={sec.sector}
+                    className={`rounded-2xl p-2.5 border transition ${
+                      isOverweight
+                        ? 'border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10'
+                        : 'border-black/[0.04] dark:border-white/[0.05] bg-black/[0.02] dark:bg-white/[0.02]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 truncate">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${dotPalette[idx % dotPalette.length]}`} />
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{sec.sector}</span>
+                      </div>
+                      <span className="font-bold font-mono-num text-zinc-900 dark:text-zinc-100 ml-1">
+                        {sec.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-1">
+                      <span>₹{Math.round(sec.amount).toLocaleString('en-IN')}</span>
+                      {isOverweight ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-bold">⚠️ &gt;30%</span>
+                      ) : (
+                        <span>{sec.percentage < 15 ? 'Balanced' : 'Core'}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===================================================================
@@ -294,7 +367,7 @@ export default function ApplePortfolioTab({
             <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
               Active Trade Flight Strips ({openPositions.length})
             </h2>
-            <p className="text-xs text-zinc-500">Live trailing runways, target brackets, and real-time execution controls</p>
+            <p className="text-xs text-zinc-500">Live trailing runways, target brackets, statutory friction, and execution controls</p>
           </div>
 
           <div className="flex items-center space-x-1.5 p-0.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04]">
@@ -348,10 +421,19 @@ export default function ApplePortfolioTab({
               const isTargetHit = pos.exit_alert?.target_reached || pos.target_1_hit;
               const isBreakevenProtected = stopP >= entryP;
 
-              // Runway calculations
-              const runwayTotal = Math.max(1, t1 - stopP);
+              // Full 5-point runway spanning from stop to Target 2 (or higher live price)
+              const runwayMax = Math.max(currP, t2 && t2 > t1 ? t2 : t1);
+              const runwayTotal = Math.max(1, runwayMax - stopP);
               const progressPct = Math.min(100, Math.max(0, ((currP - stopP) / runwayTotal) * 100));
               const entryPosPct = Math.min(95, Math.max(5, ((entryP - stopP) / runwayTotal) * 100));
+              const t1PosPct = Math.min(95, Math.max(5, ((t1 - stopP) / runwayTotal) * 100));
+              const t2PosPct = t2 ? Math.min(95, Math.max(5, ((t2 - stopP) / runwayTotal) * 100)) : null;
+
+              // Statutory cost itemization & net realism
+              const buyCharges = pos.buy_charges || 0;
+              const estRoundTripFees = buyCharges * 2;
+              const estNetPnl = pnl - estRoundTripFees;
+              const initialRiskRupees = Math.max(0, (entryP - stopP) * pos.quantity);
 
               return (
                 <div
@@ -391,10 +473,10 @@ export default function ApplePortfolioTab({
                       </div>
                     </div>
 
-                    {/* 2. THE RUNWAY (Live Trailing Progress Track) */}
+                    {/* 2. THE RUNWAY (Live Trailing Progress Track with T1 and T2) */}
                     <div className="flex-1 px-1 lg:px-4">
-                      {/* Price Level Badges */}
-                      <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
+                      {/* Price Level Badges (Stop, Entry, Live, Target 1, Target 2) */}
+                      <div className="flex flex-wrap items-center justify-between text-[11px] font-mono mb-1.5 gap-1">
                         <span className="text-rose-600 dark:text-rose-400 font-semibold">
                           Stop ₹{stopP.toFixed(1)}
                         </span>
@@ -405,7 +487,10 @@ export default function ApplePortfolioTab({
                           Live ₹{currP.toFixed(1)}
                         </span>
                         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                          Target 1 ₹{t1.toFixed(1)}
+                          T1 (2R) ₹{t1.toFixed(1)}
+                        </span>
+                        <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                          T2 (3R) ₹{t2.toFixed(1)}
                         </span>
                       </div>
 
@@ -415,47 +500,78 @@ export default function ApplePortfolioTab({
                         <div
                           style={{ left: `${entryPosPct}%` }}
                           className="absolute top-0 bottom-0 w-0.5 bg-zinc-400 z-10"
+                          title={`Entry Price: ₹${entryP.toFixed(1)}`}
                         />
+                        {/* Target 1 marker */}
+                        <div
+                          style={{ left: `${t1PosPct}%` }}
+                          className="absolute top-0 bottom-0 w-0.5 bg-emerald-400 z-10"
+                          title={`Target 1 (2R): ₹${t1.toFixed(1)}`}
+                        />
+                        {/* Target 2 marker */}
+                        {t2PosPct && (
+                          <div
+                            style={{ left: `${t2PosPct}%` }}
+                            className="absolute top-0 bottom-0 w-0.5 bg-purple-400 z-10"
+                            title={`Target 2 (3R): ₹${t2.toFixed(1)}`}
+                          />
+                        )}
                         {/* Progress fill */}
                         <div
                           style={{ width: `${progressPct}%` }}
-                          className={`h-full transition-all duration-300 ${currP >= entryP ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                          className={`h-full transition-all duration-300 ${
+                            currP < entryP
+                              ? 'bg-rose-500'
+                              : currP >= t1
+                              ? 'bg-emerald-500'
+                              : 'bg-emerald-500/80'
+                          }`}
                         />
                       </div>
 
-                      {/* Status / Alert Microcopy */}
-                      <div className="mt-1.5 flex items-center justify-between text-[10px]">
-                        <span className="text-zinc-400 font-medium">
+                      {/* Status / Alert Microcopy & Trailing Telemetry */}
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between text-[10px] gap-2">
+                        <span className="text-zinc-500 font-medium">
                           {isExitAlert ? (
                             <strong className="text-rose-600 dark:text-rose-400 font-semibold flex items-center">
-                              <AlertTriangle className="h-3 w-3 mr-1 inline" /> Exit Triggered: {pos.exit_alert?.reason}
+                              <AlertTriangle className="h-3 w-3 mr-1 inline shrink-0" />
+                              <span>Exit Signal: {pos.exit_alert?.reason} {pos.exit_alert?.suggested_exit_price ? `@ ₹${pos.exit_alert.suggested_exit_price.toFixed(1)}` : ''}</span>
                             </strong>
                           ) : isTargetHit ? (
                             <strong className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
-                              <Target className="h-3 w-3 mr-1 inline" /> Target 1 Reached (2R) · Bank profits or trail stop
+                              <Target className="h-3 w-3 mr-1 inline shrink-0" />
+                              <span>Target 1 Reached (2R) · Bank 50% profits & trail stop to breakeven</span>
                             </strong>
                           ) : currP >= entryP ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Trending above entry in positive territory</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                              Trending above entry · In profit buffer
+                            </span>
                           ) : (
-                            <span className="text-zinc-400">Within stop buffer</span>
+                            <span className="text-zinc-400">Within risk tolerance buffer</span>
                           )}
                         </span>
 
-                        <span className="font-mono text-zinc-500">
-                          Risk: ₹{((entryP - stopP) * pos.quantity).toFixed(0)} at stop
-                        </span>
+                        <div className="flex items-center space-x-3 font-mono text-zinc-400 text-[10px]">
+                          {pos.peak_price != null && (
+                            <span>Peak: ₹{pos.peak_price.toFixed(1)}</span>
+                          )}
+                          <span>Risk: ₹{initialRiskRupees.toFixed(0)} at stop</span>
+                        </div>
                       </div>
                     </div>
 
                     {/* 3. P&L TALLY & TACTILE CONTROLS */}
-                    <div className="flex items-center justify-between lg:justify-end gap-5 pt-3 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
-                      {/* P&L Score */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between lg:justify-end gap-5 pt-3 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+                      {/* P&L Score + Statutory Cost itemization */}
                       <div className="text-left lg:text-right font-mono">
                         <div className={`text-base font-black font-mono-num ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                           {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(1)}
                         </div>
                         <div className="text-[11px] text-zinc-500 font-semibold">
                           {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}% · <span className="text-blue-600 dark:text-blue-400">{rMult}R</span>
+                        </div>
+                        <div className="text-[9px] text-zinc-400 mt-0.5" title="Net profit after estimated brokerage, STT, turnover charges, and GST">
+                          Net ~₹{estNetPnl.toFixed(1)} (after ₹{Math.round(estRoundTripFees)} fees)
                         </div>
                       </div>
 
@@ -466,7 +582,7 @@ export default function ApplePortfolioTab({
                           <button
                             onClick={() => onUpdateStop && onUpdateStop(pos.id, entryP)}
                             className="flex items-center space-x-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 text-xs font-semibold transition"
-                            title="Lock Breakeven (Move stop loss to buy price so you cannot lose money)"
+                            title="Move safety stop to your buy price so you cannot lose money on this trade"
                           >
                             <Lock className="h-3 w-3" />
                             <span className="hidden sm:inline">Lock B/E</span>
