@@ -41,16 +41,17 @@ import {
   FileCheck,
   Hash,
   Stamp,
-  Receipt
+  Receipt,
+  Radio,
+  Sliders,
+  Award,
+  Terminal,
+  X
 } from 'lucide-react';
 import CanvasChart from '../../components/CanvasChart';
-import RuleChecklist from '../../components/RuleChecklist';
-import AIDossierCard from '../../components/AIDossierCard';
-import CorporateRadarCard from '../../components/CorporateRadarCard';
-import PortfolioRiskBridgeCard from '../../components/PortfolioRiskBridgeCard';
 import { normalizeTicker } from '../../App';
 
-// Benchmark Bluechip Specimen ticker list for instant switcher
+// Curated Bluechip benchmark pool for the rapid ticker tape
 const BENCHMARK_SPECIMENS = [
   { ticker: 'ICICIBANK.NS', name: 'ICICI Bank', sector: 'Financials' },
   { ticker: 'TCS.NS', name: 'Tata Consultancy', sector: 'IT Services' },
@@ -78,12 +79,16 @@ export default function AppleDeepDiveTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // AI Dossier state
+  // AI Dossier streaming state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
-  const [aiDiagnostics, setAiDiagnostics] = useState([]);
   const [aiStreamingText, setAiStreamingText] = useState('');
   const abortControllerRef = useRef(null);
+
+  // Interactive AI stock chat state
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
 
   // Portfolio impact state
   const [portfolioImpact, setPortfolioImpact] = useState(null);
@@ -91,7 +96,6 @@ export default function AppleDeepDiveTab({
 
   // Interactive UI state
   const [copiedTicker, setCopiedTicker] = useState(false);
-  const [activeTabBay, setActiveTabBay] = useState('DOSSIER'); // 'DOSSIER' | 'RADAR' | 'AI_LAB'
 
   const fetchPortfolioImpact = async (sym) => {
     if (!sym) return;
@@ -118,6 +122,7 @@ export default function AppleDeepDiveTab({
     setAiError(null);
     setAiStreamingText('');
     setPortfolioImpact(null);
+    setChatHistory([]);
     try {
       const res = await fetch(`/api/stocks/${encodeURIComponent(cleanSym)}`);
       if (!res.ok) {
@@ -126,9 +131,6 @@ export default function AppleDeepDiveTab({
       const json = await res.json();
       setData(json);
       setTickerInput(json.ticker);
-      if (json.ai_dossier?.diagnostics) {
-        setAiDiagnostics(json.ai_dossier.diagnostics);
-      }
       fetchPortfolioImpact(json.ticker || cleanSym);
     } catch (err) {
       setError(err.message);
@@ -189,17 +191,13 @@ export default function AppleDeepDiveTab({
                 accumulatedTokens += payload.content;
                 setAiStreamingText(accumulatedTokens);
               } else if (payload.type === 'done') {
-                const updatedDiagnostics = payload.diagnostics || [];
                 setData((prev) => ({
                   ...prev,
                   ai_dossier: {
                     ...payload.dossier,
-                    diagnostics: updatedDiagnostics,
+                    diagnostics: payload.diagnostics || [],
                   },
                 }));
-                if (updatedDiagnostics.length > 0) {
-                  setAiDiagnostics(updatedDiagnostics);
-                }
                 setAiStreamingText('');
               } else if (payload.type === 'error') {
                 throw new Error(payload.error || 'Stream error');
@@ -216,15 +214,39 @@ export default function AppleDeepDiveTab({
       } else {
         setAiError(err.message);
       }
-      fetch('/api/ai-diagnostics')
-        .then((r) => r.ok ? r.json() : null)
-        .then((diagData) => {
-          if (diagData?.diagnostics) setAiDiagnostics(diagData.diagnostics);
-        })
-        .catch(() => {});
     } finally {
       abortControllerRef.current = null;
       setAiLoading(false);
+    }
+  };
+
+  const handleSendStockChat = async (e) => {
+    e.preventDefault();
+    if (!chatMessage.trim() || !data?.ticker || chatLoading) return;
+
+    const userMsg = chatMessage.trim();
+    setChatMessage('');
+    const newHistory = [...chatHistory, { role: 'user', content: userMsg }];
+    setChatHistory(newHistory);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`/api/stocks/${encodeURIComponent(data.ticker)}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          history: chatHistory.map(h => ({ role: h.role, message: h.content }))
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to query stock underwriter');
+      const json = await res.json();
+      setChatHistory([...newHistory, { role: 'assistant', content: json.reply || 'Underwriter analysis complete.' }]);
+    } catch (err) {
+      setChatHistory([...newHistory, { role: 'assistant', content: `[!] Dispatch Error: ${err.message}` }]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -259,7 +281,7 @@ export default function AppleDeepDiveTab({
     setTimeout(() => setCopiedTicker(false), 2000);
   };
 
-  // Extract core domain structures
+  // Data domain extraction
   const dossier = data?.dossier || {};
   const f = dossier.fundamentals || {};
   const t = dossier.technicals || {};
@@ -271,7 +293,7 @@ export default function AppleDeepDiveTab({
   const strat = t.Strategy_Evaluation || {};
   const activeStrat = strat.active_strategy_result || {};
 
-  // Mathematical execution telemetry
+  // Mathematical execution points
   const currentPrice = trend.Current_Price || (data?.chart?.candles?.slice(-1)[0]?.close) || 0;
   const stopPrice = activeStrat.stop_price || (currentPrice > 0 ? currentPrice * 0.95 : 0);
   const target1 = activeStrat.target_1 || (currentPrice > 0 ? currentPrice + (currentPrice - stopPrice) * 2 : 0);
@@ -284,16 +306,16 @@ export default function AppleDeepDiveTab({
   const riskReward1 = stopLossDistance > 0 ? ((target1 - currentPrice) / stopLossDistance).toFixed(1) : '2.0';
   const riskReward2 = stopLossDistance > 0 ? ((target2 - currentPrice) / stopLossDistance).toFixed(1) : '3.0';
 
-  // Capital Sizing calculation (₹10L capital, 1% risk rule)
+  // Capital Sizing (₹10L capital, 1% risk)
   const baseAccountCapital = 1000000;
   const riskPerTradePct = 1.0;
-  const riskBudget = baseAccountCapital * (riskPerTradePct / 100); // ₹10,000 risk
+  const riskBudget = baseAccountCapital * (riskPerTradePct / 100);
   const recommendedShares = stopLossDistance > 0 ? Math.max(1, Math.floor(riskBudget / stopLossDistance)) : 25;
   const positionCapital = Math.round(recommendedShares * currentPrice);
   const capitalAtRisk = Math.round(recommendedShares * stopLossDistance);
 
-  // Itemized Statutory Friction preview
-  const estSTT = Math.round(positionCapital * 0.001); // 0.1% delivery STT
+  // Statutory friction estimate
+  const estSTT = Math.round(positionCapital * 0.001);
   const estExchange = Math.round(positionCapital * 0.000035);
   const estStampDuty = Math.round(positionCapital * 0.00015);
   const estGST = Math.round((estExchange + 20) * 0.18);
@@ -312,17 +334,32 @@ export default function AppleDeepDiveTab({
   const priority = dossier.priority || 'EVALUATING';
   const isTriggered = priority === 'SIGNAL TRIGGERED' || activeStrat.signal_triggered;
   const isAvoid = priority === 'AVOID / FILTERED OUT' || dossier.overall_score < 40;
-  const priorityReason = dossier.priority_reason || activeStrat.reason || 'Standard multi-factor algorithmic review.';
+  const priorityReason = dossier.priority_reason || activeStrat.reason || 'Underwriting multi-factor review in progress.';
+
+  // Institutional letter grade helper
+  const getLetterGrade = (score) => {
+    if (score >= 90) return { grade: 'A+', color: 'text-emerald-500 border-emerald-500/40 bg-emerald-500/10' };
+    if (score >= 80) return { grade: 'A', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5' };
+    if (score >= 70) return { grade: 'B+', color: 'text-blue-500 border-blue-500/30 bg-blue-500/5' };
+    if (score >= 60) return { grade: 'B', color: 'text-amber-500 border-amber-500/30 bg-amber-500/5' };
+    if (score >= 50) return { grade: 'C', color: 'text-orange-500 border-orange-500/30 bg-orange-500/5' };
+    return { grade: 'D-', color: 'text-rose-500 border-rose-500/40 bg-rose-500/10' };
+  };
+
+  const voucherId = useMemo(() => {
+    const raw = (data?.ticker || 'SPEC').replace('.NS', '');
+    return `VR-${raw.slice(0, 4)}-${Math.floor(Math.random() * 899 + 100)}`;
+  }, [data?.ticker]);
 
   return (
-    <div className="min-h-[calc(100vh-100px)] p-3 sm:p-5 lg:p-6 space-y-4">
+    <div className="min-h-[calc(100vh-100px)] p-3 sm:p-5 lg:p-6 space-y-5">
       
       {/* =========================================================================
           TOP: TICKER TAPE RIBBON & CASE FILE SWITCHER
          ========================================================================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-black/[0.08] dark:border-white/[0.08] pb-3">
         
-        {/* Search input with keyboard shortcut feel */}
+        {/* Case Search Input */}
         <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 shrink-0">
           <div className="relative group">
             <Search className="absolute top-2.5 left-3 h-3.5 w-3.5 text-zinc-400 group-focus-within:text-zinc-900 dark:group-focus-within:text-white transition-colors" />
@@ -330,8 +367,8 @@ export default function AppleDeepDiveTab({
               type="text"
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
-              placeholder="Case search: e.g. TCS, RELIANCE..."
-              className="w-56 sm:w-64 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] py-1.5 pr-3 pl-8 text-xs font-semibold text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-zinc-900 dark:focus:border-white focus:bg-white dark:focus:bg-black/50"
+              placeholder="Search case: e.g. TCS, SBIN..."
+              className="w-52 sm:w-64 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] py-1.5 pr-3 pl-8 text-xs font-semibold text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-zinc-900 dark:focus:border-white focus:bg-white dark:focus:bg-black/50"
             />
           </div>
           <button
@@ -339,11 +376,11 @@ export default function AppleDeepDiveTab({
             disabled={loading}
             className="rounded-xl bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-bold text-white dark:text-zinc-900 transition hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? 'Examining...' : 'Open File'}
+            {loading ? 'Examining...' : 'Examine'}
           </button>
         </form>
 
-        {/* Ticker Tape Switcher */}
+        {/* Ticker Tape Ribbon */}
         <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
           <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 shrink-0 mr-1 flex items-center">
             <Compass className="h-3 w-3 mr-1" /> Dossier Index:
@@ -417,12 +454,12 @@ export default function AppleDeepDiveTab({
         <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-[#0c0d12]/50 p-16 text-center animate-pulse space-y-3">
           <div className="h-7 w-48 bg-zinc-200 dark:bg-zinc-800 rounded-lg mx-auto" />
           <div className="h-4 w-80 bg-zinc-200 dark:bg-zinc-800 rounded mx-auto" />
-          <p className="text-xs text-zinc-400">Unfolding forensic stock broadsheet...</p>
+          <p className="text-xs text-zinc-400">Unfolding forensic case file...</p>
         </div>
       )}
 
       {data && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           
           {/* =========================================================================
               THE ASYMMETRIC 3-COLUMN FORENSIC BROADSHEET
@@ -449,12 +486,12 @@ export default function AppleDeepDiveTab({
                   </button>
                 </div>
 
-                {/* Status Stamp */}
-                <div className={`inline-block px-3 py-1 rounded border text-[11px] font-black uppercase tracking-widest ${
+                {/* Stamped Verdict Badge */}
+                <div className={`inline-block px-3 py-1 rounded border-2 text-[11px] font-black uppercase tracking-widest ${
                   isTriggered
-                    ? 'border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rotate-[-1deg]'
+                    ? 'border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rotate-[-1.5deg] shadow-sm'
                     : isAvoid
-                    ? 'border-rose-600 bg-rose-500/10 text-rose-700 dark:text-rose-400 rotate-[1deg]'
+                    ? 'border-rose-600 bg-rose-500/10 text-rose-700 dark:text-rose-400 rotate-[1.5deg] shadow-sm'
                     : 'border-zinc-500 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300'
                 }`}>
                   {priority}
@@ -472,9 +509,9 @@ export default function AppleDeepDiveTab({
                   </p>
                 </div>
 
-                {/* Price Altitude & Live Quote */}
+                {/* Live Price Altitude */}
                 <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-3">
-                  <div className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
+                  <div className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white font-mono">
                     ₹{currentPrice > 0 ? currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '---'}
                   </div>
                   <div className="flex items-center space-x-2 text-xs font-bold pt-0.5">
@@ -486,48 +523,48 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* Vertical 52-Week Altitude Barometer */}
+              {/* BESPOKE ELEMENT: THE VERTICAL 52-WEEK ALTITUDE BAROMETER */}
               <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-zinc-400 uppercase tracking-wider text-[10px]">52-Week Altitude</span>
-                  <span className="text-zinc-800 dark:text-zinc-200 font-mono">{altitudePct.toFixed(0)}%</span>
+                  <span className="text-zinc-400 uppercase tracking-wider text-[10px] font-mono">52-Week Altitude</span>
+                  <span className="text-zinc-800 dark:text-zinc-200 font-mono font-bold">{altitudePct.toFixed(0)}%</span>
                 </div>
 
-                <div className="flex items-center space-x-3">
-                  {/* The Vertical Barometer */}
-                  <div className="relative h-32 w-3 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex flex-col justify-end">
+                <div className="flex items-center space-x-3 bg-black/[0.02] dark:bg-white/[0.02] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
+                  {/* Thermometer Stem */}
+                  <div className="relative h-32 w-3.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex flex-col justify-end shrink-0">
                     <div 
                       className="w-full bg-gradient-to-t from-blue-500 via-indigo-500 to-rose-500 rounded-full transition-all duration-700"
                       style={{ height: `${altitudePct}%` }}
                     />
                   </div>
 
-                  {/* Level Markers */}
-                  <div className="flex flex-col justify-between h-32 text-[10px] font-mono text-zinc-400">
-                    <div>
-                      <span className="text-zinc-500">52W High:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearHigh.toFixed(0)}</span>
+                  {/* Altimeter Scale Lines */}
+                  <div className="flex flex-col justify-between h-32 text-[10px] font-mono text-zinc-400 w-full pl-1">
+                    <div className="border-b border-black/[0.04] dark:border-white/[0.06] pb-0.5">
+                      <span className="text-zinc-500">Peak:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearHigh.toFixed(0)}</span>
                     </div>
-                    <div className="py-1">
+                    <div>
                       <span className="text-blue-500">50 DMA:</span> ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(0) : '---'}
                     </div>
-                    <div className="py-1">
+                    <div>
                       <span className="text-amber-500">200 DMA:</span> ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(0) : '---'}
                     </div>
-                    <div>
-                      <span className="text-zinc-500">52W Low:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearLow.toFixed(0)}</span>
+                    <div className="border-t border-black/[0.04] dark:border-white/[0.06] pt-0.5">
+                      <span className="text-zinc-500">Trench:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearLow.toFixed(0)}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Ratio Speedometer Stack */}
+              {/* SPEEDOMETER INSTRUMENT STACK */}
               <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2.5">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
                   TECHNICAL SPEEDOMETERS
                 </span>
 
                 <div className="space-y-2 text-xs font-medium">
-                  {/* RSI */}
+                  {/* RSI Momentum */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">RSI-14 (Momentum):</span>
                     <span className={`font-mono font-bold ${
@@ -539,7 +576,7 @@ export default function AppleDeepDiveTab({
                     </span>
                   </div>
 
-                  {/* 50-DMA Slope */}
+                  {/* 50-DMA Slope Velocity */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">50-DMA Velocity:</span>
                     <span className={`font-mono font-bold ${trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
@@ -547,7 +584,7 @@ export default function AppleDeepDiveTab({
                     </span>
                   </div>
 
-                  {/* Daily Volatility (ATR) */}
+                  {/* ATR-14 Buffer */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">ATR-14 Volatility:</span>
                     <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
@@ -555,7 +592,7 @@ export default function AppleDeepDiveTab({
                     </span>
                   </div>
 
-                  {/* Volume Ratio */}
+                  {/* Volume Surge */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">Volume Surge:</span>
                     <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
@@ -565,23 +602,30 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* Event Gate Countdown */}
+              {/* BESPOKE ELEMENT: SEISMIC EVENT GATE COUNTDOWN */}
               {data.corporate_radar && (
-                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-1.5">
+                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                    EVENT RADAR GATE
+                    SEISMIC EVENT HORIZON
                   </span>
-                  <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-2.5 space-y-1">
+                  
+                  <div className={`rounded-2xl border p-3 space-y-1.5 ${
+                    data.corporate_radar.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 3
+                      ? 'border-rose-500/40 bg-rose-500/10'
+                      : data.corporate_radar.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 7
+                      ? 'border-amber-500/40 bg-amber-500/10'
+                      : 'border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02]'
+                  }`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-zinc-800 dark:text-zinc-200">
                         {data.corporate_radar.next_earnings_date || 'No Date Declared'}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-black bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}D` : 'TBD'}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-black font-mono bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}D TO EARNINGS` : 'SCHEDULE PENDING'}
                       </span>
                     </div>
-                    <p className="text-[10px] text-zinc-400 leading-tight">
-                      {data.corporate_radar.event_risk_reason || 'Gate status evaluated for quarterly results.'}
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
+                      {data.corporate_radar.event_risk_reason || 'Volatility gate monitors quarterly releases to prevent earnings gap exposure.'}
                     </p>
                   </div>
                 </div>
@@ -592,14 +636,14 @@ export default function AppleDeepDiveTab({
             {/* ---------------------------------------------------------------------
                 COLUMN 2: THE EXAMINATION THEATER (CENTER CANVAS - 6 COLS)
                --------------------------------------------------------------------- */}
-            <div className="lg:col-span-6 p-5 sm:p-6 space-y-5">
+            <div className="lg:col-span-6 p-5 sm:p-6 space-y-6">
               
               {/* Header Ribbon of Center Canvas */}
               <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
                 <div className="flex items-center space-x-2">
                   <Activity className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
                   <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                    Price Action Geometry & Execution Spectrum
+                    Living Price Geometry & 1-Year Daily Canvas
                   </span>
                 </div>
 
@@ -610,7 +654,7 @@ export default function AppleDeepDiveTab({
               </div>
 
               {/* Seamless Canvas Chart (Integrated directly, no bulky card border) */}
-              <div className="rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.01]">
+              <div className="rounded-2xl overflow-hidden border border-black/[0.08] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.01]">
                 <CanvasChart
                   candles={data.chart?.candles || []}
                   dma50={data.chart?.dma_50 || []}
@@ -621,7 +665,7 @@ export default function AppleDeepDiveTab({
                 />
               </div>
 
-              {/* The 4-Point Trade Spectrum Ruler */}
+              {/* BESPOKE ELEMENT: THE 4-POINT TRADE SPECTRUM RULER */}
               <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
@@ -639,28 +683,28 @@ export default function AppleDeepDiveTab({
                   <div className="relative grid grid-cols-4 gap-2 text-center">
                     
                     {/* 1. Stop */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-rose-500/30">
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-rose-500/30 shadow-sm">
                       <div className="text-[9px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">STOP (1R)</div>
                       <div className="text-xs font-black text-rose-600 dark:text-rose-400 font-mono">₹{stopPrice.toFixed(1)}</div>
                       <div className="text-[10px] text-zinc-400">-{stopLossPct.toFixed(1)}%</div>
                     </div>
 
                     {/* 2. Entry */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-blue-500/30">
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-blue-500/30 shadow-sm">
                       <div className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">ENTRY</div>
                       <div className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono">₹{currentPrice.toFixed(1)}</div>
                       <div className="text-[10px] text-zinc-400">Market</div>
                     </div>
 
                     {/* 3. Target 1 */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-emerald-500/30">
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-emerald-500/30 shadow-sm">
                       <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">T1 (2R)</div>
                       <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">₹{target1.toFixed(1)}</div>
                       <div className="text-[10px] text-emerald-600/80">+{target1Pct.toFixed(1)}%</div>
                     </div>
 
                     {/* 4. Target 2 */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-purple-500/30">
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-purple-500/30 shadow-sm">
                       <div className="text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">T2 (3R)</div>
                       <div className="text-xs font-black text-purple-600 dark:text-purple-400 font-mono">₹{target2.toFixed(1)}</div>
                       <div className="text-[10px] text-purple-600/80">+{target2Pct.toFixed(1)}%</div>
@@ -693,9 +737,46 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* Strategy Rules Pass/Fail Checklist */}
-              <div className="pt-1">
-                <RuleChecklist rules={data.rule_breakdown || []} />
+              {/* BESPOKE ELEMENT: THE PILOT PRE-FLIGHT SAFETY CHECKLIST (REPLACES GENERIC RULE CHECKLIST) */}
+              <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/40 p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-2">
+                  <div className="flex items-center space-x-2">
+                    <FileCheck className="h-4 w-4 text-rose-500" />
+                    <span className="text-xs font-mono font-black uppercase tracking-wider text-zinc-900 dark:text-white">
+                      PILOT PRE-FLIGHT SAFETY CHECKLIST
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-zinc-400">
+                    {data.rule_breakdown?.filter(r => r.passed).length || 0} / {data.rule_breakdown?.length || 0} GATES CLEARED
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {(data.rule_breakdown || []).map((rule, idx) => (
+                    <div 
+                      key={idx}
+                      className={`flex items-start justify-between rounded-xl border p-2.5 transition text-xs font-medium ${
+                        rule.passed
+                          ? 'border-emerald-500/30 bg-emerald-500/5 text-zinc-800 dark:text-zinc-200'
+                          : 'border-rose-500/30 bg-rose-500/5 text-zinc-600 dark:text-zinc-400'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-2.5">
+                        <div className={`mt-0.5 h-4 w-4 rounded-md flex items-center justify-center shrink-0 text-[10px] font-black ${
+                          rule.passed ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                        }`}>
+                          {rule.passed ? '✓' : '✗'}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{rule.rule}</div>
+                          {rule.detail && (
+                            <div className="text-[11px] font-mono text-zinc-400 mt-0.5">{rule.detail}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
             </div>
@@ -705,10 +786,10 @@ export default function AppleDeepDiveTab({
                --------------------------------------------------------------------- */}
             <div className="lg:col-span-3 p-5 sm:p-6 space-y-6 bg-black/[0.01] dark:bg-white/[0.01]">
               
-              {/* THE AUTHENTIC PHYSICAL TRADING TICKET */}
-              <div className="relative rounded-2xl border-2 border-dashed border-zinc-400/40 dark:border-zinc-700/60 bg-white dark:bg-black/80 p-5 shadow-xl space-y-4">
+              {/* BESPOKE ELEMENT: THE AUTHENTIC PHYSICAL PERFORATED TRADING TICKET */}
+              <div className="relative rounded-2xl border-2 border-dashed border-zinc-400/40 dark:border-zinc-700/60 bg-white dark:bg-black/90 p-5 shadow-2xl space-y-4">
                 
-                {/* Perforated Ticket Header */}
+                {/* Perforated Top Header */}
                 <div className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-3 text-zinc-800 dark:text-zinc-200">
                   <div className="flex items-center space-x-2">
                     <Receipt className="h-4 w-4 text-rose-500" />
@@ -717,7 +798,7 @@ export default function AppleDeepDiveTab({
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-zinc-400">
-                    VOUCHER #{data.ticker.replace('.NS', '').slice(0, 4)}
+                    {voucherId}
                   </span>
                 </div>
 
@@ -781,7 +862,7 @@ export default function AppleDeepDiveTab({
                 </button>
               </div>
 
-              {/* 7-PILLARS SOLVENCY LEDGER */}
+              {/* BESPOKE ELEMENT: THE 7-PILLARS FORENSIC AUDIT LEDGER */}
               <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
@@ -793,25 +874,17 @@ export default function AppleDeepDiveTab({
                 </div>
 
                 <div className="space-y-2">
-                  {Object.entries(comps).slice(0, 5).map(([name, comp]) => {
+                  {Object.entries(comps).map(([name, comp]) => {
                     const score = comp.score != null ? comp.score : 70;
+                    const { grade, color } = getLetterGrade(score);
                     return (
-                      <div key={name} className="space-y-1">
-                        <div className="flex justify-between text-[11px] font-medium">
-                          <span className="text-zinc-600 dark:text-zinc-400">{name}</span>
-                          <span className={`font-mono font-bold ${
-                            score >= 75 ? 'text-emerald-600 dark:text-emerald-400' :
-                            score >= 50 ? 'text-blue-600 dark:text-blue-400' :
-                            'text-rose-600 dark:text-rose-400'
-                          }`}>
-                            {score}
-                          </span>
+                      <div key={name} className="flex items-center justify-between p-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.04] text-xs">
+                        <div className="space-y-0.5 max-w-[70%]">
+                          <span className="font-semibold text-zinc-800 dark:text-zinc-200 block truncate">{name}</span>
+                          <span className="text-[10px] text-zinc-400 block truncate">{comp.assessment || 'Underwriting clearance.'}</span>
                         </div>
-                        <div className="h-1 w-full bg-black/[0.06] dark:bg-white/[0.08] rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${score >= 75 ? 'bg-emerald-500' : score >= 50 ? 'bg-blue-500' : 'bg-rose-500'}`}
-                            style={{ width: `${score}%` }}
-                          />
+                        <div className={`px-2 py-0.5 rounded border font-mono font-black text-xs ${color}`}>
+                          {grade}
                         </div>
                       </div>
                     );
@@ -831,7 +904,7 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* FORENSIC EVIDENCE LOG (STRENGTHS VS WARNING SIGNS) */}
+              {/* FORENSIC EVIDENCE LOG (STRENGTHS VS AUDIT WARNINGS) */}
               <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
                   FORENSIC EVIDENCE LOG
@@ -856,7 +929,7 @@ export default function AppleDeepDiveTab({
                   </ul>
                 </div>
 
-                {/* Vulnerabilities */}
+                {/* Audit Red Flags */}
                 <div className="space-y-1.5 pt-1">
                   <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
                     Audit Red Flags
@@ -884,56 +957,145 @@ export default function AppleDeepDiveTab({
           </div>
 
           {/* =========================================================================
-              BOTTOM BAY: STREAMING AI INTELLIGENCE & EVENT RADAR
+              BESPOKE ELEMENT: THE CONFIDENTIAL INTELLIGENCE DISPATCH & STOCK CHAT LAB
              ========================================================================= */}
-          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl p-6 shadow-2xl space-y-6">
             
-            <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="h-4 w-4 text-purple-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                  Investigative Intelligence Lab & Corporate Disclosures
-                </span>
+            {/* Header Stamp */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="h-9 w-9 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                  <Terminal className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-white font-mono">
+                    CONFIDENTIAL RESEARCH DISPATCH · SUBJECT: {data.ticker}
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    Qualitative Underwriting Cable · Synthesized by Qwen 2.5 Coder & Google Gemini
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">
+                {aiLoading && (
+                  <button
+                    onClick={handleCancelDossier}
+                    className="flex items-center space-x-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-1.5 text-xs font-bold hover:bg-rose-500/20 transition"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    <span>Halt Cable</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleGenerateStockDossier}
                   disabled={aiLoading}
-                  className="flex items-center space-x-1.5 rounded-xl bg-purple-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-purple-700 transition disabled:opacity-50"
+                  className="flex items-center space-x-2 rounded-xl bg-purple-600 text-white px-4 py-2 text-xs font-bold hover:bg-purple-700 shadow-md transition disabled:opacity-50"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>{aiLoading ? 'Streaming...' : 'Run Qualitative AI Audit'}</span>
+                  <span>{aiLoading ? 'Streaming Cable...' : 'Transmit Intelligence Cable'}</span>
                 </button>
               </div>
             </div>
 
-            {/* AI Dossier Card Embed */}
-            <AIDossierCard
-              ticker={data.ticker}
-              aiDossier={data.ai_dossier}
-              candidateData={data.dossier || data}
-              loading={aiLoading}
-              streamingText={aiStreamingText}
-              onGenerateDossier={handleGenerateStockDossier}
-              onCancel={handleCancelDossier}
-              diagnostics={data.ai_dossier?.diagnostics || aiDiagnostics}
-              errorMessage={aiError}
-            />
-
-            {/* Corporate Radar Embed if present */}
-            {data.corporate_radar && (
-              <div className="pt-2">
-                <CorporateRadarCard radar={data.corporate_radar} />
+            {/* Error banner */}
+            {aiError && (
+              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400 font-mono">
+                [!] Cable Interrupted: {aiError}
               </div>
             )}
 
-            {/* Portfolio Risk Bridge */}
-            <PortfolioRiskBridgeCard
-              portfolioImpact={portfolioImpact}
-              loading={loadingImpact}
-              onOpenTradeModal={onOpenTradeModal}
-            />
+            {/* Live Streaming or Parsed Dossier Content */}
+            {aiStreamingText ? (
+              <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 space-y-2 whitespace-pre-wrap">
+                <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-bold">
+                  <span className="h-2 w-2 rounded-full bg-purple-500 animate-ping" />
+                  <span>INCOMING SECURE TRANSMISSION (STREAMING TO DESK)...</span>
+                </div>
+                <div>{aiStreamingText}</div>
+              </div>
+            ) : data.ai_dossier ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Core Thesis Card */}
+                <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider font-mono">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span>QUALITATIVE INVESTMENT THESIS</span>
+                  </div>
+                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1.5 list-disc pl-4">
+                    {(data.ai_dossier.thesis || []).map((th, i) => (
+                      <li key={i}>{th}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Invalidation Boundary with Hazard Styling */}
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider font-mono">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>STRUCTURAL INVALIDATION BOUNDARY</span>
+                  </div>
+                  <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-mono">
+                    {data.ai_dossier.risks?.setup_invalidation || data.ai_dossier.risks?.thesis_invalidation || 'Break below prior swing low invalidates the institutional structure.'}
+                  </p>
+                </div>
+
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-black/10 dark:border-white/10 p-8 text-center text-xs text-zinc-400 font-mono space-y-2">
+                <Radio className="h-6 w-6 text-zinc-400 mx-auto opacity-40" />
+                <p>Intelligence dispatch has not been generated for this specimen.</p>
+                <p className="text-[11px] text-zinc-500">Click &ldquo;Transmit Intelligence Cable&rdquo; above to stream qualitative insights grounded on this stock&rsquo;s deterministic data.</p>
+              </div>
+            )}
+
+            {/* Interactive Stock Chat Memo Pad */}
+            <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-3">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 flex items-center">
+                <MessageSquare className="h-3 w-3 mr-1" /> INTERROGATE THE STOCK UNDERWRITER
+              </span>
+
+              {/* Chat Thread */}
+              {chatHistory.length > 0 && (
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 text-xs font-mono">
+                  {chatHistory.map((msg, i) => (
+                    <div 
+                      key={i}
+                      className={`p-2.5 rounded-xl ${
+                        msg.role === 'user'
+                          ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 ml-8'
+                          : 'bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.06] text-zinc-800 dark:text-zinc-200 mr-8'
+                      }`}
+                    >
+                      <span className="text-[10px] opacity-60 block uppercase font-bold mb-0.5">
+                        {msg.role === 'user' ? 'YOU' : 'UNDERWRITER'}
+                      </span>
+                      {msg.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Input row */}
+              <form onSubmit={handleSendStockChat} className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  placeholder={`Ask anything regarding ${data.ticker}'s margins, debt, or setup...`}
+                  className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] px-3.5 py-2 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-white font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={chatLoading || !chatMessage.trim()}
+                  className="rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 text-xs font-bold transition hover:opacity-90 disabled:opacity-40"
+                >
+                  {chatLoading ? 'Inquiring...' : 'Transmit Inquiry'}
+                </button>
+              </form>
+            </div>
 
           </div>
 
