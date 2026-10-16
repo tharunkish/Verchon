@@ -7,8 +7,8 @@ import SettingsModal from './components/SettingsModal';
 import TerminalScannerTab from './tabs/terminal/TerminalScannerTab';
 import AppleScannerTab from './tabs/apple/AppleScannerTab';
 import TerminalPortfolioTab from './tabs/terminal/TerminalPortfolioTab';
-import ApplePortfolioTab from './tabs/apple/ApplePortfolioTab';
-import DeepDiveTab from './tabs/DeepDiveTab';
+import TerminalDeepDiveTab from './tabs/terminal/TerminalDeepDiveTab';
+import AppleDeepDiveTab from './tabs/apple/AppleDeepDiveTab';
 import NewsTab from './tabs/NewsTab';
 import OrderExecutionModal from './components/OrderExecutionModal';
 import SystemRestartModal from './components/SystemRestartModal';
@@ -632,17 +632,29 @@ export default function App() {
           )
         )}
 
-        {/* Deep Dive Tab */}
+        {/* Deep Dive Tab: Exact Classic Monospace Terminal or Sovereign Apple Dossier */}
         {activeTab === 'deepdive' && (
-          <DeepDiveTab
-            selectedTicker={selectedTicker}
-            onSelectTicker={setSelectedTicker}
-            onLogPaperTrade={handleAddPaperPosition}
-            onOpenTradeModal={handleOpenTradeModal}
-            themeMode={themeMode}
-            themeStyle={themeStyle}
-            colorMode={colorMode}
-          />
+          isTerminal ? (
+            <TerminalDeepDiveTab
+              selectedTicker={selectedTicker}
+              onSelectTicker={setSelectedTicker}
+              onLogPaperTrade={handleAddPaperPosition}
+              onOpenTradeModal={handleOpenTradeModal}
+              themeMode={themeMode}
+              themeStyle={themeStyle}
+              colorMode={colorMode}
+            />
+          ) : (
+            <AppleDeepDiveTab
+              selectedTicker={selectedTicker}
+              onSelectTicker={setSelectedTicker}
+              onLogPaperTrade={handleAddPaperPosition}
+              onOpenTradeModal={handleOpenTradeModal}
+              themeMode={themeMode}
+              candidates={candidates}
+              regime={regime}
+            />
+          )
         )}
 
         {/* Corporate News & Events Radar Tab */}
