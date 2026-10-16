@@ -7,6 +7,7 @@ import SettingsModal from './components/SettingsModal';
 import TerminalScannerTab from './tabs/terminal/TerminalScannerTab';
 import AppleScannerTab from './tabs/apple/AppleScannerTab';
 import TerminalPortfolioTab from './tabs/terminal/TerminalPortfolioTab';
+import ApplePortfolioTab from './tabs/apple/ApplePortfolioTab';
 import TerminalDeepDiveTab from './tabs/terminal/TerminalDeepDiveTab';
 import AppleDeepDiveTab from './tabs/apple/AppleDeepDiveTab';
 import NewsTab from './tabs/NewsTab';
