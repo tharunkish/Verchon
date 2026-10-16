@@ -140,20 +140,20 @@ export default function AppleNewsTab({ onSelectStock }) {
       {/* =========================================================================
           1. THE INTELLIGENCE MASTHEAD & TELEMETRY BAR
          ========================================================================= */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#121319] p-5 sm:p-6 shadow-sm backdrop-blur-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.08] pb-5">
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-5 sm:p-6 shadow-sm backdrop-blur-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.06] pb-5">
           <div className="flex items-start sm:items-center space-x-3.5">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm shrink-0">
               <Radio className="h-5 w-5 animate-pulse text-rose-500" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-sm sm:text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100 uppercase">
+                <h1 className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
                   Regulatory Wire & Corporate Radar
                 </h1>
                 <span className="inline-flex items-center space-x-1 rounded-full bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-rose-600 dark:text-rose-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping" />
-                  <span>SEBI REG-30 DIRECT</span>
+                  <span>SEBI Reg-30 Direct</span>
                 </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -183,12 +183,12 @@ export default function AppleNewsTab({ onSelectStock }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-5">
           {/* Card 1: Binary Risk Lockout */}
           <div className="rounded-2xl border border-black/[0.04] dark:border-white/[0.05] bg-black/[0.015] dark:bg-white/[0.02] p-3.5">
-            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold tracking-wider">
               <span>Event Risk Lockout</span>
               <AlertTriangle className={`h-3.5 w-3.5 ${lockoutCount > 0 ? 'text-amber-500' : 'text-zinc-400'}`} />
             </div>
             <div className="mt-2 flex items-baseline space-x-2">
-              <span className={`text-xl sm:text-2xl font-black font-mono ${lockoutCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-800 dark:text-zinc-200'}`}>
+              <span className={`text-xl sm:text-2xl font-bold font-mono tabular-nums ${lockoutCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-800 dark:text-zinc-200'}`}>
                 {lockoutCount}
               </span>
               <span className="text-[10px] text-zinc-400 font-medium">stocks ≤ 3d</span>
@@ -200,12 +200,12 @@ export default function AppleNewsTab({ onSelectStock }) {
 
           {/* Card 2: High Conviction Disclosures */}
           <div className="rounded-2xl border border-black/[0.04] dark:border-white/[0.05] bg-black/[0.015] dark:bg-white/[0.02] p-3.5">
-            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold tracking-wider">
               <span>High-Impact Filings</span>
               <Flame className="h-3.5 w-3.5 text-rose-500" />
             </div>
             <div className="mt-2 flex items-baseline space-x-2">
-              <span className="text-xl sm:text-2xl font-black font-mono text-zinc-900 dark:text-zinc-100">
+              <span className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-zinc-900 dark:text-zinc-100">
                 {highAttentionCount}
               </span>
               <span className="text-[10px] text-zinc-400 font-medium">Tier-1 catalysts</span>
@@ -217,12 +217,12 @@ export default function AppleNewsTab({ onSelectStock }) {
 
           {/* Card 3: Noise Muting Shield */}
           <div className="rounded-2xl border border-black/[0.04] dark:border-white/[0.05] bg-black/[0.015] dark:bg-white/[0.02] p-3.5">
-            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold tracking-wider">
               <span>Compliance Noise Shield</span>
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
             </div>
             <div className="mt-2 flex items-baseline space-x-2">
-              <span className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+              <span className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
                 {mutePct}%
               </span>
               <span className="text-[10px] text-zinc-400 font-medium">filtered ({mutedCount})</span>
@@ -234,12 +234,12 @@ export default function AppleNewsTab({ onSelectStock }) {
 
           {/* Card 4: Macro Sentiment Balance */}
           <div className="rounded-2xl border border-black/[0.04] dark:border-white/[0.05] bg-black/[0.015] dark:bg-white/[0.02] p-3.5">
-            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-bold tracking-wider">
               <span>Macro Pulse Sentiment</span>
               <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
             </div>
             <div className="mt-2 flex items-baseline space-x-2">
-              <span className="text-xl sm:text-2xl font-black font-mono text-zinc-900 dark:text-zinc-100">
+              <span className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-zinc-900 dark:text-zinc-100">
                 {sentimentStats.bullishPct}%
               </span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Bullish bias</span>
@@ -262,14 +262,14 @@ export default function AppleNewsTab({ onSelectStock }) {
       {/* =========================================================================
           2. THE SEISMIC EVENT HORIZON: EARNINGS RUNWAY & SURPRISE TRACK
          ========================================================================= */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#121319] p-5 sm:p-6 shadow-sm">
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div className="flex items-center space-x-2.5">
             <div className="h-7 w-7 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
               <Calendar className="h-3.5 w-3.5" />
             </div>
             <div>
-              <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
+              <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-wide">
                 Seismic Event Horizon: Earnings Risk Gate
               </h2>
               <p className="text-[11px] text-zinc-500">Upcoming quarterly financial disclosures with binary gap threat level</p>
@@ -401,13 +401,13 @@ export default function AppleNewsTab({ onSelectStock }) {
             LEFT COLUMN: BSE/NSE REGULATION 30 REGULATORY TELETYPE (7 cols)
            ----------------------------------------------------------------------- */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#121319] p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-5 sm:p-6 shadow-sm space-y-4">
             
             {/* Header & Quick Category Pills */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.08] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
               <div className="flex items-center space-x-2">
                 <FileText className="h-4 w-4 text-blue-500" />
-                <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
+                <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-wide">
                   Regulation 30 Disclosures Wire
                 </h2>
               </div>
@@ -470,95 +470,94 @@ export default function AppleNewsTab({ onSelectStock }) {
               )}
             </div>
 
-            {/* Filings Feed List */}
-            <div className="space-y-3 pt-2">
+            {/* Structured Live Teletype Grid (No Repetitive Boxes) */}
+            <div className="border border-black/[0.06] dark:border-white/[0.06] rounded-2xl overflow-hidden bg-white dark:bg-[#0f1626]">
               {filteredFilings.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-black/[0.08] dark:border-white/[0.1] p-10 text-center text-xs text-zinc-400">
+                <div className="p-10 text-center text-xs text-zinc-400">
                   No corporate disclosures found matching your criteria.
                 </div>
               ) : (
-                filteredFilings.slice(0, 18).map((f, i) => {
-                  const isExpanded = expandedFilingIndex === i;
-                  return (
-                    <div
-                      key={i}
-                      className="group rounded-2xl border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.01] dark:bg-white/[0.015] hover:bg-black/[0.025] dark:hover:bg-white/[0.03] p-4 transition-all"
-                    >
-                      {/* Top Ribbon */}
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => onSelectStock && onSelectStock(f.ticker)}
-                            className="font-mono text-xs font-black text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1"
-                          >
-                            <span>{f.ticker.replace('.NS', '')}</span>
-                            <ArrowUpRight className="h-3 w-3" />
-                          </button>
-                          <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 line-clamp-1">
-                            {f.company_name}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border ${f.badge_class}`}>
-                            {f.badge_label}
-                          </span>
-                          {f.date && (
-                            <span className="rounded-md bg-black/[0.04] dark:bg-white/[0.05] px-2 py-0.5 font-mono text-[9px] text-zinc-500 dark:text-zinc-400">
-                              {f.date}
+                <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                  {filteredFilings.slice(0, 20).map((f, i) => {
+                    const isExpanded = expandedFilingIndex === i;
+                    return (
+                      <div
+                        key={i}
+                        className="group flex flex-col p-3.5 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          {/* Left metadata & content */}
+                          <div className="flex items-start space-x-3 flex-1 min-w-0">
+                            {/* Date Badge */}
+                            <span className="font-mono text-[10px] text-zinc-400 shrink-0 w-12 pt-0.5">
+                              {f.date || 'Today'}
                             </span>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Title */}
-                      <h3 className="mt-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 leading-snug">
-                        {f.title}
-                      </h3>
+                            {/* Ticker & Category */}
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              <button
+                                onClick={() => onSelectStock && onSelectStock(f.ticker)}
+                                className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-0.5"
+                              >
+                                <span>{f.ticker.replace('.NS', '')}</span>
+                                <ArrowUpRight className="h-3 w-3 opacity-60" />
+                              </button>
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border ${f.badge_class}`}>
+                                {f.badge_label}
+                              </span>
+                            </div>
 
-                      {/* Catalyst Rationale Callout */}
-                      {f.rationale && (
-                        <div className="mt-2 flex items-start space-x-1.5 rounded-xl border border-blue-500/20 bg-blue-500/[0.04] p-2 text-[10px] text-blue-700 dark:text-blue-300 font-mono">
-                          <Zap className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
-                          <span><strong className="font-semibold">Catalyst Rationale:</strong> {f.rationale}</span>
-                        </div>
-                      )}
+                            {/* Headline & Company Name */}
+                            <div className="flex-1 min-w-0 pl-1">
+                              <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">
+                                {f.title}
+                              </h4>
+                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                {f.company_name}
+                              </p>
+                            </div>
+                          </div>
 
-                      {/* Description & Collapsible Body */}
-                      {f.description && (
-                        <div className="mt-2 text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                          <p className={isExpanded ? '' : 'line-clamp-2'}>
-                            {f.description}
-                          </p>
-                          {f.description.length > 120 && (
+                          {/* Right Quick Action */}
+                          <div className="flex items-center space-x-2 shrink-0 pt-0.5">
                             <button
-                              onClick={() => setExpandedFilingIndex(isExpanded ? null : i)}
-                              className="mt-1 text-[10px] font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center space-x-1"
+                              onClick={() => onSelectStock && onSelectStock(f.ticker)}
+                              className="opacity-0 group-hover:opacity-100 transition rounded-lg border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hidden sm:flex items-center space-x-1"
                             >
-                              <span>{isExpanded ? 'Collapse' : 'Read Full Disclosure'}</span>
-                              <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              <span>Inspect</span>
+                              <ChevronRight className="h-3 w-3" />
                             </button>
-                          )}
+                          </div>
                         </div>
-                      )}
 
-                      {/* Action Bar */}
-                      <div className="mt-3 pt-2.5 border-t border-black/[0.04] dark:border-white/[0.04] flex items-center justify-between">
-                        <span className="text-[10px] text-zinc-400 font-mono">
-                          SEBI Reg-30 Filing
-                        </span>
-                        <button
-                          onClick={() => onSelectStock && onSelectStock(f.ticker)}
-                          className="flex items-center space-x-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition"
-                        >
-                          <span>Examine in Deep Dive</span>
-                          <ChevronRight className="h-3 w-3" />
-                        </button>
+                        {/* Catalyst Rationale Callout */}
+                        {f.rationale && (
+                          <div className="mt-1.5 ml-15 flex items-start space-x-1.5 text-[10px] text-blue-700 dark:text-blue-300 font-mono">
+                            <Zap className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
+                            <span><strong className="font-semibold">Catalyst:</strong> {f.rationale}</span>
+                          </div>
+                        )}
+
+                        {/* Description & Progressive Disclosure */}
+                        {f.description && (
+                          <div className="mt-1 ml-15 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                            <p className={isExpanded ? '' : 'line-clamp-1'}>
+                              {f.description}
+                            </p>
+                            {f.description.length > 80 && (
+                              <button
+                                onClick={() => setExpandedFilingIndex(isExpanded ? null : i)}
+                                className="text-[10px] font-semibold text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 mt-0.5 inline-block"
+                              >
+                                {isExpanded ? 'Collapse' : 'Show full disclosure'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -568,13 +567,13 @@ export default function AppleNewsTab({ onSelectStock }) {
             RIGHT COLUMN: GLOBAL FINANCIAL WIRE & MACRO PULSE (5 cols)
            ----------------------------------------------------------------------- */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-white dark:bg-[#121319] p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-5 sm:p-6 shadow-sm space-y-4">
             
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-4">
+            <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
               <div className="flex items-center space-x-2">
                 <Newspaper className="h-4 w-4 text-rose-500" />
-                <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
+                <h2 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-wide">
                   Global Financial Wire
                 </h2>
               </div>
@@ -603,41 +602,45 @@ export default function AppleNewsTab({ onSelectStock }) {
               )}
             </div>
 
-            {/* News Headline Stories */}
-            <div className="space-y-3 pt-1">
+            {/* News Headline Stories (Teletype List) */}
+            <div className="border border-black/[0.06] dark:border-white/[0.06] rounded-2xl overflow-hidden bg-white dark:bg-[#0f1626]">
               {filteredNews.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-black/[0.08] dark:border-white/[0.1] p-10 text-center text-xs text-zinc-400">
+                <div className="p-10 text-center text-xs text-zinc-400">
                   No news stories match your query.
                 </div>
               ) : (
-                filteredNews.slice(0, 16).map((n, i) => (
-                  <a
-                    key={i}
-                    href={n.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group block rounded-2xl border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.01] dark:bg-white/[0.015] hover:bg-black/[0.025] dark:hover:bg-white/[0.03] p-3.5 transition-all"
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-1.5 font-mono">
-                      <span className="font-bold text-zinc-700 dark:text-zinc-300 font-sans">{n.source}</span>
-                      <span>{n.pub_date}</span>
-                    </div>
+                <div className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                  {filteredNews.slice(0, 18).map((n, i) => (
+                    <a
+                      key={i}
+                      href={n.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex flex-col p-3 hover:bg-black/[0.015] dark:hover:bg-white/[0.02] transition"
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono mb-1">
+                        <span className="font-bold text-zinc-700 dark:text-zinc-300 font-sans">{n.source}</span>
+                        <div className="flex items-center space-x-1.5">
+                          <span>{n.pub_date}</span>
+                          <ExternalLink className="h-2.5 w-2.5 opacity-60 group-hover:opacity-100" />
+                        </div>
+                      </div>
 
-                    <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug line-clamp-2">
-                      {n.title}
-                    </p>
+                      <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug line-clamp-2">
+                        {n.title}
+                      </p>
 
-                    <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-black/[0.04] dark:border-white/[0.04]">
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold border ${n.tag_badge}`}>
-                        {n.tag}
-                      </span>
-                      <span className="flex items-center space-x-1 text-[10px] font-semibold text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition">
-                        <span>Original Dispatch</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </span>
-                    </div>
-                  </a>
-                ))
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold border ${n.tag_badge}`}>
+                          {n.tag}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 opacity-0 group-hover:opacity-100 transition">
+                          Read dispatch ↗
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
           </div>

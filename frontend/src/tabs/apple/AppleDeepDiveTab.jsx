@@ -474,8 +474,8 @@ export default function AppleDeepDiveTab({
               {/* Rubber-stamped Verdict Header */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                    EXHIBIT #NSE-{data.ticker.replace('.NS', '')}
+                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
+                    Exhibit: {data.ticker.replace('.NS', '')}
                   </span>
                   <button
                     onClick={handleCopyTicker}
@@ -557,17 +557,17 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* SPEEDOMETER INSTRUMENT STACK */}
+              {/* Speedometer Instrument Stack */}
               <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2.5">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                  TECHNICAL SPEEDOMETERS
+                <span className="text-[10px] font-mono tracking-widest text-zinc-400">
+                  Technical Speedometers
                 </span>
 
                 <div className="space-y-2 text-xs font-medium">
                   {/* RSI Momentum */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">RSI-14 (Momentum):</span>
-                    <span className={`font-mono font-bold ${
+                    <span className={`font-mono tabular-nums font-bold ${
                       (momo.RSI || 50) > 70 ? 'text-rose-600 dark:text-rose-400' :
                       (momo.RSI || 50) < 30 ? 'text-emerald-600 dark:text-emerald-400' :
                       'text-zinc-800 dark:text-zinc-200'
@@ -579,7 +579,7 @@ export default function AppleDeepDiveTab({
                   {/* 50-DMA Slope Velocity */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">50-DMA Velocity:</span>
-                    <span className={`font-mono font-bold ${trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    <span className={`font-mono tabular-nums font-bold ${trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       {trend['50_DMA_Slope_5d'] ? `${trend['50_DMA_Slope_5d'] > 0 ? '+' : ''}${trend['50_DMA_Slope_5d'].toFixed(2)}/day` : 'Flat'}
                     </span>
                   </div>
@@ -587,7 +587,7 @@ export default function AppleDeepDiveTab({
                   {/* ATR-14 Buffer */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">ATR-14 Volatility:</span>
-                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">
                       ₹{t.Volatility_Analysis?.ATR_14 ? t.Volatility_Analysis.ATR_14.toFixed(1) : (currentPrice * 0.02).toFixed(1)}
                     </span>
                   </div>
@@ -595,18 +595,18 @@ export default function AppleDeepDiveTab({
                   {/* Volume Surge */}
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-500">Volume Surge:</span>
-                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">
                       {vol.Volume_Expansion_Ratio ? `${vol.Volume_Expansion_Ratio}x` : '1.0x'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* BESPOKE ELEMENT: SEISMIC EVENT GATE COUNTDOWN */}
+              {/* Bespoke Element: Seismic Event Horizon Countdown */}
               {data.corporate_radar && (
                 <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                    SEISMIC EVENT HORIZON
+                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
+                    Seismic Event Horizon
                   </span>
                   
                   <div className={`rounded-2xl border p-3 space-y-1.5 ${
@@ -620,8 +620,8 @@ export default function AppleDeepDiveTab({
                       <span className="font-bold text-zinc-800 dark:text-zinc-200">
                         {data.corporate_radar.next_earnings_date || 'No Date Declared'}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-black font-mono bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}D TO EARNINGS` : 'SCHEDULE PENDING'}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold font-mono bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}d to earnings` : 'Schedule Pending'}
                       </span>
                     </div>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
@@ -668,8 +668,8 @@ export default function AppleDeepDiveTab({
               {/* BESPOKE ELEMENT: THE 4-POINT TRADE SPECTRUM RULER */}
               <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
-                    THE TRADE SPECTRUM (R-MULTIPLE HORIZON)
+                  <span className="text-[10px] font-mono tracking-wider text-zinc-400">
+                    Trade Spectrum (R-Multiple Horizon)
                   </span>
                   <span className="font-mono text-[11px] text-zinc-500">
                     Setup: {strat.primary_strategy || 'SYSTEM_DEFAULT'}
@@ -684,30 +684,30 @@ export default function AppleDeepDiveTab({
                     
                     {/* 1. Stop */}
                     <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-rose-500/30 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">STOP (1R)</div>
-                      <div className="text-xs font-black text-rose-600 dark:text-rose-400 font-mono">₹{stopPrice.toFixed(1)}</div>
-                      <div className="text-[10px] text-zinc-400">-{stopLossPct.toFixed(1)}%</div>
+                      <div className="text-[10px] font-bold tracking-wider text-rose-600 dark:text-rose-400">Stop (1R)</div>
+                      <div className="text-xs font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums">₹{stopPrice.toFixed(1)}</div>
+                      <div className="text-[10px] text-zinc-400 tabular-nums">-{stopLossPct.toFixed(1)}%</div>
                     </div>
 
                     {/* 2. Entry */}
                     <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-blue-500/30 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">ENTRY</div>
-                      <div className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono">₹{currentPrice.toFixed(1)}</div>
+                      <div className="text-[10px] font-bold tracking-wider text-blue-600 dark:text-blue-400">Entry</div>
+                      <div className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums">₹{currentPrice.toFixed(1)}</div>
                       <div className="text-[10px] text-zinc-400">Market</div>
                     </div>
 
                     {/* 3. Target 1 */}
                     <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-emerald-500/30 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">T1 (2R)</div>
-                      <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">₹{target1.toFixed(1)}</div>
-                      <div className="text-[10px] text-emerald-600/80">+{target1Pct.toFixed(1)}%</div>
+                      <div className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-emerald-400">Target 1 (2R)</div>
+                      <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">₹{target1.toFixed(1)}</div>
+                      <div className="text-[10px] text-emerald-600/80 tabular-nums">+{target1Pct.toFixed(1)}%</div>
                     </div>
 
                     {/* 4. Target 2 */}
                     <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-purple-500/30 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">T2 (3R)</div>
-                      <div className="text-xs font-black text-purple-600 dark:text-purple-400 font-mono">₹{target2.toFixed(1)}</div>
-                      <div className="text-[10px] text-purple-600/80">+{target2Pct.toFixed(1)}%</div>
+                      <div className="text-[10px] font-bold tracking-wider text-purple-600 dark:text-purple-400">Target 2 (3R)</div>
+                      <div className="text-xs font-black text-purple-600 dark:text-purple-400 font-mono tabular-nums">₹{target2.toFixed(1)}</div>
+                      <div className="text-[10px] text-purple-600/80 tabular-nums">+{target2Pct.toFixed(1)}%</div>
                     </div>
 
                   </div>
@@ -717,7 +717,7 @@ export default function AppleDeepDiveTab({
               {/* Multi-Horizon Relative Strength Alpha Matrix vs Nifty 50 */}
               <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2.5">
                 <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">BENCHMARK RELATIVE STRENGTH ALPHA (VS NIFTY 50)</span>
+                  <span className="text-[10px] font-mono tracking-wider text-zinc-400">Relative Strength Alpha (vs Nifty 50)</span>
                   <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
                 </div>
 
@@ -727,8 +727,8 @@ export default function AppleDeepDiveTab({
                     const isPos = alpha != null && alpha > 0;
                     return (
                       <div key={h} className="rounded-xl bg-white dark:bg-black/40 border border-black/[0.04] dark:border-white/[0.06] p-2">
-                        <div className="text-[10px] font-mono text-zinc-400">{h} ALPHA</div>
-                        <div className={`text-xs font-black font-mono ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        <div className="text-[10px] font-mono text-zinc-400">{h} Alpha</div>
+                        <div className={`text-xs font-black font-mono tabular-nums ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                           {alpha != null ? `${alpha > 0 ? '+' : ''}${alpha.toFixed(1)}%` : '---'}
                         </div>
                       </div>
@@ -737,45 +737,73 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* BESPOKE ELEMENT: THE PILOT PRE-FLIGHT SAFETY CHECKLIST (REPLACES GENERIC RULE CHECKLIST) */}
-              <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/40 p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-2">
+              {/* Pre-Flight Safety Checklist (High-Density Audit Table) */}
+              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-4 space-y-3 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
                   <div className="flex items-center space-x-2">
-                    <FileCheck className="h-4 w-4 text-rose-500" />
-                    <span className="text-xs font-mono font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                      PILOT PRE-FLIGHT SAFETY CHECKLIST
+                    <FileCheck className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      Pre-Flight Safety Checklist
                     </span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-zinc-400">
-                    {data.rule_breakdown?.filter(r => r.passed).length || 0} / {data.rule_breakdown?.length || 0} GATES CLEARED
-                  </span>
+                  {(() => {
+                    const cleared = data.rule_breakdown?.filter(r => r.passed).length || 0;
+                    const total = data.rule_breakdown?.length || 0;
+                    const isBullish = cleared >= 4;
+                    return (
+                      <span className={`inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-mono font-bold border ${
+                        isBullish
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                          : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isBullish ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span>{cleared} / {total} Gates Cleared ({isBullish ? 'Bullish Alignment' : 'Risk Blocked'})</span>
+                      </span>
+                    );
+                  })()}
                 </div>
 
-                <div className="space-y-2">
-                  {(data.rule_breakdown || []).map((rule, idx) => (
-                    <div 
-                      key={idx}
-                      className={`flex items-start justify-between rounded-xl border p-2.5 transition text-xs font-medium ${
-                        rule.passed
-                          ? 'border-emerald-500/30 bg-emerald-500/5 text-zinc-800 dark:text-zinc-200'
-                          : 'border-rose-500/30 bg-rose-500/5 text-zinc-600 dark:text-zinc-400'
-                      }`}
-                    >
-                      <div className="flex items-start space-x-2.5">
-                        <div className={`mt-0.5 h-4 w-4 rounded-md flex items-center justify-center shrink-0 text-[10px] font-black ${
-                          rule.passed ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-                        }`}>
-                          {rule.passed ? '✓' : '✗'}
-                        </div>
-                        <div>
-                          <div className="font-semibold">{rule.rule}</div>
-                          {rule.detail && (
-                            <div className="text-[11px] font-mono text-zinc-400 mt-0.5">{rule.detail}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-black/[0.04] dark:border-white/[0.05] text-[10px] uppercase font-bold text-zinc-400">
+                        <th className="py-1.5 px-2">Condition / Rule</th>
+                        <th className="py-1.5 px-2 text-right">Verification Telemetry</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.04]">
+                      {(data.rule_breakdown || []).map((rule, idx) => (
+                        <tr
+                          key={idx}
+                          className={`transition ${
+                            rule.passed
+                              ? 'hover:bg-black/[0.015] dark:hover:bg-white/[0.02]'
+                              : 'bg-rose-500/[0.04] dark:bg-rose-500/[0.06] hover:bg-rose-500/[0.07]'
+                          }`}
+                        >
+                          <td className="py-2.5 px-2">
+                            <div className="flex items-center space-x-2">
+                              <span
+                                className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold border ${
+                                  rule.passed
+                                    ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                    : 'border-rose-500/30 bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                                }`}
+                              >
+                                {rule.passed ? '✓' : '✗'}
+                              </span>
+                              <span className={`font-semibold ${rule.passed ? 'text-zinc-800 dark:text-zinc-200' : 'text-rose-700 dark:text-rose-300'}`}>
+                                {rule.rule}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-[11px] text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                            {rule.detail || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -792,9 +820,9 @@ export default function AppleDeepDiveTab({
                 {/* Perforated Top Header */}
                 <div className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-3 text-zinc-800 dark:text-zinc-200">
                   <div className="flex items-center space-x-2">
-                    <Receipt className="h-4 w-4 text-rose-500" />
-                    <span className="text-xs font-mono font-black tracking-wider uppercase">
-                      EXCHANGE TICKET
+                    <Receipt className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-mono font-bold tracking-wider">
+                      Exchange Ticket
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-zinc-400">
@@ -806,22 +834,22 @@ export default function AppleDeepDiveTab({
                 <div className="space-y-2 text-xs font-medium">
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Order Action:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">DELIVERY BUY</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">Delivery Buy</span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Calculated Shares:</span>
-                    <span className="font-mono font-black text-zinc-900 dark:text-white">{recommendedShares} QTY</span>
+                    <span className="font-mono tabular-nums font-bold text-zinc-900 dark:text-white">{recommendedShares} Qty</span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Total Capital:</span>
-                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">₹{positionCapital.toLocaleString('en-IN')}</span>
+                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">₹{positionCapital.toLocaleString('en-IN')}</span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Risk at Stop:</span>
-                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')} (1%)</span>
+                    <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')} (1%)</span>
                   </div>
                 </div>
 
@@ -829,10 +857,10 @@ export default function AppleDeepDiveTab({
                 <div className="border-t border-dashed border-black/10 dark:border-white/10 pt-3 space-y-1.5 text-[11px]">
                   <div className="flex justify-between font-mono text-zinc-400">
                     <span>Friction (Round Trip):</span>
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estTotalCharges}</span>
+                    <span className="font-bold font-mono tabular-nums text-zinc-700 dark:text-zinc-300">₹{estTotalCharges}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1 text-[10px] text-zinc-400 font-mono">
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-zinc-400 font-mono tabular-nums">
                     <div>STT: ₹{estSTT}</div>
                     <div>Exchange: ₹{estExchange}</div>
                     <div>Stamp: ₹{estStampDuty}</div>
@@ -855,20 +883,20 @@ export default function AppleDeepDiveTab({
                       });
                     }
                   }}
-                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 text-xs font-black uppercase tracking-wider shadow-lg transition hover:opacity-90 active:scale-95"
+                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 text-xs font-bold tracking-wider shadow-lg transition hover:opacity-90 active:scale-95"
                 >
                   <Briefcase className="h-4 w-4" />
                   <span>Execute Paper Order</span>
                 </button>
               </div>
 
-              {/* BESPOKE ELEMENT: THE 7-PILLARS FORENSIC AUDIT LEDGER */}
+              {/* Bespoke Element: The 7-Pillars Forensic Audit Ledger */}
               <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                    7-PILLARS AUDIT LEDGER
+                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
+                    7-Pillars Audit Ledger
                   </span>
-                  <span className="text-xs font-black font-mono text-zinc-900 dark:text-white">
+                  <span className="text-xs font-bold font-mono tabular-nums text-zinc-900 dark:text-white">
                     {f.fundamental_score || 0}/100
                   </span>
                 </div>
@@ -904,15 +932,15 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* FORENSIC EVIDENCE LOG (STRENGTHS VS AUDIT WARNINGS) */}
+              {/* Forensic Evidence Log (Strengths vs Audit Warnings) */}
               <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-                  FORENSIC EVIDENCE LOG
+                <span className="text-[10px] font-mono tracking-widest text-zinc-400">
+                  Forensic Evidence Log
                 </span>
 
                 {/* Strengths */}
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
                     Verified Drivers
                   </div>
                   <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
@@ -931,7 +959,7 @@ export default function AppleDeepDiveTab({
 
                 {/* Audit Red Flags */}
                 <div className="space-y-1.5 pt-1">
-                  <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                  <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 tracking-wider">
                     Audit Red Flags
                   </div>
                   <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
@@ -957,9 +985,9 @@ export default function AppleDeepDiveTab({
           </div>
 
           {/* =========================================================================
-              BESPOKE ELEMENT: THE CONFIDENTIAL INTELLIGENCE DISPATCH & STOCK CHAT LAB
+              Bespoke Element: The Confidential Intelligence Dispatch & Stock Chat Lab
              ========================================================================= */}
-          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl p-6 shadow-2xl space-y-6">
+          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0f1626] backdrop-blur-3xl p-5 sm:p-6 shadow-xl space-y-5">
             
             {/* Header Stamp */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
@@ -968,8 +996,8 @@ export default function AppleDeepDiveTab({
                   <Terminal className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-white font-mono">
-                    CONFIDENTIAL RESEARCH DISPATCH · SUBJECT: {data.ticker}
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono">
+                    Confidential Research Dispatch · Subject: {data.ticker.replace('.NS', '')}
                   </h3>
                   <p className="text-xs text-zinc-500">
                     Qualitative Underwriting Cable · Synthesized by Qwen 2.5 Coder & Google Gemini
@@ -1011,7 +1039,7 @@ export default function AppleDeepDiveTab({
               <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 space-y-2 whitespace-pre-wrap">
                 <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-bold">
                   <span className="h-2 w-2 rounded-full bg-purple-500 animate-ping" />
-                  <span>INCOMING SECURE TRANSMISSION (STREAMING TO DESK)...</span>
+                  <span>Incoming Secure Transmission (Streaming)...</span>
                 </div>
                 <div>{aiStreamingText}</div>
               </div>
@@ -1020,9 +1048,9 @@ export default function AppleDeepDiveTab({
                 
                 {/* Core Thesis Card */}
                 <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider font-mono">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800 dark:text-zinc-200 tracking-wider font-mono">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <span>QUALITATIVE INVESTMENT THESIS</span>
+                    <span>Qualitative Investment Thesis</span>
                   </div>
                   <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1.5 list-disc pl-4">
                     {(data.ai_dossier.thesis || []).map((th, i) => (
@@ -1033,9 +1061,9 @@ export default function AppleDeepDiveTab({
 
                 {/* Invalidation Boundary with Hazard Styling */}
                 <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider font-mono">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-amber-600 dark:text-amber-400 tracking-wider font-mono">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>STRUCTURAL INVALIDATION BOUNDARY</span>
+                    <span>Structural Invalidation Boundary</span>
                   </div>
                   <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-mono">
                     {data.ai_dossier.risks?.setup_invalidation || data.ai_dossier.risks?.thesis_invalidation || 'Break below prior swing low invalidates the institutional structure.'}
@@ -1044,17 +1072,25 @@ export default function AppleDeepDiveTab({
 
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-black/10 dark:border-white/10 p-8 text-center text-xs text-zinc-400 font-mono space-y-2">
-                <Radio className="h-6 w-6 text-zinc-400 mx-auto opacity-40" />
-                <p>Intelligence dispatch has not been generated for this specimen.</p>
-                <p className="text-[11px] text-zinc-500">Click &ldquo;Transmit Intelligence Cable&rdquo; above to stream qualitative insights grounded on this stock&rsquo;s deterministic data.</p>
+              <div className="rounded-2xl border border-dashed border-black/10 dark:border-white/10 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400 font-mono">
+                <div className="flex items-center space-x-2.5">
+                  <Radio className="h-4 w-4 text-purple-500 shrink-0 opacity-80" />
+                  <span>Intelligence dispatch ready for synthesis on deterministic price & solvency telemetry.</span>
+                </div>
+                <button
+                  onClick={handleGenerateStockDossier}
+                  disabled={aiLoading}
+                  className="rounded-xl border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold px-3 py-1.5 text-xs transition shrink-0"
+                >
+                  Generate Cable
+                </button>
               </div>
             )}
 
             {/* Interactive Stock Chat Memo Pad */}
             <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-3">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 flex items-center">
-                <MessageSquare className="h-3 w-3 mr-1" /> INTERROGATE THE STOCK UNDERWRITER
+              <span className="text-[10px] font-mono tracking-widest text-zinc-400 flex items-center">
+                <MessageSquare className="h-3 w-3 mr-1" /> Interrogate Stock Underwriter
               </span>
 
               {/* Chat Thread */}

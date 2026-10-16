@@ -20,20 +20,20 @@
 }
 
 .dark {
-  /* Apple Dark Mode Palette */
-  --bg-canvas: #0b0d13;
-  --bg-surface: #151821;
-  --bg-surface-elevated: #1d212c;
-  --bg-subtle: rgba(255, 255, 255, 0.06);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --text-primary: #f5f5f7;
-  --text-secondary: #9ca3af;
-  --text-tertiary: #6b7280;
-  --accent-blue: #2997ff;
-  --accent-green: #30d158;
-  --accent-rose: #ff453a;
-  --accent-amber: #ff9f0a;
+  /* Refined Institutional Dark Palette */
+  --bg-canvas: #090d16;
+  --bg-surface: #0f1626;
+  --bg-surface-elevated: #141e33;
+  --bg-subtle: rgba(255, 255, 255, 0.04);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --accent-blue: #38bdf8;
+  --accent-green: #10b981;
+  --accent-rose: #f43f5e;
+  --accent-amber: #f59e0b;
   color-scheme: dark;
 }
 
