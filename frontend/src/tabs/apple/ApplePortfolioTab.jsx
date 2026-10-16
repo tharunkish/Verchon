@@ -1,26 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Briefcase, 
-  AlertTriangle, 
-  ShieldCheck, 
-  CheckCircle2, 
-  TrendingUp, 
-  TrendingDown, 
   Plus, 
-  X, 
   RefreshCw, 
+  Sliders, 
+  RotateCcw, 
+  ShieldCheck, 
+  AlertTriangle, 
   Target, 
-  Percent, 
   ArrowUpRight, 
-  ArrowDownRight,
-  Sliders,
-  DollarSign,
-  Scale,
-  RotateCcw,
-  PieChart,
-  ChevronRight,
-  ShieldAlert,
-  Info
+  ArrowDownRight, 
+  CheckCircle2, 
+  X,
+  Compass,
+  Clock,
+  Sparkles,
+  Lock,
+  Scissors,
+  Check
 } from 'lucide-react';
 import OrderExecutionModal from '../../components/OrderExecutionModal';
 
@@ -39,7 +35,6 @@ export default function ApplePortfolioTab({
   const [selectedStockForOrder, setSelectedStockForOrder] = useState('');
   const [selectedStrategyForOrder, setSelectedStrategyForOrder] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPositionId, setSelectedPositionId] = useState(null);
 
   // Partial close modal state
   const [partialModalPos, setPartialModalPos] = useState(null);
@@ -55,6 +50,9 @@ export default function ApplePortfolioTab({
   const [resetCapital, setResetCapital] = useState('1000000');
   const [resetRiskPct, setResetRiskPct] = useState('1.0');
 
+  // Filter state for flight strips
+  const [activeFilter, setActiveFilter] = useState('ALL');
+
   useEffect(() => {
     if (account?.starting_capital) {
       setEditCapital(account.starting_capital.toString());
@@ -69,21 +67,7 @@ export default function ApplePortfolioTab({
   const openPositions = positions.filter((p) => p.status === 'OPEN');
   const closedPositions = positions.filter((p) => p.status === 'CLOSED');
 
-  // Select first position by default if none selected
-  useEffect(() => {
-    if (openPositions.length > 0) {
-      const exists = openPositions.some((p) => p.id === selectedPositionId);
-      if (!exists) {
-        setSelectedPositionId(openPositions[0].id);
-      }
-    } else {
-      setSelectedPositionId(null);
-    }
-  }, [openPositions, selectedPositionId]);
-
-  const activePosition = openPositions.find((p) => p.id === selectedPositionId) || openPositions[0] || null;
-
-  // Account metrics
+  // Account calculations
   const startingCapital = account?.starting_capital || 1000000;
   const availableCash = account?.available_cash ?? 1000000;
   const totalEquity = account?.total_equity || (availableCash + openPositions.reduce((acc, p) => acc + (p.current_price || p.entry_price) * p.quantity, 0));
@@ -100,21 +84,15 @@ export default function ApplePortfolioTab({
   );
 
   const [sectorData, setSectorData] = useState(null);
-  const [loadingSector, setLoadingSector] = useState(false);
 
   const fetchSectorExposure = async () => {
-    setLoadingSector(true);
     try {
       const res = await fetch('/api/paper-trades/sector-exposure');
       if (res.ok) {
         const json = await res.json();
         setSectorData(json);
       }
-    } catch {
-      // Background sector fetch failure safely ignored
-    } finally {
-      setLoadingSector(false);
-    }
+    } catch {}
   };
 
   useEffect(() => {
@@ -173,392 +151,377 @@ export default function ApplePortfolioTab({
     setIsResetModalOpen(false);
   };
 
+  // Filtered open positions
+  const displayedPositions = useMemo(() => {
+    if (activeFilter === 'IN_PROFIT') {
+      return openPositions.filter((p) => (p.unrealized_pnl || 0) > 0);
+    }
+    if (activeFilter === 'NEEDS_ACTION') {
+      return openPositions.filter((p) => p.exit_alert?.should_exit || p.target_1_hit || (p.stop_price < p.entry_price && (p.unrealized_pnl || 0) > 0));
+    }
+    return openPositions;
+  }, [openPositions, activeFilter]);
+
   return (
-    <div className="min-h-[calc(100vh-90px)] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* 1. Master Capital Ledger & Statement Header */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#121319] p-6 shadow-sm backdrop-blur-xl transition-colors">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Left: Total Account Equity */}
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase font-semibold">PORTFOLIO STATEMENT</span>
+    <div className="min-h-[calc(100vh-90px)] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-7">
+      {/* ===================================================================
+          1. THE SOVEREIGN VAULT: NARRATIVE CAPITAL BRIEFING (Human & Cinematic)
+          =================================================================== */}
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#111218] p-6 sm:p-8 shadow-sm backdrop-blur-2xl transition-colors">
+        {/* Narrative Headline Statement */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-black/[0.05] dark:border-white/[0.06]">
+          <div className="max-w-2xl">
+            <div className="flex items-center space-x-2 text-[10px] font-mono tracking-widest text-zinc-400 uppercase font-semibold">
+              <span>PORTFOLIO BRIEFING</span>
               <span className="text-zinc-300 dark:text-zinc-700">·</span>
-              <span className="text-[10px] text-zinc-500 font-medium">Real-Time Mark to Market</span>
+              <span>LIVE VALUATION</span>
             </div>
-            <div className="flex items-baseline space-x-3 mt-1">
-              <span className="font-mono-num text-3xl sm:text-4xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+            
+            <div className="flex items-baseline space-x-3 mt-1.5">
+              <span className="font-mono-num text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
                 ₹{Math.round(totalEquity).toLocaleString('en-IN')}
               </span>
-              <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${
+              <span className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full ${
                 totalUnrealizedPnl >= 0 
                   ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
                   : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
               }`}>
-                {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(1)} MTM
+                {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(1)} MTM ({((totalUnrealizedPnl / startingCapital) * 100).toFixed(2)}%)
               </span>
             </div>
-            <p className="text-xs text-zinc-500 mt-1">
-              Initial Capital: ₹{Math.round(startingCapital).toLocaleString('en-IN')} · Available Dry Powder: <strong className="text-zinc-800 dark:text-zinc-200">₹{Math.round(availableCash).toLocaleString('en-IN')}</strong>
+
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+              You have <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{openPositions.length} active trade campaign{openPositions.length !== 1 ? 's' : ''} in flight</strong>. 
+              {' '}Available dry powder sits at <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">₹{Math.round(availableCash).toLocaleString('en-IN')}</strong>. 
+              {totalCapitalAtRisk > 0 && (
+                <span> Total capital strictly exposed at stop-loss is <strong className="text-rose-600 dark:text-rose-400 font-semibold">₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</strong>.</span>
+              )}
             </p>
           </div>
 
-          {/* Right: Performance Metrics & Quick Tactile Controls */}
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Realized Profit Pill */}
-            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.02] dark:bg-white/[0.03] p-3 text-right">
-              <div className="text-[10px] font-mono text-zinc-400 uppercase">Net Realized P&L</div>
-              <div className={`font-mono-num text-sm font-bold ${totalNetRealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                {totalNetRealizedPnl >= 0 ? '+' : ''}₹{totalNetRealizedPnl.toFixed(1)}
-              </div>
-              <div className="text-[9px] text-zinc-400 mt-0.5">After ₹{Math.round(totalChargesPaid)} statutory costs</div>
-            </div>
+          {/* Quick Vault Action Console */}
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
+            <button
+              onClick={() => handleOpenNewTrade()}
+              className="flex items-center space-x-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-4 py-2 text-xs font-semibold shadow-sm transition active:scale-95"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Deploy New Trade</span>
+            </button>
 
-            {/* Win Rate Pill */}
-            <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.02] dark:bg-white/[0.03] p-3 text-right">
-              <div className="text-[10px] font-mono text-zinc-400 uppercase">Win Rate</div>
-              <div className="font-mono-num text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {winRate}%
-              </div>
-              <div className="text-[9px] text-zinc-400 mt-0.5">PF: {profitFactor}x · Avg: {avgRMultiple}R</div>
-            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh Live Quotes"
+              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-500' : ''}`} />
+            </button>
 
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handleOpenNewTrade()}
-                className="flex items-center space-x-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-4 py-2 text-xs font-semibold shadow-sm transition active:scale-95"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>New Trade</span>
-              </button>
+            <button
+              onClick={() => setIsEditCapitalModalOpen(true)}
+              title="Adjust Starting Capital & Risk Parameter"
+              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
+            >
+              <Sliders className="h-3.5 w-3.5" />
+            </button>
 
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                title="Refresh Quotes"
-                className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-500' : ''}`} />
-              </button>
-
-              <button
-                onClick={() => setIsEditCapitalModalOpen(true)}
-                title="Edit Capital & Risk Settings"
-                className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
-              >
-                <Sliders className="h-3.5 w-3.5" />
-              </button>
-
-              <button
-                onClick={() => setIsResetModalOpen(true)}
-                title="Reset Portfolio & Wipes Ledger"
-                className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <button
+              onClick={() => setIsResetModalOpen(true)}
+              title="Reset Portfolio & Wipes Ledger"
+              className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* Sector Allocation Silk Bar */}
-        {sectorData?.sectors && sectorData.sectors.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-black/[0.05] dark:border-white/[0.06]">
-            <div className="flex items-center justify-between text-xs mb-2">
-              <span className="font-mono text-[10px] text-zinc-400 uppercase font-semibold">Sector Exposure & Risk Allocation</span>
-              <span className="font-mono text-[11px] text-zinc-500">
-                Total Capital at Risk: <strong className="text-rose-600 dark:text-rose-400">₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</strong> ({sectorData?.total_risk_at_stop_pct ?? 0}% equity)
-              </span>
+        {/* The Allocation Runway & Performance Strip */}
+        <div className="pt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+          {/* Realized Ledger Receipts */}
+          <div className="flex flex-wrap items-center gap-4 text-zinc-500 font-mono">
+            <div>
+              Net Realized Profit:{' '}
+              <strong className={`font-bold ${totalNetRealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {totalNetRealizedPnl >= 0 ? '+' : ''}₹{totalNetRealizedPnl.toFixed(1)}
+              </strong>
             </div>
-
-            {/* The Slender Multi-Segment Bar */}
-            <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-black/[0.04] dark:bg-white/[0.06] p-0.5">
-              {sectorData.sectors.map((sec, idx) => {
-                const palette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'];
-                const col = palette[idx % palette.length];
-                const widthPct = Math.min(100, Math.max(2, sec.percentage));
-                return (
-                  <div
-                    key={sec.sector}
-                    style={{ width: `${widthPct}%` }}
-                    className={`${col} h-full transition-all duration-300 first:rounded-l-full last:rounded-r-full`}
-                    title={`${sec.sector}: ${sec.percentage}% (₹${Math.round(sec.amount).toLocaleString('en-IN')})`}
-                  />
-                );
-              })}
+            <span className="opacity-30">|</span>
+            <div>
+              Statutory Costs Paid:{' '}
+              <strong className="text-amber-600 dark:text-amber-400">
+                ₹{Math.round(totalChargesPaid)}
+              </strong>
             </div>
-
-            {/* Chips */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-              {sectorData.sectors.map((sec, idx) => {
-                const isOverweight = sec.percentage > 30.0;
-                const palette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'];
-                const dotCol = palette[idx % palette.length];
-                return (
-                  <span
-                    key={sec.sector}
-                    className={`inline-flex items-center space-x-1.5 rounded-lg px-2.5 py-1 border ${
-                      isOverweight 
-                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold' 
-                        : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-300'
-                    }`}
-                  >
-                    <span className={`h-2 w-2 rounded-full ${dotCol}`} />
-                    <span>{sec.sector}</span>
-                    <span className="font-mono opacity-70">{sec.percentage}%</span>
-                    {isOverweight && <AlertTriangle className="h-3 w-3 text-amber-500 ml-1" title="Concentration Alert: Exceeds 30%" />}
-                  </span>
-                );
-              })}
+            <span className="opacity-30">|</span>
+            <div>
+              Win Rate:{' '}
+              <strong className="text-zinc-800 dark:text-zinc-200">
+                {winRate}%
+              </strong> ({closedPositions.length} closed)
             </div>
           </div>
-        )}
+
+          {/* Sector Allocation Ribbon */}
+          {sectorData?.sectors && sectorData.sectors.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-mono text-zinc-400 uppercase font-semibold">Allocations:</span>
+              <div className="flex h-2 w-36 rounded-full overflow-hidden bg-black/[0.05] dark:bg-white/[0.08] p-0.5">
+                {sectorData.sectors.map((sec, idx) => {
+                  const palette = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500'];
+                  return (
+                    <div
+                      key={sec.sector}
+                      style={{ width: `${Math.max(3, sec.percentage)}%` }}
+                      className={`${palette[idx % palette.length]} h-full`}
+                      title={`${sec.sector}: ${sec.percentage}%`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 2. Active Trades Split-Stage Specimen Desk */}
+      {/* ===================================================================
+          2. THE TRADE FLIGHT STRIPS (Wide Horizontal Precision Tickets)
+          =================================================================== */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+        {/* Strip Header & Quick Filter Pills */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
             <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-              Active Positions ({openPositions.length})
+              Active Trade Flight Strips ({openPositions.length})
             </h2>
-            <span className="text-xs text-zinc-400">· Real-time Trailing Stop & Exit Alerts</span>
+            <p className="text-xs text-zinc-500">Live trailing runways, target brackets, and real-time execution controls</p>
           </div>
-          <span className="text-xs font-mono text-zinc-500">
-            Target 1: 2.0R · Target 2: 3.0R
-          </span>
+
+          <div className="flex items-center space-x-1.5 p-0.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04]">
+            {[
+              { id: 'ALL', label: 'All In Flight' },
+              { id: 'IN_PROFIT', label: 'In Profit' },
+              { id: 'NEEDS_ACTION', label: 'Alerts / Actions' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setActiveFilter(f.id)}
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
+                  activeFilter === f.id
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-100 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Flight Strip Deck */}
         {openPositions.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-black/[0.08] dark:border-white/[0.1] p-16 text-center">
-            <Briefcase className="h-8 w-8 text-zinc-400 mx-auto mb-2 opacity-50" />
-            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">No Active Positions</h3>
+            <Compass className="h-8 w-8 text-zinc-400 mx-auto mb-2 opacity-50" />
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">No Active Flight Strips</h3>
             <p className="mt-1 text-xs text-zinc-500 max-w-sm mx-auto">
-              Your capital is 100% unencumbered. Screen qualified setups from the Market Scanner or click "New Trade" above.
+              You currently have no positions open. Scan high-probability setups from the Screener or click "Deploy New Trade".
             </p>
           </div>
+        ) : displayedPositions.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-black/[0.08] dark:border-white/[0.1] p-12 text-center text-xs text-zinc-500">
+            No active positions match the selected filter.
+          </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left: Position Playlist */}
-            <div className="lg:col-span-5 space-y-2">
-              {openPositions.map((pos, idx) => {
-                const isSelected = pos.id === activePosition?.id;
-                const pnl = pos.unrealized_pnl || 0;
-                const pnlPct = pos.unrealized_pnl_pct || 0;
-                const isAlert = pos.exit_alert?.should_exit;
-                const isTargetHit = pos.exit_alert?.target_reached || pos.target_1_hit;
+          <div className="space-y-3.5">
+            {displayedPositions.map((pos) => {
+              const entryP = pos.entry_price || 0;
+              const stopP = pos.stop_price || 0;
+              const currP = pos.current_price || entryP;
+              const t1 = pos.target_1 || (entryP + 2 * (entryP - stopP));
+              const t2 = pos.target_2 || (entryP + 3 * (entryP - stopP));
 
-                return (
-                  <div
-                    key={pos.id}
-                    onClick={() => setSelectedPositionId(pos.id)}
-                    className={`rounded-2xl p-4 cursor-pointer border transition-all duration-150 ${
-                      isSelected
-                        ? 'bg-white dark:bg-[#161822] border-black/20 dark:border-white/20 shadow-md ring-1 ring-black/5 dark:ring-white/10'
-                        : 'bg-white/60 dark:bg-[#101117]/60 border-black/[0.04] dark:border-white/[0.05] hover:bg-white dark:hover:bg-[#14161f]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
+              const pnl = pos.unrealized_pnl || 0;
+              const pnlPct = pos.unrealized_pnl_pct || 0;
+              const rMult = pos.r_multiple ?? (entryP > stopP ? ((currP - entryP) / (entryP - stopP)).toFixed(2) : '0.0');
+
+              const isExitAlert = pos.exit_alert?.should_exit;
+              const isTargetHit = pos.exit_alert?.target_reached || pos.target_1_hit;
+              const isBreakevenProtected = stopP >= entryP;
+
+              // Runway calculations
+              const runwayTotal = Math.max(1, t1 - stopP);
+              const progressPct = Math.min(100, Math.max(0, ((currP - stopP) / runwayTotal) * 100));
+              const entryPosPct = Math.min(95, Math.max(5, ((entryP - stopP) / runwayTotal) * 100));
+
+              return (
+                <div
+                  key={pos.id}
+                  className={`rounded-2xl border transition-all duration-200 p-5 ${
+                    isExitAlert
+                      ? 'border-rose-500/40 bg-rose-500/[0.03] dark:bg-rose-500/[0.05] shadow-sm ring-1 ring-rose-500/20'
+                      : isTargetHit
+                      ? 'border-emerald-500/40 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05] shadow-sm ring-1 ring-emerald-500/20'
+                      : 'border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#121319] hover:border-black/15 dark:hover:border-white/15 shadow-sm'
+                  }`}
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                    {/* 1. TICKET STUB (Identity & Strategy) */}
+                    <div className="lg:w-64 shrink-0">
                       <div className="flex items-center space-x-2.5">
-                        <span className="font-mono text-[10px] text-zinc-400 w-4 text-right">
-                          {(idx + 1).toString().padStart(2, '0')}
+                        <span className="text-xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+                          {pos.ticker}
                         </span>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-100">
-                              {pos.ticker}
-                            </span>
-                            {isAlert && <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />}
-                            {isTargetHit && !isAlert && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
-                          </div>
-                          <div className="text-[11px] text-zinc-500">
-                            {pos.strategy_name} · {pos.quantity} shares
-                          </div>
-                        </div>
+                        <span className="rounded-md border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.03] px-1.5 py-0.2 font-mono text-[10px] text-zinc-500">
+                          {pos.quantity} shares
+                        </span>
+                        {isBreakevenProtected && (
+                          <span className="flex items-center space-x-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded" title="Stop moved to buy price (Guaranteed risk-free trade)">
+                            <Lock className="h-2.5 w-2.5" />
+                            <span>Risk-Free</span>
+                          </span>
+                        )}
                       </div>
 
-                      <div className="text-right font-mono">
-                        <div className={`text-xs font-bold font-mono-num ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div className="text-xs text-zinc-500 font-medium mt-0.5 truncate">
+                        {pos.strategy_name} · In flight {pos.holding_sessions || 0}d
+                      </div>
+
+                      <div className="mt-1 text-[11px] font-mono text-zinc-400">
+                        Invested: ₹{(entryP * pos.quantity).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+
+                    {/* 2. THE RUNWAY (Live Trailing Progress Track) */}
+                    <div className="flex-1 px-1 lg:px-4">
+                      {/* Price Level Badges */}
+                      <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                          Stop ₹{stopP.toFixed(1)}
+                        </span>
+                        <span className="text-zinc-400">
+                          Entry ₹{entryP.toFixed(1)}
+                        </span>
+                        <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                          Live ₹{currP.toFixed(1)}
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          Target 1 ₹{t1.toFixed(1)}
+                        </span>
+                      </div>
+
+                      {/* Tactile Runway Bar */}
+                      <div className="relative h-2 w-full rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex">
+                        {/* Entry marker */}
+                        <div
+                          style={{ left: `${entryPosPct}%` }}
+                          className="absolute top-0 bottom-0 w-0.5 bg-zinc-400 z-10"
+                        />
+                        {/* Progress fill */}
+                        <div
+                          style={{ width: `${progressPct}%` }}
+                          className={`h-full transition-all duration-300 ${currP >= entryP ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                        />
+                      </div>
+
+                      {/* Status / Alert Microcopy */}
+                      <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                        <span className="text-zinc-400 font-medium">
+                          {isExitAlert ? (
+                            <strong className="text-rose-600 dark:text-rose-400 font-semibold flex items-center">
+                              <AlertTriangle className="h-3 w-3 mr-1 inline" /> Exit Triggered: {pos.exit_alert?.reason}
+                            </strong>
+                          ) : isTargetHit ? (
+                            <strong className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                              <Target className="h-3 w-3 mr-1 inline" /> Target 1 Reached (2R) · Bank profits or trail stop
+                            </strong>
+                          ) : currP >= entryP ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Trending above entry in positive territory</span>
+                          ) : (
+                            <span className="text-zinc-400">Within stop buffer</span>
+                          )}
+                        </span>
+
+                        <span className="font-mono text-zinc-500">
+                          Risk: ₹{((entryP - stopP) * pos.quantity).toFixed(0)} at stop
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. P&L TALLY & TACTILE CONTROLS */}
+                    <div className="flex items-center justify-between lg:justify-end gap-5 pt-3 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+                      {/* P&L Score */}
+                      <div className="text-left lg:text-right font-mono">
+                        <div className={`text-base font-black font-mono-num ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                           {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(1)}
                         </div>
-                        <div className="text-[10px] text-zinc-400">
-                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}% ({pos.holding_sessions || 0}d)
+                        <div className="text-[11px] text-zinc-500 font-semibold">
+                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}% · <span className="text-blue-600 dark:text-blue-400">{rMult}R</span>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Right: Active Position Specimen Desk */}
-            {activePosition && (
-              <div className="lg:col-span-7">
-                <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#12141c] p-6 sm:p-8 shadow-lg backdrop-blur-2xl">
-                  {/* Position Header */}
-                  <div className="flex items-start justify-between border-b border-black/[0.06] dark:border-white/[0.07] pb-5">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-mono text-zinc-400 uppercase font-semibold">POSITION SPECIMEN</span>
-                        <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                        <span className="text-xs text-zinc-500 font-medium">{activePosition.strategy_name}</span>
-                      </div>
-                      <h3 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 mt-1">
-                        {activePosition.ticker}
-                      </h3>
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        Entry: {activePosition.entry_date} · Holding {activePosition.holding_sessions || 0} trading sessions
-                      </p>
-                    </div>
+                      {/* Action Micro-Buttons */}
+                      <div className="flex items-center space-x-1.5 shrink-0">
+                        {/* Lock Breakeven */}
+                        {stopP < entryP && (
+                          <button
+                            onClick={() => onUpdateStop && onUpdateStop(pos.id, entryP)}
+                            className="flex items-center space-x-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 text-xs font-semibold transition"
+                            title="Lock Breakeven (Move stop loss to buy price so you cannot lose money)"
+                          >
+                            <Lock className="h-3 w-3" />
+                            <span className="hidden sm:inline">Lock B/E</span>
+                          </button>
+                        )}
 
-                    <div className="text-right">
-                      <div className="text-xs font-mono text-zinc-400 uppercase">Unrealized P&L</div>
-                      <div className={`font-mono-num text-3xl font-black tracking-tight mt-0.5 ${
-                        (activePosition.unrealized_pnl || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                      }`}>
-                        {(activePosition.unrealized_pnl || 0) >= 0 ? '+' : ''}₹{(activePosition.unrealized_pnl || 0).toFixed(1)}
-                      </div>
-                      <div className="text-xs font-mono text-zinc-500 mt-0.5">
-                        {(activePosition.unrealized_pnl_pct || 0) >= 0 ? '+' : ''}{(activePosition.unrealized_pnl_pct || 0).toFixed(1)}% · R-Multiple: <strong className="text-blue-600 dark:text-blue-400">{activePosition.r_multiple ?? '0.0'}R</strong>
-                      </div>
-                    </div>
-                  </div>
+                        {/* Partial Scale Out (Sell 50%) */}
+                        {pos.quantity > 1 && (
+                          <button
+                            onClick={() => {
+                              setPartialModalPos(pos);
+                              setPartialQty(Math.floor(pos.quantity / 2));
+                            }}
+                            className="flex items-center space-x-1 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 px-3 py-1.5 text-xs font-semibold transition"
+                            title="Sell 50% shares to lock profit"
+                          >
+                            <Scissors className="h-3 w-3" />
+                            <span className="hidden sm:inline">Bank 50%</span>
+                          </button>
+                        )}
 
-                  {/* Target Reached or Exit Trigger Notification */}
-                  {activePosition.exit_alert?.should_exit && (
-                    <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-3.5 flex items-center space-x-3">
-                      <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                      <div className="text-xs text-zinc-800 dark:text-zinc-200">
-                        <strong className="text-rose-600 dark:text-rose-400 font-semibold">Exit Triggered:</strong> {activePosition.exit_alert.reason}
-                        {activePosition.exit_alert.suggested_exit_price && <span> @ ₹{activePosition.exit_alert.suggested_exit_price.toFixed(1)}</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {activePosition.target_1_hit && !activePosition.exit_alert?.should_exit && (
-                    <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-3.5 flex items-center space-x-3">
-                      <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <div className="text-xs text-zinc-800 dark:text-zinc-200">
-                        <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">Target 1 Reached:</strong> Consider scaling out 50% partial profit and trailing stop to breakeven.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Trailing Stop & Price Scale */}
-                  <div className="py-5 border-b border-black/[0.06] dark:border-white/[0.07]">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-2 font-semibold">
-                      <span>THE TRAILING SCALE</span>
-                      <span>Target 1 = 2R · Target 2 = 3R</span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2 font-mono text-center mb-3">
-                      <div className="rounded-xl bg-rose-500/5 dark:bg-rose-500/10 p-2.5 border border-rose-500/15">
-                        <div className="text-[9px] text-rose-600 dark:text-rose-400 uppercase font-semibold">Stop Loss</div>
-                        <div className="text-xs font-bold text-rose-700 dark:text-rose-300 font-mono-num mt-0.5">₹{activePosition.stop_price?.toFixed(1)}</div>
-                      </div>
-
-                      <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                        <div className="text-[9px] text-zinc-400 uppercase font-semibold">Entry Price</div>
-                        <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-mono-num mt-0.5">₹{activePosition.entry_price?.toFixed(1)}</div>
-                      </div>
-
-                      <div className="rounded-xl bg-blue-500/5 dark:bg-blue-500/10 p-2.5 border border-blue-500/15">
-                        <div className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-semibold">Live Quote</div>
-                        <div className="text-xs font-bold text-blue-700 dark:text-blue-300 font-mono-num mt-0.5">₹{(activePosition.current_price || activePosition.entry_price)?.toFixed(1)}</div>
-                      </div>
-
-                      <div className="rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 p-2.5 border border-emerald-500/15">
-                        <div className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">Target 1</div>
-                        <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 font-mono-num mt-0.5">₹{activePosition.target_1?.toFixed(1)}</div>
-                      </div>
-                    </div>
-
-                    {/* Progress Track */}
-                    {(() => {
-                      const entryP = activePosition.entry_price || 0;
-                      const stopP = activePosition.stop_price || 0;
-                      const currP = activePosition.current_price || entryP;
-                      const t1 = activePosition.target_1 || (entryP + 2 * (entryP - stopP));
-                      const t2 = activePosition.target_2 || (entryP + 3 * (entryP - stopP));
-                      const totalSpan = Math.max(1, t2 - stopP);
-                      const progressPct = Math.min(100, Math.max(0, ((currP - stopP) / totalSpan) * 100));
-
-                      return (
-                        <div className="relative pt-2 pb-1">
-                          <div className="h-1.5 w-full rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex">
-                            <div style={{ width: `${progressPct}%` }} className={currP >= entryP ? 'bg-emerald-500 h-full' : 'bg-rose-500 h-full'} />
-                          </div>
-                          <div
-                            style={{ left: `${progressPct}%` }}
-                            className="absolute top-0 h-4 w-1 -ml-0.5 rounded-full bg-zinc-900 dark:bg-white shadow-sm"
-                          />
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Position Detail & Action Console */}
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-xs text-zinc-500 font-mono">
-                      {activePosition.quantity} shares · Capital: ₹{(activePosition.entry_price * activePosition.quantity).toLocaleString('en-IN')}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Trail Stop to Breakeven */}
-                      {activePosition.stop_price < activePosition.entry_price && (
+                        {/* Liquidate / Close */}
                         <button
-                          onClick={() => onUpdateStop && onUpdateStop(activePosition.id, activePosition.entry_price)}
-                          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition"
-                          title="Move safety stop to your buy price so you cannot lose money on this trade"
+                          onClick={() =>
+                            onClosePosition(
+                              pos.id,
+                              isExitAlert ? pos.exit_alert?.reason : isTargetHit ? 'TARGET_REACHED' : 'MANUAL_CLOSE',
+                              currP
+                            )
+                          }
+                          className="rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-3.5 py-1.5 text-xs font-bold shadow-sm transition active:scale-95"
                         >
-                          Trail to Breakeven
+                          Exit
                         </button>
-                      )}
-
-                      {/* Scale Out 50% Partial Close */}
-                      {activePosition.quantity > 1 && (
-                        <button
-                          onClick={() => {
-                            setPartialModalPos(activePosition);
-                            setPartialQty(Math.floor(activePosition.quantity / 2));
-                          }}
-                          className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-500/20 transition"
-                          title="Sell half of your shares to lock in profits while letting the rest run"
-                        >
-                          Sell 50% Profit
-                        </button>
-                      )}
-
-                      {/* Close Position */}
-                      <button
-                        onClick={() =>
-                          onClosePosition(
-                            activePosition.id,
-                            activePosition.exit_alert?.should_exit ? activePosition.exit_alert.reason : activePosition.target_1_hit ? 'TARGET_REACHED' : 'MANUAL_CLOSE',
-                            activePosition.current_price || activePosition.entry_price
-                          )
-                        }
-                        className="rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-4 py-1.5 text-xs font-bold shadow-sm transition active:scale-95"
-                      >
-                        Close Position
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* 3. Closed Trades History Ledger */}
+      {/* ===================================================================
+          3. THE JOURNAL ARCHIVE: CLOSED TRADES RECEIPT BLOTTER
+          =================================================================== */}
       {closedPositions.length > 0 && (
         <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#121319] p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Closed Trades History ({closedPositions.length})
+                The Ledger Journal ({closedPositions.length} Closed Trades)
               </h3>
-              <p className="text-xs text-zinc-500">Transparent statutory fee breakdown and net realized profit & loss</p>
+              <p className="text-xs text-zinc-500">Transparent receipt of realized profit, loss, and statutory deductions</p>
             </div>
           </div>
 
@@ -609,7 +572,9 @@ export default function ApplePortfolioTab({
         </div>
       )}
 
-      {/* 4. Global Order Execution Modal */}
+      {/* ===================================================================
+          4. GLOBAL ORDER & SCALE-OUT MODALS
+          =================================================================== */}
       <OrderExecutionModal
         isOpen={isOrderModalOpen}
         onClose={() => setIsOrderModalOpen(false)}
@@ -620,20 +585,24 @@ export default function ApplePortfolioTab({
         account={account}
       />
 
-      {/* 5. Partial Scale-Out Modal */}
+      {/* Partial Profit Scale-Out Modal */}
       {partialModalPos && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
           <div className="w-full max-w-sm rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#151722] p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3 mb-4">
-              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Take Partial Profit</h3>
+              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Bank 50% Profit</h3>
               <button onClick={() => setPartialModalPos(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            <p className="text-xs text-zinc-500 leading-relaxed mb-4">
+              Scale out partial shares to permanently lock in gains at Target 1 while letting remaining shares trail risk-free.
+            </p>
+
             <form onSubmit={handleExecutePartialClose} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-zinc-500 block mb-1">Shares to Sell</label>
+                <label className="text-xs font-semibold text-zinc-500 block mb-1">Shares to Liquidate</label>
                 <input
                   type="number"
                   min="1"
@@ -660,7 +629,7 @@ export default function ApplePortfolioTab({
                   type="submit"
                   className="rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-2 text-xs shadow-md transition"
                 >
-                  Execute Sale
+                  Bank Profit
                 </button>
               </div>
             </form>
@@ -668,12 +637,12 @@ export default function ApplePortfolioTab({
         </div>
       )}
 
-      {/* 6. Edit Capital Modal */}
+      {/* Adjust Capital Settings Modal */}
       {isEditCapitalModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
           <div className="w-full max-w-sm rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#151722] p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3 mb-4">
-              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Account Capital & Risk</h3>
+              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Capital & Risk Parameters</h3>
               <button onClick={() => setIsEditCapitalModalOpen(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
                 <X className="h-4 w-4" />
               </button>
@@ -718,7 +687,7 @@ export default function ApplePortfolioTab({
                   type="submit"
                   className="rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold px-5 py-2 text-xs shadow-md transition"
                 >
-                  Save Settings
+                  Save Parameters
                 </button>
               </div>
             </form>
@@ -726,7 +695,7 @@ export default function ApplePortfolioTab({
         </div>
       )}
 
-      {/* 7. Reset Portfolio Modal */}
+      {/* Reset Portfolio Modal */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
           <div className="w-full max-w-sm rounded-3xl border border-rose-500/25 bg-white dark:bg-[#151722] p-6 shadow-2xl">
@@ -738,7 +707,7 @@ export default function ApplePortfolioTab({
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">
-              This will completely wipe your paper trading ledger and reset all open and closed positions to zero.
+              This will completely wipe your paper trading ledger and reset all open positions and historical trades.
             </p>
 
             <form onSubmit={handleResetSubmit} className="space-y-4">
