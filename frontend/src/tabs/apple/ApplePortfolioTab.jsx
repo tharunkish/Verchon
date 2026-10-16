@@ -20,7 +20,10 @@ import {
   PieChart,
   DollarSign,
   Scale,
-  Layers
+  Layers,
+  TrendingUp,
+  TrendingDown,
+  Percent
 } from 'lucide-react';
 import OrderExecutionModal from '../../components/OrderExecutionModal';
 
@@ -86,6 +89,12 @@ export default function ApplePortfolioTab({
     (acc, p) => acc + Math.max(0, (p.entry_price - p.stop_price) * p.quantity),
     0
   );
+  const totalInvested = openPositions.reduce((acc, p) => acc + (p.entry_price * p.quantity), 0);
+  const totalCombinedPnl = totalNetRealizedPnl + totalUnrealizedPnl;
+  const unrealizedReturnPct = totalInvested > 0 ? (totalUnrealizedPnl / totalInvested) * 100 : 0;
+  const totalReturnPct = startingCapital > 0 ? ((totalEquity - startingCapital) / startingCapital) * 100 : 0;
+  const winningPositionsCount = openPositions.filter((p) => (p.unrealized_pnl || 0) > 0).length;
+  const losingPositionsCount = openPositions.filter((p) => (p.unrealized_pnl || 0) < 0).length;
 
   const [sectorData, setSectorData] = useState(null);
 
@@ -171,35 +180,32 @@ export default function ApplePortfolioTab({
       {/* ===================================================================
           1. THE SOVEREIGN VAULT: NARRATIVE CAPITAL BRIEFING (Human & Cinematic)
           =================================================================== */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#111218] p-6 sm:p-8 shadow-sm backdrop-blur-2xl transition-colors">
-        {/* Narrative Headline Statement */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-black/[0.05] dark:border-white/[0.06]">
-          <div className="max-w-2xl">
+      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#111218] p-6 sm:p-8 shadow-sm backdrop-blur-2xl transition-colors space-y-6">
+        {/* Top Header Row: Total Equity & Console Actions */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-black/[0.05] dark:border-white/[0.06]">
+          <div>
             <div className="flex items-center space-x-2 text-[10px] font-mono tracking-widest text-zinc-400 uppercase font-semibold">
               <span>PORTFOLIO BRIEFING</span>
               <span className="text-zinc-300 dark:text-zinc-700">·</span>
-              <span>LIVE VALUATION</span>
+              <span>SOVEREIGN VAULT</span>
             </div>
             
-            <div className="flex items-baseline space-x-3 mt-1.5">
+            <div className="flex flex-wrap items-baseline gap-3 mt-1.5">
               <span className="font-mono-num text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
                 ₹{Math.round(totalEquity).toLocaleString('en-IN')}
               </span>
-              <span className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                totalUnrealizedPnl >= 0 
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
-                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+              <span className={`inline-flex items-center text-xs font-bold px-3 py-1 rounded-full ${
+                totalCombinedPnl >= 0 
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20' 
+                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
               }`}>
-                {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(1)} MTM ({((totalUnrealizedPnl / startingCapital) * 100).toFixed(2)}%)
+                {totalCombinedPnl >= 0 ? '+' : ''}₹{totalCombinedPnl.toFixed(1)} All-Time Return ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(2)}%)
               </span>
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
-              You have <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{openPositions.length} active trade campaign{openPositions.length !== 1 ? 's' : ''} in flight</strong>. 
-              {' '}Available dry powder sits at <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">₹{Math.round(availableCash).toLocaleString('en-IN')}</strong>. 
-              {totalCapitalAtRisk > 0 && (
-                <span> Total capital strictly exposed at stop-loss is <strong className="text-rose-600 dark:text-rose-400 font-semibold">₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</strong>.</span>
-              )}
+              Starting capital: <strong className="text-zinc-800 dark:text-zinc-200 font-mono">₹{Math.round(startingCapital).toLocaleString('en-IN')}</strong> · 
+              {' '}<strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{openPositions.length} active trade campaign{openPositions.length !== 1 ? 's' : ''} in flight</strong>.
             </p>
           </div>
 
@@ -240,44 +246,120 @@ export default function ApplePortfolioTab({
           </div>
         </div>
 
-        {/* The Allocation Runway & Performance Strip */}
-        <div className="pt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-          {/* Realized Ledger Receipts */}
-          <div className="flex flex-wrap items-center gap-4 text-zinc-500 font-mono">
-            <div>
-              Net Realized Profit:{' '}
-              <strong className={`font-bold ${totalNetRealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                {totalNetRealizedPnl >= 0 ? '+' : ''}₹{totalNetRealizedPnl.toFixed(1)}
-              </strong>
+        {/* ===================================================================
+            PROMINENT DUAL P&L SHOWCASE: UNREALIZED MTM & SETTLED REALIZED
+            =================================================================== */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: LIVE UNREALIZED P&L (Floating MTM) */}
+          <div className={`rounded-2xl p-5 border transition-all ${
+            totalUnrealizedPnl >= 0 
+              ? 'bg-gradient-to-br from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent border-emerald-500/30' 
+              : 'bg-gradient-to-br from-rose-500/[0.08] via-rose-500/[0.03] to-transparent border-rose-500/30'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                {totalUnrealizedPnl >= 0 ? (
+                  <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                )}
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                  LIVE UNREALIZED P&L
+                </span>
+              </div>
+              <span className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                totalUnrealizedPnl >= 0 ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${totalUnrealizedPnl >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <span>ACTIVE MTM</span>
+              </span>
             </div>
-            <span className="opacity-30">|</span>
-            <div>
-              Statutory Costs Paid:{' '}
-              <strong className="text-amber-600 dark:text-amber-400">
-                ₹{Math.round(totalChargesPaid)}
-              </strong>
+
+            <div className={`font-mono-num text-3xl sm:text-4xl font-black tracking-tight ${
+              totalUnrealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+            }`}>
+              {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <span className="opacity-30">|</span>
-            <div>
-              Win Rate:{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">
-                {winRate}%
-              </strong> ({closedPositions.length} closed)
+
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
+              <span className={`font-bold ${unrealizedReturnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {unrealizedReturnPct >= 0 ? '+' : ''}{unrealizedReturnPct.toFixed(2)}% ROI
+              </span>
+              <span>on ₹{Math.round(totalInvested).toLocaleString('en-IN')} deployed</span>
             </div>
-            <span className="opacity-30">|</span>
-            <div>
-              Risk at Stop:{' '}
-              <strong className="text-rose-600 dark:text-rose-400">
-                ₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}
-              </strong> ({((totalCapitalAtRisk / (totalEquity || 1)) * 100).toFixed(1)}%)
+
+            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
+              <span>{winningPositionsCount} In Profit · {losingPositionsCount} Trailing</span>
+              <span className="font-mono text-zinc-400">Risk at stop: ₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</span>
             </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="flex items-center space-x-3 text-zinc-400 font-mono text-[11px]">
-            <span>Profit Factor: <strong className="text-zinc-700 dark:text-zinc-300">{profitFactor}x</strong></span>
-            <span>·</span>
-            <span>Avg R: <strong className="text-zinc-700 dark:text-zinc-300">{avgRMultiple}R</strong></span>
+          {/* Card 2: NET REALIZED P&L (Banked / Settled Trades) */}
+          <div className={`rounded-2xl p-5 border transition-all ${
+            totalNetRealizedPnl >= 0 
+              ? 'bg-gradient-to-br from-blue-500/[0.08] via-purple-500/[0.03] to-transparent border-blue-500/30 dark:border-purple-500/30' 
+              : 'bg-gradient-to-br from-rose-500/[0.08] via-rose-500/[0.03] to-transparent border-rose-500/30'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                  NET REALIZED P&L
+                </span>
+              </div>
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                <span>SETTLED LEDGER</span>
+              </span>
+            </div>
+
+            <div className={`font-mono-num text-3xl sm:text-4xl font-black tracking-tight ${
+              totalNetRealizedPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+            }`}>
+              {totalNetRealizedPnl >= 0 ? '+' : ''}₹{totalNetRealizedPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
+              <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                {winRate}% Win Rate
+              </span>
+              <span>{closedPositions.length} closed trade{closedPositions.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Profit Factor: <strong className="text-zinc-700 dark:text-zinc-300">{profitFactor}x</strong></span>
+              <span className="font-mono text-amber-600 dark:text-amber-400">₹{Math.round(totalChargesPaid)} statutory fees paid</span>
+            </div>
+          </div>
+
+          {/* Card 3: AVAILABLE DRY POWDER (Liquidity & Capital Reserves) */}
+          <div className="rounded-2xl p-5 border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.015] dark:bg-white/[0.02]">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                  AVAILABLE CASH
+                </span>
+              </div>
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-400">
+                <span>DRY POWDER</span>
+              </span>
+            </div>
+
+            <div className="font-mono-num text-3xl sm:text-4xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+              ₹{Math.round(availableCash).toLocaleString('en-IN')}
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
+              <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                {((availableCash / (totalEquity || 1)) * 100).toFixed(1)}% Reserves
+              </span>
+              <span>₹{Math.round(totalInvested).toLocaleString('en-IN')} in play</span>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Avg Return: <strong className="text-zinc-700 dark:text-zinc-300">{avgRMultiple}R</strong></span>
+              <span className="font-mono text-zinc-400">{openPositions.length} campaign{openPositions.length !== 1 ? 's' : ''} running</span>
+            </div>
           </div>
         </div>
 
@@ -364,10 +446,19 @@ export default function ApplePortfolioTab({
         {/* Strip Header & Quick Filter Pills */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-              Active Trade Flight Strips ({openPositions.length})
-            </h2>
-            <p className="text-xs text-zinc-500">Live trailing runways, target brackets, statutory friction, and execution controls</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                Active Trade Flight Strips ({openPositions.length})
+              </h2>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
+                totalUnrealizedPnl >= 0 
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' 
+                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+              }`}>
+                Live MTM: {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(1)}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500 mt-0.5">Live trailing runways, target brackets, statutory friction, and execution controls</p>
           </div>
 
           <div className="flex items-center space-x-1.5 p-0.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04]">
@@ -560,23 +651,37 @@ export default function ApplePortfolioTab({
                       </div>
                     </div>
 
-                    {/* 3. P&L TALLY & TACTILE CONTROLS */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between lg:justify-end gap-5 pt-3 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
-                      {/* P&L Score + Statutory Cost itemization */}
-                      <div className="text-left lg:text-right font-mono">
-                        <div className={`text-base font-black font-mono-num ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {/* 3. HERO POSITION UNREALIZED P&L & TACTILE CONTROLS */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between lg:justify-end gap-3.5 pt-3 lg:pt-0 border-t lg:border-t-0 border-black/[0.04] dark:border-white/[0.05]">
+                      {/* Prominent High-Visibility Position P&L Card */}
+                      <div className={`rounded-2xl p-3.5 border font-mono text-left sm:text-right min-w-[190px] shadow-sm transition-all ${
+                        pnl >= 0 
+                          ? 'bg-emerald-500/[0.07] border-emerald-500/25 dark:bg-emerald-500/[0.1]' 
+                          : 'bg-rose-500/[0.07] border-rose-500/25 dark:bg-rose-500/[0.1]'
+                      }`}>
+                        <div className="flex items-center justify-between sm:justify-end space-x-1.5 text-[9px] uppercase tracking-wider font-bold text-zinc-400">
+                          <span>UNREALIZED P&L</span>
+                          <span className={`h-1.5 w-1.5 rounded-full ${pnl >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                        </div>
+                        <div className={`text-xl font-black font-mono-num mt-0.5 tracking-tight ${
+                          pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                        }`}>
                           {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(1)}
                         </div>
-                        <div className="text-[11px] text-zinc-500 font-semibold">
-                          {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}% · <span className="text-blue-600 dark:text-blue-400">{rMult}R</span>
+                        <div className="flex items-center justify-between sm:justify-end space-x-1.5 text-xs font-bold mt-0.5">
+                          <span className={pnlPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                            {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                          </span>
+                          <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                          <span className="text-blue-600 dark:text-blue-400 font-extrabold">{rMult}R</span>
                         </div>
-                        <div className="text-[9px] text-zinc-400 mt-0.5" title="Net profit after estimated brokerage, STT, turnover charges, and GST">
-                          Net ~₹{estNetPnl.toFixed(1)} (after ₹{Math.round(estRoundTripFees)} fees)
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 font-medium" title="Estimated net gain after statutory fees and transaction friction">
+                          Net ~₹{estNetPnl.toFixed(1)} <span className="opacity-70">(₹{Math.round(estRoundTripFees)} fees)</span>
                         </div>
                       </div>
 
                       {/* Action Micro-Buttons */}
-                      <div className="flex items-center space-x-1.5 shrink-0">
+                      <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
                         {/* Lock Breakeven */}
                         {stopP < entryP && (
                           <button
