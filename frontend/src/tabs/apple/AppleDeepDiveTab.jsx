@@ -37,7 +37,11 @@ import {
   Building,
   Activity,
   BarChart2,
-  FileText
+  FileText,
+  FileCheck,
+  Hash,
+  Stamp,
+  Receipt
 } from 'lucide-react';
 import CanvasChart from '../../components/CanvasChart';
 import RuleChecklist from '../../components/RuleChecklist';
@@ -46,18 +50,17 @@ import CorporateRadarCard from '../../components/CorporateRadarCard';
 import PortfolioRiskBridgeCard from '../../components/PortfolioRiskBridgeCard';
 import { normalizeTicker } from '../../App';
 
-// Curated Bluechip Specimen Benchmark list for rapid switching
+// Benchmark Bluechip Specimen ticker list for instant switcher
 const BENCHMARK_SPECIMENS = [
   { ticker: 'ICICIBANK.NS', name: 'ICICI Bank', sector: 'Financials' },
-  { ticker: 'TCS.NS', name: 'Tata Consultancy', sector: 'Information Tech' },
-  { ticker: 'RELIANCE.NS', name: 'Reliance Industries', sector: 'Energy & Retail' },
+  { ticker: 'TCS.NS', name: 'Tata Consultancy', sector: 'IT Services' },
+  { ticker: 'RELIANCE.NS', name: 'Reliance Ind.', sector: 'Energy & Retail' },
   { ticker: 'HDFCBANK.NS', name: 'HDFC Bank', sector: 'Financials' },
-  { ticker: 'INFY.NS', name: 'Infosys', sector: 'Information Tech' },
+  { ticker: 'INFY.NS', name: 'Infosys', sector: 'IT Services' },
   { ticker: 'BHARTIARTL.NS', name: 'Bharti Airtel', sector: 'Telecom' },
-  { ticker: 'SBIN.NS', name: 'State Bank of India', sector: 'Financials' },
-  { ticker: 'LT.NS', name: 'Larsen & Toubro', sector: 'Capital Goods' },
+  { ticker: 'SBIN.NS', name: 'State Bank of India', sector: 'PSU Banking' },
+  { ticker: 'LT.NS', name: 'Larsen & Toubro', sector: 'Infrastructure' },
   { ticker: 'TATAMOTORS.NS', name: 'Tata Motors', sector: 'Automobile' },
-  { ticker: 'KOTAKBANK.NS', name: 'Kotak Mahindra', sector: 'Financials' },
   { ticker: 'MARUTI.NS', name: 'Maruti Suzuki', sector: 'Automobile' },
 ];
 
@@ -86,9 +89,9 @@ export default function AppleDeepDiveTab({
   const [portfolioImpact, setPortfolioImpact] = useState(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
 
-  // Active section view filter (The Analytical Chambers)
-  const [activeChamber, setActiveChamber] = useState('ALL'); // 'ALL' | 'CHART' | 'RUNWAY' | 'SOLVENCY' | 'RADAR_AI'
+  // Interactive UI state
   const [copiedTicker, setCopiedTicker] = useState(false);
+  const [activeTabBay, setActiveTabBay] = useState('DOSSIER'); // 'DOSSIER' | 'RADAR' | 'AI_LAB'
 
   const fetchPortfolioImpact = async (sym) => {
     if (!sym) return;
@@ -256,7 +259,7 @@ export default function AppleDeepDiveTab({
     setTimeout(() => setCopiedTicker(false), 2000);
   };
 
-  // Dossier extracted data models
+  // Extract core domain structures
   const dossier = data?.dossier || {};
   const f = dossier.fundamentals || {};
   const t = dossier.technicals || {};
@@ -268,7 +271,7 @@ export default function AppleDeepDiveTab({
   const strat = t.Strategy_Evaluation || {};
   const activeStrat = strat.active_strategy_result || {};
 
-  // Runway mathematical points
+  // Mathematical execution telemetry
   const currentPrice = trend.Current_Price || (data?.chart?.candles?.slice(-1)[0]?.close) || 0;
   const stopPrice = activeStrat.stop_price || (currentPrice > 0 ? currentPrice * 0.95 : 0);
   const target1 = activeStrat.target_1 || (currentPrice > 0 ? currentPrice + (currentPrice - stopPrice) * 2 : 0);
@@ -281,135 +284,128 @@ export default function AppleDeepDiveTab({
   const riskReward1 = stopLossDistance > 0 ? ((target1 - currentPrice) / stopLossDistance).toFixed(1) : '2.0';
   const riskReward2 = stopLossDistance > 0 ? ((target2 - currentPrice) / stopLossDistance).toFixed(1) : '3.0';
 
-  // Capital sizing calculation (based on default 10L capital or portfolio account)
+  // Capital Sizing calculation (₹10L capital, 1% risk rule)
   const baseAccountCapital = 1000000;
-  const riskPerTradePct = 1.0; // 1% risk rule
+  const riskPerTradePct = 1.0;
   const riskBudget = baseAccountCapital * (riskPerTradePct / 100); // ₹10,000 risk
   const recommendedShares = stopLossDistance > 0 ? Math.max(1, Math.floor(riskBudget / stopLossDistance)) : 25;
   const positionCapital = Math.round(recommendedShares * currentPrice);
   const capitalAtRisk = Math.round(recommendedShares * stopLossDistance);
 
-  // Statutory friction estimate
-  const estSTT = Math.round(positionCapital * 0.001); // 0.1% delivery
+  // Itemized Statutory Friction preview
+  const estSTT = Math.round(positionCapital * 0.001); // 0.1% delivery STT
   const estExchange = Math.round(positionCapital * 0.000035);
   const estStampDuty = Math.round(positionCapital * 0.00015);
   const estGST = Math.round((estExchange + 20) * 0.18);
-  const estTotalCharges = estSTT + estExchange + estStampDuty + estGST + 40; // ₹40 flat brokerage roundtrip
+  const estTotalCharges = estSTT + estExchange + estStampDuty + estGST + 40;
 
-  // 52-week range calculation (from chart data or historical fallback)
+  // 52-week vertical altitude calculation
   const candles = data?.chart?.candles || [];
   const candleHighs = candles.map(c => c.high);
   const candleLows = candles.map(c => c.low);
   const yearHigh = candleHighs.length > 0 ? Math.max(...candleHighs) : (currentPrice * 1.25);
   const yearLow = candleLows.length > 0 ? Math.min(...candleLows) : (currentPrice * 0.75);
   const rangeSpan = yearHigh - yearLow;
-  const priceAltitudePct = rangeSpan > 0 ? Math.min(100, Math.max(0, ((currentPrice - yearLow) / rangeSpan) * 100)) : 50;
+  const altitudePct = rangeSpan > 0 ? Math.min(100, Math.max(0, ((currentPrice - yearLow) / rangeSpan) * 100)) : 50;
 
-  // Composite priority classification
+  // Priority classification
   const priority = dossier.priority || 'EVALUATING';
   const isTriggered = priority === 'SIGNAL TRIGGERED' || activeStrat.signal_triggered;
   const isAvoid = priority === 'AVOID / FILTERED OUT' || dossier.overall_score < 40;
-  const priorityReason = dossier.priority_reason || activeStrat.reason || 'Under standard multi-factor underwriting review.';
+  const priorityReason = dossier.priority_reason || activeStrat.reason || 'Standard multi-factor algorithmic review.';
 
   return (
-    <div className="min-h-[calc(100vh-100px)] p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-[calc(100vh-100px)] p-3 sm:p-5 lg:p-6 space-y-4">
       
       {/* =========================================================================
-          1. SPECIMEN REEL & RAPID DISCOVERY CAROUSEL
+          TOP: TICKER TAPE RIBBON & CASE FILE SWITCHER
          ========================================================================= */}
-      <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-4 shadow-xl backdrop-blur-2xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          
-          {/* Search Form */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 shrink-0">
-            <div className="relative group">
-              <Search className="absolute top-2.5 left-3.5 h-4 w-4 text-zinc-400 group-focus-within:text-rose-500 transition-colors" />
-              <input
-                type="text"
-                value={tickerInput}
-                onChange={(e) => setTickerInput(e.target.value)}
-                placeholder="Enter symbol (e.g. TCS, RELIANCE, SBIN)..."
-                className="w-64 sm:w-80 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.03] dark:bg-white/[0.04] py-2 pr-4 pl-10 text-xs font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition focus:border-rose-500/80 focus:bg-white dark:focus:bg-black/40 focus:ring-4 focus:ring-rose-500/10"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-2xl bg-zinc-900 dark:bg-zinc-100 px-4 py-2 text-xs font-bold text-white dark:text-zinc-900 shadow-md transition hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-95 disabled:opacity-50"
-            >
-              {loading ? 'Examining...' : 'Open Dossier'}
-            </button>
-          </form>
-
-          {/* Horizontal Specimen Reel */}
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 shrink-0 mr-1 flex items-center">
-              <Compass className="h-3 w-3 mr-1" /> Specimen Reel:
-            </span>
-
-            {/* Candidates from Scanner (if available) */}
-            {candidates && candidates.length > 0 ? (
-              candidates.slice(0, 8).map((cand) => {
-                const cSym = cand.ticker || cand.name;
-                const isSelected = normalizeTicker(cSym) === normalizeTicker(data?.ticker || selectedTicker);
-                return (
-                  <button
-                    key={cSym}
-                    onClick={() => handleSwitchSpecimen(cSym)}
-                    className={`group flex items-center space-x-2 rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all border ${
-                      isSelected
-                        ? 'border-rose-500/80 bg-rose-500/10 text-rose-700 dark:text-rose-300 shadow-sm'
-                        : 'border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/[0.15] dark:hover:border-white/[0.15] hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    <span>{cSym.replace('.NS', '')}</span>
-                    {cand.overall_score && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        cand.overall_score >= 75 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-zinc-500/20 text-zinc-500'
-                      }`}>
-                        {cand.overall_score}
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              /* Curated Bluechip Fallback Carousel */
-              BENCHMARK_SPECIMENS.map((spec) => {
-                const isSelected = normalizeTicker(spec.ticker) === normalizeTicker(data?.ticker || selectedTicker);
-                return (
-                  <button
-                    key={spec.ticker}
-                    onClick={() => handleSwitchSpecimen(spec.ticker)}
-                    className={`flex items-center space-x-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all border ${
-                      isSelected
-                        ? 'border-rose-500/80 bg-rose-500/10 text-rose-700 dark:text-rose-300 shadow-sm ring-1 ring-rose-500/20'
-                        : 'border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/[0.15] dark:hover:border-white/[0.15] hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    <span>{spec.ticker.replace('.NS', '')}</span>
-                    <span className="text-[10px] text-zinc-400">· {spec.sector}</span>
-                  </button>
-                );
-              })
-            )}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-black/[0.08] dark:border-white/[0.08] pb-3">
+        
+        {/* Search input with keyboard shortcut feel */}
+        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 shrink-0">
+          <div className="relative group">
+            <Search className="absolute top-2.5 left-3 h-3.5 w-3.5 text-zinc-400 group-focus-within:text-zinc-900 dark:group-focus-within:text-white transition-colors" />
+            <input
+              type="text"
+              value={tickerInput}
+              onChange={(e) => setTickerInput(e.target.value)}
+              placeholder="Case search: e.g. TCS, RELIANCE..."
+              className="w-56 sm:w-64 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] py-1.5 pr-3 pl-8 text-xs font-semibold text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-zinc-900 dark:focus:border-white focus:bg-white dark:focus:bg-black/50"
+            />
           </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-xl bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-bold text-white dark:text-zinc-900 transition hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? 'Examining...' : 'Open File'}
+          </button>
+        </form>
+
+        {/* Ticker Tape Switcher */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 shrink-0 mr-1 flex items-center">
+            <Compass className="h-3 w-3 mr-1" /> Dossier Index:
+          </span>
+
+          {candidates && candidates.length > 0 ? (
+            candidates.slice(0, 9).map((cand) => {
+              const sym = cand.ticker || cand.name;
+              const isSelected = normalizeTicker(sym) === normalizeTicker(data?.ticker || selectedTicker);
+              return (
+                <button
+                  key={sym}
+                  onClick={() => handleSwitchSpecimen(sym)}
+                  className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap transition-all border ${
+                    isSelected
+                      ? 'border-zinc-900 dark:border-white bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <span>{sym.replace('.NS', '')}</span>
+                  {cand.overall_score && (
+                    <span className={`text-[10px] px-1 rounded ${
+                      cand.overall_score >= 75 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'
+                    }`}>
+                      {cand.overall_score}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            BENCHMARK_SPECIMENS.map((spec) => {
+              const isSelected = normalizeTicker(spec.ticker) === normalizeTicker(data?.ticker || selectedTicker);
+              return (
+                <button
+                  key={spec.ticker}
+                  onClick={() => handleSwitchSpecimen(spec.ticker)}
+                  className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap transition-all border ${
+                    isSelected
+                      ? 'border-zinc-900 dark:border-white bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/20 dark:hover:border-white/20'
+                  }`}
+                >
+                  <span>{spec.ticker.replace('.NS', '')}</span>
+                  <span className="text-[10px] text-zinc-400">· {spec.sector}</span>
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 
       {/* Error state */}
       {error && (
-        <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5 text-xs font-medium text-rose-700 dark:text-rose-300 shadow-lg backdrop-blur-xl flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />
-            <div>
-              <p className="font-bold">Dossier Examination Interrupted</p>
-              <p className="text-zinc-600 dark:text-zinc-400">{error}</p>
-            </div>
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-700 dark:text-rose-300 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
+            <span>Investigation Error: {error}</span>
           </div>
           <button
             onClick={() => fetchDossier(tickerInput)}
-            className="rounded-xl bg-rose-500 text-white px-3 py-1.5 font-bold hover:bg-rose-600 transition"
+            className="rounded-lg bg-rose-500 text-white px-2.5 py-1 font-bold hover:bg-rose-600 transition"
           >
             Retry
           </button>
@@ -418,207 +414,203 @@ export default function AppleDeepDiveTab({
 
       {/* Loading Skeleton */}
       {loading && !data && (
-        <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-12 text-center backdrop-blur-2xl animate-pulse space-y-4">
-          <div className="h-8 w-48 bg-zinc-200 dark:bg-zinc-800 rounded-2xl mx-auto" />
-          <div className="h-4 w-96 bg-zinc-200 dark:bg-zinc-800 rounded-xl mx-auto" />
-          <p className="text-xs font-semibold text-zinc-500">
-            Synthesizing 1-Year OHLCV candlestick geometry, 7-pillar solvency ratios, and corporate filings...
-          </p>
+        <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-[#0c0d12]/50 p-16 text-center animate-pulse space-y-3">
+          <div className="h-7 w-48 bg-zinc-200 dark:bg-zinc-800 rounded-lg mx-auto" />
+          <div className="h-4 w-80 bg-zinc-200 dark:bg-zinc-800 rounded mx-auto" />
+          <p className="text-xs text-zinc-400">Unfolding forensic stock broadsheet...</p>
         </div>
       )}
 
       {data && (
-        <div className="space-y-6">
-
+        <div className="space-y-4">
+          
           {/* =========================================================================
-              2. THE EDITORIAL MASTHEAD (THE DOSSIER HERO)
+              THE ASYMMETRIC 3-COLUMN FORENSIC BROADSHEET
              ========================================================================= */}
-          <div className="relative overflow-hidden rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/80 dark:bg-[#0c0d12]/90 p-6 sm:p-8 shadow-2xl backdrop-blur-3xl">
-            {/* Ambient Background Aura */}
-            <div className={`absolute -right-20 -top-20 h-72 w-72 rounded-full blur-3xl opacity-20 pointer-events-none ${
-              isTriggered ? 'bg-emerald-500' : isAvoid ? 'bg-rose-500' : 'bg-blue-500'
-            }`} />
-
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl shadow-2xl divide-y lg:divide-y-0 lg:divide-x divide-black/10 dark:divide-white/10">
+            
+            {/* ---------------------------------------------------------------------
+                COLUMN 1: THE MARGINALIA (LEFT FORENSIC COLUMN - 3 COLS)
+               --------------------------------------------------------------------- */}
+            <div className="lg:col-span-3 p-5 sm:p-6 space-y-6 bg-black/[0.01] dark:bg-white/[0.01]">
               
-              {/* Left Identity Column */}
+              {/* Rubber-stamped Verdict Header */}
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1 text-xs font-black tracking-wider uppercase">
-                    NSE : {data.ticker.replace('.NS', '')}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                    EXHIBIT #NSE-{data.ticker.replace('.NS', '')}
                   </span>
-                  
-                  <span className="rounded-full border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.03] dark:bg-white/[0.05] px-3 py-1 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    {dossier.name || 'NSE Equity'}
-                  </span>
-
-                  {f.company_type && (
-                    <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                      {f.company_type}
-                    </span>
-                  )}
-
                   <button
                     onClick={handleCopyTicker}
-                    title="Copy full symbol"
-                    className="p-1.5 rounded-full hover:bg-black/[0.05] dark:hover:bg-white/[0.05] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition"
+                    className="text-[11px] font-mono text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center space-x-1"
                   >
-                    {copiedTicker ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedTicker ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedTicker ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">
-                    ₹{currentPrice > 0 ? currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '---'}
-                  </h1>
-
-                  <div className="flex items-center space-x-2">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold ${
-                      trend['Dist_50_DMA_%'] >= 0
-                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                    }`}>
-                      {trend['Dist_50_DMA_%'] >= 0 ? <ArrowUpRight className="h-3.5 w-3.5 mr-1" /> : <ArrowDownRight className="h-3.5 w-3.5 mr-1" />}
-                      {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%'] > 0 ? '+' : ''}${trend['Dist_50_DMA_%']}% vs 50 DMA` : 'N/A'}
-                    </span>
-
-                    <span className="text-xs font-medium text-zinc-400">
-                      200 DMA: ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(1) : '---'}
-                    </span>
-                  </div>
+                {/* Status Stamp */}
+                <div className={`inline-block px-3 py-1 rounded border text-[11px] font-black uppercase tracking-widest ${
+                  isTriggered
+                    ? 'border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rotate-[-1deg]'
+                    : isAvoid
+                    ? 'border-rose-600 bg-rose-500/10 text-rose-700 dark:text-rose-400 rotate-[1deg]'
+                    : 'border-zinc-500 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300'
+                }`}>
+                  {priority}
                 </div>
 
-                {/* 52-Week Range Bar with visual altitude needle */}
-                <div className="pt-1 max-w-md space-y-1">
-                  <div className="flex justify-between text-[11px] font-semibold text-zinc-400">
-                    <span>52W Low: ₹{yearLow.toFixed(1)}</span>
-                    <span className="font-bold text-zinc-700 dark:text-zinc-300">Altitude: {priceAltitudePct.toFixed(0)}%</span>
-                    <span>52W High: ₹{yearHigh.toFixed(1)}</span>
-                  </div>
-                  <div className="relative h-2 w-full rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-rose-500 transition-all duration-700"
-                      style={{ width: `${priceAltitudePct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Verdict & Action Cluster */}
-              <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-4 border-t lg:border-t-0 border-black/[0.06] dark:border-white/[0.06] pt-4 lg:pt-0">
-                
-                {/* Composite Health Dial & Status Badge */}
-                <div className="text-left lg:text-right space-y-1.5">
-                  <div className="flex items-center lg:justify-end space-x-2">
-                    <div className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border shadow-sm ${
-                      isTriggered
-                        ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                        : isAvoid
-                        ? 'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                        : 'border-zinc-500/30 bg-zinc-500/15 text-zinc-700 dark:text-zinc-300'
-                    }`}>
-                      {priority}
-                    </div>
-
-                    <div className="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-xs font-black text-zinc-800 dark:text-zinc-200">
-                      <span>Score:</span>
-                      <span className="text-rose-600 dark:text-rose-400">{dossier.overall_score || 0}</span>
-                      <span className="text-[10px] text-zinc-400">/100</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 max-w-sm line-clamp-2">
-                    {priorityReason}
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
+                    {data.ticker.replace('.NS', '')}
+                  </h2>
+                  <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 line-clamp-1">
+                    {dossier.name || 'NSE Equities Market'}
+                  </p>
+                  <p className="text-[11px] text-zinc-400">
+                    {f.company_type || 'Industrial / Commercial'}
                   </p>
                 </div>
 
-                {/* Primary Action Buttons */}
-                <div className="flex items-center space-x-3 w-full sm:w-auto">
-                  <button
-                    onClick={() => {
-                      if (onOpenTradeModal) {
-                        onOpenTradeModal(data.ticker, strat.primary_strategy || 'MANUAL_ENTRY');
-                      } else if (onLogPaperTrade) {
-                        onLogPaperTrade({
-                          ticker: data.ticker,
-                          entry_price: currentPrice,
-                          stop_price: stopPrice,
-                          quantity: recommendedShares,
-                          strategy_name: strat.primary_strategy || 'MANUAL_ENTRY',
-                        });
-                      }
-                    }}
-                    className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-pink-600 px-6 py-3 text-xs font-black text-white shadow-xl shadow-rose-500/25 transition-all hover:shadow-rose-500/40 hover:scale-[1.02] active:scale-95"
-                  >
-                    <Briefcase className="h-4 w-4" />
-                    <span>Deploy Paper Trade</span>
-                  </button>
-
-                  <button
-                    onClick={handleGenerateStockDossier}
-                    disabled={aiLoading}
-                    className="flex items-center space-x-2 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.02] dark:bg-white/[0.04] px-4 py-3 text-xs font-bold text-zinc-800 dark:text-zinc-200 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition active:scale-95 disabled:opacity-50"
-                  >
-                    <Sparkles className="h-4 w-4 text-purple-500 animate-pulse" />
-                    <span>{aiLoading ? 'Streaming...' : 'AI Dossier'}</span>
-                  </button>
+                {/* Price Altitude & Live Quote */}
+                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-3">
+                  <div className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
+                    ₹{currentPrice > 0 ? currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '---'}
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs font-bold pt-0.5">
+                    <span className={trend['Dist_50_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                      {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%'] > 0 ? '+' : ''}${trend['Dist_50_DMA_%']}%` : '---'}
+                    </span>
+                    <span className="text-zinc-400">vs 50 DMA</span>
+                  </div>
                 </div>
               </div>
 
-            </div>
-          </div>
+              {/* Vertical 52-Week Altitude Barometer */}
+              <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-zinc-400 uppercase tracking-wider text-[10px]">52-Week Altitude</span>
+                  <span className="text-zinc-800 dark:text-zinc-200 font-mono">{altitudePct.toFixed(0)}%</span>
+                </div>
 
-          {/* =========================================================================
-              3. TACTILE CHAMBER SWITCHER (VIEW MODES)
-             ========================================================================= */}
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: 'ALL', label: '🧭 Unified Dossier' },
-              { id: 'CHART', label: '📈 Price Geometry & Chart' },
-              { id: 'RUNWAY', label: '🛡️ Trade Runway & Friction' },
-              { id: 'SOLVENCY', label: '🏛️ Solvency & 7-Pillars' },
-              { id: 'RADAR_AI', label: '🧠 Radar & AI Intelligence' },
-            ].map((chamber) => (
-              <button
-                key={chamber.id}
-                onClick={() => setActiveChamber(chamber.id)}
-                className={`rounded-2xl px-4 py-2 text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                  activeChamber === chamber.id
-                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md scale-[1.02]'
-                    : 'border border-black/[0.06] dark:border-white/[0.06] bg-white/70 dark:bg-[#0c0d12]/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-              >
-                {chamber.label}
-              </button>
-            ))}
-          </div>
+                <div className="flex items-center space-x-3">
+                  {/* The Vertical Barometer */}
+                  <div className="relative h-32 w-3 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex flex-col justify-end">
+                    <div 
+                      className="w-full bg-gradient-to-t from-blue-500 via-indigo-500 to-rose-500 rounded-full transition-all duration-700"
+                      style={{ height: `${altitudePct}%` }}
+                    />
+                  </div>
 
-          {/* =========================================================================
-              4. CHAMBER: LIVING CHART PAVILION & MULTI-HORIZON ALPHA MATRIX
-             ========================================================================= */}
-          {(activeChamber === 'ALL' || activeChamber === 'CHART') && (
-            <div className="space-y-4">
-              
-              {/* Interactive TradingView Canvas Chart */}
-              <div className="overflow-hidden rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-5 shadow-xl backdrop-blur-2xl">
-                <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <Activity className="h-4 w-4 text-rose-500" />
-                    <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-                      Living Price Geometry & 1-Year Daily OHLCV
+                  {/* Level Markers */}
+                  <div className="flex flex-col justify-between h-32 text-[10px] font-mono text-zinc-400">
+                    <div>
+                      <span className="text-zinc-500">52W High:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearHigh.toFixed(0)}</span>
+                    </div>
+                    <div className="py-1">
+                      <span className="text-blue-500">50 DMA:</span> ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(0) : '---'}
+                    </div>
+                    <div className="py-1">
+                      <span className="text-amber-500">200 DMA:</span> ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(0) : '---'}
+                    </div>
+                    <div>
+                      <span className="text-zinc-500">52W Low:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearLow.toFixed(0)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ratio Speedometer Stack */}
+              <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2.5">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                  TECHNICAL SPEEDOMETERS
+                </span>
+
+                <div className="space-y-2 text-xs font-medium">
+                  {/* RSI */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500">RSI-14 (Momentum):</span>
+                    <span className={`font-mono font-bold ${
+                      (momo.RSI || 50) > 70 ? 'text-rose-600 dark:text-rose-400' :
+                      (momo.RSI || 50) < 30 ? 'text-emerald-600 dark:text-emerald-400' :
+                      'text-zinc-800 dark:text-zinc-200'
+                    }`}>
+                      {momo.RSI != null ? momo.RSI.toFixed(1) : (momo.RSI_14 != null ? momo.RSI_14.toFixed(1) : '54.0')}
                     </span>
                   </div>
 
-                  <div className="flex items-center space-x-3 text-xs font-semibold">
-                    <span className="flex items-center text-blue-600 dark:text-blue-400">
-                      <span className="h-2 w-2 rounded-full bg-blue-500 mr-1.5" /> 50 DMA: ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(1) : '---'}
+                  {/* 50-DMA Slope */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500">50-DMA Velocity:</span>
+                    <span className={`font-mono font-bold ${trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {trend['50_DMA_Slope_5d'] ? `${trend['50_DMA_Slope_5d'] > 0 ? '+' : ''}${trend['50_DMA_Slope_5d'].toFixed(2)}/day` : 'Flat'}
                     </span>
-                    <span className="flex items-center text-amber-600 dark:text-amber-400">
-                      <span className="h-2 w-2 rounded-full bg-amber-500 mr-1.5" /> 200 DMA: ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(1) : '---'}
+                  </div>
+
+                  {/* Daily Volatility (ATR) */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500">ATR-14 Volatility:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                      ₹{t.Volatility_Analysis?.ATR_14 ? t.Volatility_Analysis.ATR_14.toFixed(1) : (currentPrice * 0.02).toFixed(1)}
+                    </span>
+                  </div>
+
+                  {/* Volume Ratio */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-500">Volume Surge:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                      {vol.Volume_Expansion_Ratio ? `${vol.Volume_Expansion_Ratio}x` : '1.0x'}
                     </span>
                   </div>
                 </div>
+              </div>
 
+              {/* Event Gate Countdown */}
+              {data.corporate_radar && (
+                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                    EVENT RADAR GATE
+                  </span>
+                  <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200">
+                        {data.corporate_radar.next_earnings_date || 'No Date Declared'}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-black bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}D` : 'TBD'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 leading-tight">
+                      {data.corporate_radar.event_risk_reason || 'Gate status evaluated for quarterly results.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* ---------------------------------------------------------------------
+                COLUMN 2: THE EXAMINATION THEATER (CENTER CANVAS - 6 COLS)
+               --------------------------------------------------------------------- */}
+            <div className="lg:col-span-6 p-5 sm:p-6 space-y-5">
+              
+              {/* Header Ribbon of Center Canvas */}
+              <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
+                <div className="flex items-center space-x-2">
+                  <Activity className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
+                  <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">
+                    Price Action Geometry & Execution Spectrum
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-3 text-[11px] font-mono">
+                  <span className="text-blue-500">50D: ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(1) : '---'}</span>
+                  <span className="text-amber-500">200D: ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(1) : '---'}</span>
+                </div>
+              </div>
+
+              {/* Seamless Canvas Chart (Integrated directly, no bulky card border) */}
+              <div className="rounded-2xl overflow-hidden border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.01]">
                 <CanvasChart
                   candles={data.chart?.candles || []}
                   dma50={data.chart?.dma_50 || []}
@@ -629,424 +621,321 @@ export default function AppleDeepDiveTab({
                 />
               </div>
 
-              {/* Multi-Horizon Relative Strength Alpha Matrix & Volume Telemetry */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* 1. Relative Strength vs Nifty 50 */}
-                <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-5 shadow-lg backdrop-blur-2xl space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                    <span>ALPHA VS NIFTY 50</span>
-                    <TrendingUp className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-1.5 text-center">
-                    {['1M', '3M', '6M', '1Y'].map((h) => {
-                      const alpha = momo['Relative_Strength_Alpha_%']?.[h];
-                      const isPos = alpha != null && alpha > 0;
-                      return (
-                        <div key={h} className="rounded-2xl border border-black/[0.04] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.03] p-2">
-                          <div className="text-[10px] font-bold text-zinc-400">{h}</div>
-                          <div className={`text-xs font-black ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                            {alpha != null ? `${alpha > 0 ? '+' : ''}${alpha.toFixed(1)}%` : '---'}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-zinc-400 text-center">
-                    {momo['Relative_Strength_Alpha_%']?.['3M'] > 0 ? '🚀 Beating benchmark index' : '⚠️ Lagging broader market'}
-                  </p>
+              {/* The 4-Point Trade Spectrum Ruler */}
+              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                    THE TRADE SPECTRUM (R-MULTIPLE HORIZON)
+                  </span>
+                  <span className="font-mono text-[11px] text-zinc-500">
+                    Setup: {strat.primary_strategy || 'SYSTEM_DEFAULT'}
+                  </span>
                 </div>
 
-                {/* 2. Volume & Accumulation Dynamics */}
-                <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-5 shadow-lg backdrop-blur-2xl space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                    <span>VOLUME DYNAMICS</span>
-                    <BarChart2 className="h-4 w-4 text-blue-500" />
-                  </div>
+                {/* Connecting Track */}
+                <div className="relative pt-2 pb-1">
+                  <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-rose-500 via-blue-500 to-emerald-500 opacity-40" />
 
-                  <div className="space-y-1.5">
-                    <div className="text-sm font-black text-zinc-900 dark:text-zinc-100">
-                      {vol.Volume_Classification || 'Normal Liquidity'}
-                    </div>
-                    <div className="flex justify-between text-xs text-zinc-500 font-semibold">
-                      <span>Expansion Ratio:</span>
-                      <span className="text-zinc-800 dark:text-zinc-200 font-bold">{vol.Volume_Expansion_Ratio ? `${vol.Volume_Expansion_Ratio}x` : '1.0x'}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-zinc-500 font-semibold">
-                      <span>Up/Down Ratio:</span>
-                      <span className="text-zinc-800 dark:text-zinc-200 font-bold">{vol.Up_Down_Volume_Ratio ? `${vol.Up_Down_Volume_Ratio}x` : '1.0x'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Momentum & RSI Oscillator */}
-                <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-5 shadow-lg backdrop-blur-2xl space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                    <span>MOMENTUM OSCILLATOR</span>
-                    <Zap className="h-4 w-4 text-amber-500" />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-2xl font-black text-zinc-900 dark:text-white">
-                        {momo.RSI != null ? momo.RSI.toFixed(1) : (momo.RSI_14 != null ? momo.RSI_14.toFixed(1) : '54.0')}
-                      </span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        (momo.RSI || 50) > 70 ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' :
-                        (momo.RSI || 50) < 30 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
-                        'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                      }`}>
-                        {(momo.RSI || 50) > 70 ? 'Overbought' : (momo.RSI || 50) < 30 ? 'Oversold Reversal' : 'Neutral Momentum'}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-black/[0.05] dark:bg-white/[0.08] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-emerald-500 via-blue-500 to-rose-500" 
-                        style={{ width: `${Math.min(100, Math.max(0, momo.RSI || 54))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. Moving Average Geometry */}
-                <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-5 shadow-lg backdrop-blur-2xl space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                    <span>TREND GEOMETRY</span>
-                    <Compass className="h-4 w-4 text-purple-500" />
-                  </div>
-
-                  <div className="space-y-1 text-xs font-semibold text-zinc-500">
-                    <div className="flex justify-between">
-                      <span>50 DMA Slope:</span>
-                      <span className={trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                        {trend['50_DMA_Slope_5d'] ? `${trend['50_DMA_Slope_5d'] > 0 ? '+' : ''}${trend['50_DMA_Slope_5d'].toFixed(2)}` : 'Flat'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Distance vs 50D:</span>
-                      <span className={trend['Dist_50_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                        {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%']}%` : '---'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Distance vs 200D:</span>
-                      <span className={trend['Dist_200_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                        {trend['Dist_200_DMA_%'] != null ? `${trend['Dist_200_DMA_%']}%` : '---'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              5. CHAMBER: THE TACTILE TRADE RUNWAY & STATUTORY FRICTION STUDIO
-             ========================================================================= */}
-          {(activeChamber === 'ALL' || activeChamber === 'RUNWAY') && (
-            <div className="space-y-6">
-              
-              {/* Sovereign 4-Point Trade Runway Card */}
-              <div className="overflow-hidden rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/80 dark:bg-[#0c0d12]/90 p-6 sm:p-8 shadow-xl backdrop-blur-3xl space-y-6">
-                
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
-                  <div className="flex items-center space-x-2">
-                    <Target className="h-5 w-5 text-rose-500" />
-                    <div>
-                      <h3 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                        Algorithmic Execution Runway & Target Spectrum
-                      </h3>
-                      <p className="text-xs text-zinc-500">
-                        Setup: {strat.primary_strategy || 'SYSTEM_DEFAULT'} · Asymmetric R-Multiples
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-zinc-400">ATR-14 Volatility Buffer:</span>
-                    <span className="rounded-xl bg-black/[0.04] dark:bg-white/[0.06] px-2.5 py-1 text-xs font-black text-zinc-800 dark:text-zinc-200">
-                      ₹{t.Volatility_Analysis?.ATR_14 ? t.Volatility_Analysis.ATR_14.toFixed(1) : (currentPrice * 0.02).toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* The 4-Way Flight Strip Visual Runway */}
-                <div className="relative pt-6 pb-4">
-                  {/* Connecting Gradient Track */}
-                  <div className="absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-rose-500 via-blue-500 to-emerald-500 opacity-30 dark:opacity-40" />
-
-                  <div className="relative grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="relative grid grid-cols-4 gap-2 text-center">
                     
-                    {/* Node 1: Protective Stop */}
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 backdrop-blur-xl space-y-1">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
-                        🛑 Stop Loss (1R)
-                      </div>
-                      <div className="text-xl font-black text-rose-600 dark:text-rose-400">
-                        ₹{stopPrice.toFixed(2)}
-                      </div>
-                      <div className="text-[11px] font-bold text-rose-600/80">
-                        -{stopLossPct.toFixed(2)}% Distance
-                      </div>
+                    {/* 1. Stop */}
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-rose-500/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">STOP (1R)</div>
+                      <div className="text-xs font-black text-rose-600 dark:text-rose-400 font-mono">₹{stopPrice.toFixed(1)}</div>
+                      <div className="text-[10px] text-zinc-400">-{stopLossPct.toFixed(1)}%</div>
                     </div>
 
-                    {/* Node 2: Entry Price */}
-                    <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 backdrop-blur-xl space-y-1">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                        🎯 Proposed Entry
-                      </div>
-                      <div className="text-xl font-black text-blue-600 dark:text-blue-400">
-                        ₹{currentPrice.toFixed(2)}
-                      </div>
-                      <div className="text-[11px] font-bold text-blue-600/80">
-                        Market Baseline
-                      </div>
+                    {/* 2. Entry */}
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-blue-500/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">ENTRY</div>
+                      <div className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono">₹{currentPrice.toFixed(1)}</div>
+                      <div className="text-[10px] text-zinc-400">Market</div>
                     </div>
 
-                    {/* Node 3: Target 1 (2R) */}
-                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 backdrop-blur-xl space-y-1">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                        🚀 Target 1 (2R Scale-Out)
-                      </div>
-                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-                        ₹{target1.toFixed(2)}
-                      </div>
-                      <div className="text-[11px] font-bold text-emerald-600/80">
-                        +{target1Pct.toFixed(2)}% (+{riskReward1}R)
-                      </div>
+                    {/* 3. Target 1 */}
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-emerald-500/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">T1 (2R)</div>
+                      <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">₹{target1.toFixed(1)}</div>
+                      <div className="text-[10px] text-emerald-600/80">+{target1Pct.toFixed(1)}%</div>
                     </div>
 
-                    {/* Node 4: Target 2 (3R) */}
-                    <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 backdrop-blur-xl space-y-1">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
-                        ✨ Target 2 (3R Runner)
-                      </div>
-                      <div className="text-xl font-black text-purple-600 dark:text-purple-400">
-                        ₹{target2.toFixed(2)}
-                      </div>
-                      <div className="text-[11px] font-bold text-purple-600/80">
-                        +{target2Pct.toFixed(2)}% (+{riskReward2}R)
-                      </div>
+                    {/* 4. Target 2 */}
+                    <div className="bg-white dark:bg-black/60 rounded-xl p-2 border border-purple-500/30">
+                      <div className="text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">T2 (3R)</div>
+                      <div className="text-xs font-black text-purple-600 dark:text-purple-400 font-mono">₹{target2.toFixed(1)}</div>
+                      <div className="text-[10px] text-purple-600/80">+{target2Pct.toFixed(1)}%</div>
                     </div>
 
                   </div>
                 </div>
-
-                {/* Sizing & Statutory Friction Itemizer */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-black/[0.06] dark:border-white/[0.06] pt-6">
-                  
-                  {/* Left: Position Sizing Studio */}
-                  <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2.5">
-                    <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                      <span>CAPITAL SIZING MODEL (1% RISK ON ₹10,00,000)</span>
-                      <Scale className="h-4 w-4 text-zinc-400" />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-xl bg-white dark:bg-black/30 p-2.5 border border-black/[0.04] dark:border-white/[0.06]">
-                        <div className="text-[10px] font-bold text-zinc-400">SHARES</div>
-                        <div className="text-sm font-black text-zinc-900 dark:text-white">{recommendedShares} qty</div>
-                      </div>
-                      <div className="rounded-xl bg-white dark:bg-black/30 p-2.5 border border-black/[0.04] dark:border-white/[0.06]">
-                        <div className="text-[10px] font-bold text-zinc-400">CAPITAL NEEDED</div>
-                        <div className="text-sm font-black text-zinc-900 dark:text-white">₹{positionCapital.toLocaleString('en-IN')}</div>
-                      </div>
-                      <div className="rounded-xl bg-white dark:bg-black/30 p-2.5 border border-black/[0.04] dark:border-white/[0.06]">
-                        <div className="text-[10px] font-bold text-zinc-400">NET RISK AT STOP</div>
-                        <div className="text-sm font-black text-rose-600 dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Statutory Fee Breakdown */}
-                  <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                      <span>ESTIMATED STATUTORY FRICTION (ROUND TRIP)</span>
-                      <span className="text-zinc-800 dark:text-zinc-200 font-black">₹{estTotalCharges} total</span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-1 text-[11px] text-zinc-500">
-                      <div>STT: <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estSTT}</span></div>
-                      <div>Stamp: <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estStampDuty}</span></div>
-                      <div>Exchange: <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estExchange}</span></div>
-                      <div>GST: <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estGST}</span></div>
-                    </div>
-
-                    <p className="text-[10px] text-zinc-400 pt-1">
-                      Includes 0.1% STT on delivery turnover, exchange turnover fee, SEBI charges, stamp duty & 18% GST.
-                    </p>
-                  </div>
-
-                </div>
-
               </div>
 
-              {/* Institutional Portfolio Risk Bridge */}
-              <PortfolioRiskBridgeCard
-                portfolioImpact={portfolioImpact}
-                loading={loadingImpact}
-                onOpenTradeModal={onOpenTradeModal}
-              />
+              {/* Multi-Horizon Relative Strength Alpha Matrix vs Nifty 50 */}
+              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">BENCHMARK RELATIVE STRENGTH ALPHA (VS NIFTY 50)</span>
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {['1M', '3M', '6M', '1Y'].map((h) => {
+                    const alpha = momo['Relative_Strength_Alpha_%']?.[h];
+                    const isPos = alpha != null && alpha > 0;
+                    return (
+                      <div key={h} className="rounded-xl bg-white dark:bg-black/40 border border-black/[0.04] dark:border-white/[0.06] p-2">
+                        <div className="text-[10px] font-mono text-zinc-400">{h} ALPHA</div>
+                        <div className={`text-xs font-black font-mono ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {alpha != null ? `${alpha > 0 ? '+' : ''}${alpha.toFixed(1)}%` : '---'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Strategy Rules Pass/Fail Checklist */}
-              <div className="overflow-hidden rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/70 dark:bg-[#0c0d12]/80 p-6 shadow-xl backdrop-blur-2xl">
+              <div className="pt-1">
                 <RuleChecklist rules={data.rule_breakdown || []} />
               </div>
 
             </div>
-          )}
 
-          {/* =========================================================================
-              6. CHAMBER: BALANCE SHEET & SOLVENCY 7-PILLARS VAULT
-             ========================================================================= */}
-          {(activeChamber === 'ALL' || activeChamber === 'SOLVENCY') && (
-            <div className="space-y-6">
+            {/* ---------------------------------------------------------------------
+                COLUMN 3: THE PHYSICAL TRADING TICKET & SOLVENCY LEDGER (3 COLS)
+               --------------------------------------------------------------------- */}
+            <div className="lg:col-span-3 p-5 sm:p-6 space-y-6 bg-black/[0.01] dark:bg-white/[0.01]">
               
-              {/* 7-Pillars Card Header */}
-              <div className="overflow-hidden rounded-3xl border border-black/[0.08] dark:border-white/[0.08] bg-white/80 dark:bg-[#0c0d12]/90 p-6 sm:p-8 shadow-xl backdrop-blur-3xl space-y-6">
+              {/* THE AUTHENTIC PHYSICAL TRADING TICKET */}
+              <div className="relative rounded-2xl border-2 border-dashed border-zinc-400/40 dark:border-zinc-700/60 bg-white dark:bg-black/80 p-5 shadow-xl space-y-4">
                 
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
-                  <div className="flex items-center space-x-3">
-                    <Building className="h-6 w-6 text-blue-500" />
-                    <div>
-                      <h3 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                        Financial Health & Solvency Fortress (7 Pillars)
-                      </h3>
-                      <p className="text-xs text-zinc-500">
-                        Fundamental Quality Score: {f.fundamental_score || 0}/100 · Completeness: {f.data_completeness || 90}%
-                      </p>
-                    </div>
+                {/* Perforated Ticket Header */}
+                <div className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-3 text-zinc-800 dark:text-zinc-200">
+                  <div className="flex items-center space-x-2">
+                    <Receipt className="h-4 w-4 text-rose-500" />
+                    <span className="text-xs font-mono font-black tracking-wider uppercase">
+                      EXCHANGE TICKET
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    VOUCHER #{data.ticker.replace('.NS', '').slice(0, 4)}
+                  </span>
+                </div>
+
+                {/* Sizing Slip Calculation */}
+                <div className="space-y-2 text-xs font-medium">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Order Action:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">DELIVERY BUY</span>
                   </div>
 
-                  {/* Valuation Median Callout Pill */}
-                  <div className="flex items-center space-x-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                    <span>Valuation: {val.category || 'Fair'}</span>
-                    <span>· Current P/E: {val.pe ? `${val.pe}x` : 'N/A'}</span>
-                    {val.historical_pe_median_5y && (
-                      <span className="text-[11px] text-zinc-400">({val.historical_pe_median_5y}x 5Y Median)</span>
-                    )}
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Calculated Shares:</span>
+                    <span className="font-mono font-black text-zinc-900 dark:text-white">{recommendedShares} QTY</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Total Capital:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">₹{positionCapital.toLocaleString('en-IN')}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Risk at Stop:</span>
+                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')} (1%)</span>
                   </div>
                 </div>
 
-                {/* 7 Pillars Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.entries(comps).map(([name, comp]) => {
+                {/* Statutory Friction Tear-Off */}
+                <div className="border-t border-dashed border-black/10 dark:border-white/10 pt-3 space-y-1.5 text-[11px]">
+                  <div className="flex justify-between font-mono text-zinc-400">
+                    <span>Friction (Round Trip):</span>
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">₹{estTotalCharges}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-zinc-400 font-mono">
+                    <div>STT: ₹{estSTT}</div>
+                    <div>Exchange: ₹{estExchange}</div>
+                    <div>Stamp: ₹{estStampDuty}</div>
+                    <div>GST: ₹{estGST}</div>
+                  </div>
+                </div>
+
+                {/* Tactile Stamp & Deploy Button */}
+                <button
+                  onClick={() => {
+                    if (onOpenTradeModal) {
+                      onOpenTradeModal(data.ticker, strat.primary_strategy || 'MANUAL_ENTRY');
+                    } else if (onLogPaperTrade) {
+                      onLogPaperTrade({
+                        ticker: data.ticker,
+                        entry_price: currentPrice,
+                        stop_price: stopPrice,
+                        quantity: recommendedShares,
+                        strategy_name: strat.primary_strategy || 'MANUAL_ENTRY',
+                      });
+                    }
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 text-xs font-black uppercase tracking-wider shadow-lg transition hover:opacity-90 active:scale-95"
+                >
+                  <Briefcase className="h-4 w-4" />
+                  <span>Execute Paper Order</span>
+                </button>
+              </div>
+
+              {/* 7-PILLARS SOLVENCY LEDGER */}
+              <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                    7-PILLARS AUDIT LEDGER
+                  </span>
+                  <span className="text-xs font-black font-mono text-zinc-900 dark:text-white">
+                    {f.fundamental_score || 0}/100
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {Object.entries(comps).slice(0, 5).map(([name, comp]) => {
                     const score = comp.score != null ? comp.score : 70;
                     return (
-                      <div 
-                        key={name}
-                        className="rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-zinc-800 dark:text-zinc-200">{name}</span>
-                          <span className={`font-black px-2 py-0.5 rounded-full ${
-                            score >= 75 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
-                            score >= 50 ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
-                            'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                      <div key={name} className="space-y-1">
+                        <div className="flex justify-between text-[11px] font-medium">
+                          <span className="text-zinc-600 dark:text-zinc-400">{name}</span>
+                          <span className={`font-mono font-bold ${
+                            score >= 75 ? 'text-emerald-600 dark:text-emerald-400' :
+                            score >= 50 ? 'text-blue-600 dark:text-blue-400' :
+                            'text-rose-600 dark:text-rose-400'
                           }`}>
-                            {score}/100
+                            {score}
                           </span>
                         </div>
-
-                        {/* Progress Meter */}
-                        <div className="h-1.5 w-full bg-black/[0.05] dark:bg-white/[0.08] rounded-full overflow-hidden">
+                        <div className="h-1 w-full bg-black/[0.06] dark:bg-white/[0.08] rounded-full overflow-hidden">
                           <div 
-                            className={`h-full ${
-                              score >= 75 ? 'bg-emerald-500' : score >= 50 ? 'bg-blue-500' : 'bg-rose-500'
-                            }`}
+                            className={`h-full ${score >= 75 ? 'bg-emerald-500' : score >= 50 ? 'bg-blue-500' : 'bg-rose-500'}`}
                             style={{ width: `${score}%` }}
                           />
                         </div>
-
-                        <p className="text-[11px] text-zinc-500 leading-relaxed">
-                          {comp.assessment || 'Meets institutional quality thresholds.'}
-                        </p>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Business Advantages vs Red Flags Columns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-black/[0.06] dark:border-white/[0.06]">
-                  
-                  {/* Green Advantages */}
-                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-3">
-                    <div className="flex items-center space-x-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>Business Strengths & Competitive Moat</span>
-                    </div>
-
-                    <ul className="space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      {f.positives && f.positives.length > 0 ? (
-                        f.positives.map((pos, i) => (
-                          <li key={i} className="flex items-start space-x-2">
-                            <span className="mt-0.5 font-black text-emerald-500">•</span>
-                            <span>{pos}</span>
-                          </li>
-                        ))
-                      ) : (
-                        <li className="text-zinc-500 italic">No exceptional business moat flagged.</li>
-                      )}
-                    </ul>
+                {/* Valuation vs Median Band */}
+                <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-2.5 text-[11px] font-medium space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">P/E Multiple:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">{val.pe ? `${val.pe}x` : 'N/A'}</span>
                   </div>
-
-                  {/* Red Flags & Risks */}
-                  <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 space-y-3">
-                    <div className="flex items-center space-x-2 text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Warning Signs & Critical Red Flags</span>
-                    </div>
-
-                    <ul className="space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      {f.red_flags && f.red_flags.length > 0 ? (
-                        f.red_flags.map((flag, i) => (
-                          <li key={i} className="flex items-start space-x-2">
-                            <span className="mt-0.5 font-black text-rose-500">•</span>
-                            <span>
-                              <strong className="text-zinc-900 dark:text-zinc-100">[{flag.severity}] {flag.name}:</strong> {flag.explanation}
-                            </span>
-                          </li>
-                        ))
-                      ) : (
-                        <li className="text-zinc-500 italic">Clean record. Zero critical red flags identified.</li>
-                      )}
-                    </ul>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">5Y Historical Median:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">{val.historical_pe_median_5y ? `${val.historical_pe_median_5y}x` : 'N/A'}</span>
                   </div>
+                </div>
+              </div>
 
+              {/* FORENSIC EVIDENCE LOG (STRENGTHS VS WARNING SIGNS) */}
+              <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                  FORENSIC EVIDENCE LOG
+                </span>
+
+                {/* Strengths */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                    Verified Drivers
+                  </div>
+                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                    {f.positives && f.positives.length > 0 ? (
+                      f.positives.slice(0, 2).map((pos, idx) => (
+                        <li key={idx} className="flex items-start space-x-1.5 text-[11px]">
+                          <span className="text-emerald-500 font-bold">•</span>
+                          <span className="line-clamp-2">{pos}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-[11px] text-zinc-400">No notable moat flagged.</li>
+                    )}
+                  </ul>
+                </div>
+
+                {/* Vulnerabilities */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                    Audit Red Flags
+                  </div>
+                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                    {f.red_flags && f.red_flags.length > 0 ? (
+                      f.red_flags.slice(0, 2).map((flag, idx) => (
+                        <li key={idx} className="flex items-start space-x-1.5 text-[11px]">
+                          <span className="text-rose-500 font-bold">•</span>
+                          <span className="line-clamp-2">
+                            <strong>[{flag.severity}]</strong> {flag.explanation}
+                          </span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-[11px] text-zinc-400">Zero critical red flags found.</li>
+                    )}
+                  </ul>
                 </div>
 
               </div>
+
             </div>
-          )}
+
+          </div>
 
           {/* =========================================================================
-              7. CHAMBER: CORPORATE EVENT RADAR & STREAMING AI DOSSIER
+              BOTTOM BAY: STREAMING AI INTELLIGENCE & EVENT RADAR
              ========================================================================= */}
-          {(activeChamber === 'ALL' || activeChamber === 'RADAR_AI') && (
-            <div className="space-y-6">
-              
-              {/* Institutional Corporate Radar */}
-              {data && data.corporate_radar && (
-                <CorporateRadarCard radar={data.corporate_radar} />
-              )}
+          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl p-5 sm:p-6 shadow-xl space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">
+                  Investigative Intelligence Lab & Corporate Disclosures
+                </span>
+              </div>
 
-              {/* Streaming Gemini / Qwen AI Research Dossier */}
-              <AIDossierCard
-                ticker={data.ticker}
-                aiDossier={data.ai_dossier}
-                candidateData={data.dossier || data}
-                loading={aiLoading}
-                streamingText={aiStreamingText}
-                onGenerateDossier={handleGenerateStockDossier}
-                onCancel={handleCancelDossier}
-                diagnostics={data.ai_dossier?.diagnostics || aiDiagnostics}
-                errorMessage={aiError}
-              />
-
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleGenerateStockDossier}
+                  disabled={aiLoading}
+                  className="flex items-center space-x-1.5 rounded-xl bg-purple-600 text-white px-3 py-1.5 text-xs font-bold hover:bg-purple-700 transition disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>{aiLoading ? 'Streaming...' : 'Run Qualitative AI Audit'}</span>
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* AI Dossier Card Embed */}
+            <AIDossierCard
+              ticker={data.ticker}
+              aiDossier={data.ai_dossier}
+              candidateData={data.dossier || data}
+              loading={aiLoading}
+              streamingText={aiStreamingText}
+              onGenerateDossier={handleGenerateStockDossier}
+              onCancel={handleCancelDossier}
+              diagnostics={data.ai_dossier?.diagnostics || aiDiagnostics}
+              errorMessage={aiError}
+            />
+
+            {/* Corporate Radar Embed if present */}
+            {data.corporate_radar && (
+              <div className="pt-2">
+                <CorporateRadarCard radar={data.corporate_radar} />
+              </div>
+            )}
+
+            {/* Portfolio Risk Bridge */}
+            <PortfolioRiskBridgeCard
+              portfolioImpact={portfolioImpact}
+              loading={loadingImpact}
+              onOpenTradeModal={onOpenTradeModal}
+            />
+
+          </div>
 
         </div>
       )}
