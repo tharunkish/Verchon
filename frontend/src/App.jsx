@@ -6,7 +6,8 @@ import BackgroundAura from './components/BackgroundAura';
 import SettingsModal from './components/SettingsModal';
 import TerminalScannerTab from './tabs/terminal/TerminalScannerTab';
 import AppleScannerTab from './tabs/apple/AppleScannerTab';
-import PortfolioTab from './tabs/PortfolioTab';
+import TerminalPortfolioTab from './tabs/terminal/TerminalPortfolioTab';
+import ApplePortfolioTab from './tabs/apple/ApplePortfolioTab';
 import DeepDiveTab from './tabs/DeepDiveTab';
 import NewsTab from './tabs/NewsTab';
 import OrderExecutionModal from './components/OrderExecutionModal';
@@ -596,22 +597,39 @@ export default function App() {
           )
         )}
 
-        {/* Portfolio Tab */}
+        {/* Portfolio Tab: Exact Classic Monospace Terminal or Humane Apple Portfolio Atelier */}
         {activeTab === 'portfolio' && (
-          <PortfolioTab
-            positions={paperPositions}
-            account={paperAccount}
-            onAddPosition={handleAddPaperPosition}
-            onClosePosition={handleClosePaperPosition}
-            onUpdateStop={handleUpdateStop}
-            onUpdateAccount={handleUpdateAccount}
-            onResetAccount={handleResetAccount}
-            onRefreshQuotes={() => {
-              fetchPaperPositions();
-              fetchPaperAccount();
-            }}
-            candidates={candidates}
-          />
+          isTerminal ? (
+            <TerminalPortfolioTab
+              positions={paperPositions}
+              account={paperAccount}
+              onAddPosition={handleAddPaperPosition}
+              onClosePosition={handleClosePaperPosition}
+              onUpdateStop={handleUpdateStop}
+              onUpdateAccount={handleUpdateAccount}
+              onResetAccount={handleResetAccount}
+              onRefreshQuotes={() => {
+                fetchPaperPositions();
+                fetchPaperAccount();
+              }}
+              candidates={candidates}
+            />
+          ) : (
+            <ApplePortfolioTab
+              positions={paperPositions}
+              account={paperAccount}
+              onAddPosition={handleAddPaperPosition}
+              onClosePosition={handleClosePaperPosition}
+              onUpdateStop={handleUpdateStop}
+              onUpdateAccount={handleUpdateAccount}
+              onResetAccount={handleResetAccount}
+              onRefreshQuotes={() => {
+                fetchPaperPositions();
+                fetchPaperAccount();
+              }}
+              candidates={candidates}
+            />
+          )
         )}
 
         {/* Deep Dive Tab */}
