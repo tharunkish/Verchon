@@ -11,6 +11,7 @@ import ApplePortfolioTab from './tabs/apple/ApplePortfolioTab';
 import TerminalDeepDiveTab from './tabs/terminal/TerminalDeepDiveTab';
 import AppleDeepDiveTab from './tabs/apple/AppleDeepDiveTab';
 import NewsTab from './tabs/NewsTab';
+import AppleNewsTab from './tabs/apple/AppleNewsTab';
 import OrderExecutionModal from './components/OrderExecutionModal';
 import SystemRestartModal from './components/SystemRestartModal';
 import { useToast } from './components/Toast';
@@ -660,12 +661,21 @@ export default function App() {
 
         {/* Corporate News & Events Radar Tab */}
         {activeTab === 'news' && (
-          <NewsTab
-            onSelectStock={(ticker) => {
-              setSelectedTicker(ticker);
-              setActiveTab('deepdive');
-            }}
-          />
+          isTerminal ? (
+            <NewsTab
+              onSelectStock={(ticker) => {
+                setSelectedTicker(ticker);
+                setActiveTab('deepdive');
+              }}
+            />
+          ) : (
+            <AppleNewsTab
+              onSelectStock={(ticker) => {
+                setSelectedTicker(ticker);
+                setActiveTab('deepdive');
+              }}
+            />
+          )
         )}
       </main>
 

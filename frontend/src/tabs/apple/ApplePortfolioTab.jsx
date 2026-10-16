@@ -759,7 +759,7 @@ export default function ApplePortfolioTab({
                   <th className="py-2.5 px-3">STATUTORY FEES</th>
                   <th className="py-2.5 px-3">NET P&L</th>
                   <th className="py-2.5 px-3">R-MULTIPLE</th>
-                  <th className="py-2.5 px-3">EXIT REASON</th>
+                  <th className="py-2.5 px-3 pr-6">EXIT REASON</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.05] font-mono">
@@ -783,7 +783,7 @@ export default function ApplePortfolioTab({
                       <td className={`py-3 px-3 font-semibold ${rMult >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {rMult >= 0 ? '+' : ''}{rMult}R
                       </td>
-                      <td className="py-3 px-3 text-zinc-500 text-[11px]">{cp.exit_reason}</td>
+                      <td className="py-3 px-3 pr-6 text-zinc-500 text-[11px]">{cp.exit_reason}</td>
                     </tr>
                   );
                 })}
