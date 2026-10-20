@@ -2,38 +2,47 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Apple Light Mode Palette */
-  --bg-canvas: #f5f5f7;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #ffffff;
-  --bg-subtle: #e5e5ea;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #86868b;
-  --accent-blue: #0071e3;
-  --accent-green: #34c759;
-  --accent-rose: #ff3b30;
-  --accent-amber: #ff9500;
+  /* Warm Beige Editorial Light Mode Palette (from swatch) */
+  --bg-canvas: #edd9cc;
+  --bg-surface: #f7ede5;
+  --bg-surface-elevated: #fcf8f5;
+  --bg-surface-inset: #e7d5c7;
+  --bg-subtle: #e2cebf;
+  --border-subtle: #b8a597;
+  --border-strong: #806350;
+  --text-primary: #2d1f17;
+  --text-secondary: #806350;
+  --text-tertiary: #a18b7c;
+  --accent-beige: #edd9cc;
+  --accent-khaki: #b8a597;
+  --accent-coyote: #806350;
+  --accent-crimson: #b20808;
+  --accent-darkred: #8b0909;
+  --accent-green: #2d6a4f;
+  --accent-rose: #b20808;
+  --accent-amber: #b45309;
   color-scheme: light;
 }
 
 .dark {
-  /* Refined Institutional Dark Palette */
-  --bg-canvas: #090d16;
-  --bg-surface: #0f1626;
-  --bg-surface-elevated: #141e33;
-  --bg-subtle: rgba(255, 255, 255, 0.04);
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-tertiary: #64748b;
-  --accent-blue: #38bdf8;
-  --accent-green: #10b981;
-  --accent-rose: #f43f5e;
-  --accent-amber: #f59e0b;
+  /* Authentic Apple Slate Navy Dark Mode - Clean, Flat, Razor Sharp */
+  --bg-canvas: #161b22;
+  --bg-surface: #1c232d;
+  --bg-surface-elevated: #242c38;
+  --bg-surface-inset: #13171e;
+  --bg-subtle: rgba(54, 60, 68, 0.45);
+  --border-subtle: #2d3642;
+  --border-strong: #3d4756;
+  --text-primary: #e0d1b9;
+  --text-secondary: #958a7a;
+  --text-tertiary: #6d7582;
+  --accent-linen: #e0d1b9;
+  --accent-taupe: #958a7a;
+  --accent-slate: #363c44;
+  --accent-blue: #60a5fa;
+  --accent-green: #4ade80;
+  --accent-rose: #f87171;
+  --accent-amber: #fbbf24;
   color-scheme: dark;
 }
 
@@ -50,8 +59,8 @@ body {
 }
 
 ::selection {
-  background-color: rgba(0, 113, 227, 0.25);
-  color: inherit;
+  background-color: rgba(224, 209, 185, 0.25);
+  color: #e0d1b9;
 }
 
 /* Apple-style minimalist scrollbars */
@@ -63,17 +72,103 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(120, 120, 128, 0.3);
+  background: rgba(149, 138, 122, 0.3);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 120, 128, 0.5);
+  background: rgba(149, 138, 122, 0.5);
 }
 
 /* Tabular figures for financial numbers & prices */
 .tabular-nums, .font-mono-num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* =========================================================================
+   APPLE GLASSMORPHISM & SPECULAR LIGHT UTILITIES
+   ========================================================================= */
+
+/* Apple-grade frosted glass container */
+.apple-glass {
+  background: rgba(247, 237, 229, 0.88);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid #b8a597;
+  box-shadow: 0 8px 32px 0 rgba(128, 99, 80, 0.08), 0 1px 2px 0 rgba(128, 99, 80, 0.04);
+}
+
+.dark .apple-glass {
+  background: rgba(34, 43, 55, 0.9);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid #363c44;
+  box-shadow: 0 16px 40px -8px rgba(15, 20, 26, 0.6), inset 0 1px 0 0 rgba(224, 209, 185, 0.06);
+}
+
+/* Elevated glass card with specular rim highlight */
+.apple-card-elevated {
+  position: relative;
+  background: #f7ede5;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #b8a597;
+  box-shadow: 0 10px 30px -10px rgba(128, 99, 80, 0.12), 0 2px 6px -1px rgba(128, 99, 80, 0.04);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.dark .apple-card-elevated {
+  background: #222b37;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #363c44;
+  box-shadow: 0 14px 35px -12px rgba(15, 20, 26, 0.55), inset 0 1px 0 0 rgba(224, 209, 185, 0.06);
+}
+
+.apple-card-elevated:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -10px rgba(128, 99, 80, 0.18), 0 4px 10px -2px rgba(128, 99, 80, 0.06);
+  border-color: #806350;
+}
+
+.dark .apple-card-elevated:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 48px -12px rgba(15, 20, 26, 0.7), inset 0 1px 0 0 rgba(224, 209, 185, 0.12);
+  border-color: #4a5360;
+}
+
+/* Tactile Floating Dock */
+.apple-dock {
+  background: rgba(247, 237, 229, 0.85);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid #b8a597;
+  box-shadow: 0 12px 36px -8px rgba(128, 99, 80, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+.dark .apple-dock {
+  background: rgba(28, 35, 45, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid #363c44;
+  box-shadow: 0 14px 40px -10px rgba(15, 20, 26, 0.6), inset 0 1px 0 0 rgba(224, 209, 185, 0.08);
+}
+
+/* Ambient Radial Mesh Glows - Softened, warm architectural light */
+.ambient-glow-emerald {
+  background: radial-gradient(circle at 85% 15%, rgba(74, 222, 128, 0.08) 0%, rgba(74, 222, 128, 0.01) 50%, transparent 75%);
+}
+
+.ambient-glow-rose {
+  background: radial-gradient(circle at 85% 15%, rgba(248, 113, 113, 0.08) 0%, rgba(248, 113, 113, 0.01) 50%, transparent 75%);
+}
+
+.ambient-glow-amber {
+  background: radial-gradient(circle at 85% 15%, rgba(224, 209, 185, 0.08) 0%, rgba(224, 209, 185, 0.01) 50%, transparent 75%);
+}
+
+.ambient-glow-blue {
+  background: radial-gradient(circle at 85% 15%, rgba(54, 60, 68, 0.16) 0%, rgba(28, 35, 45, 0.02) 50%, transparent 75%);
 }
 
 /* Smooth Hardware-Accelerated Ambient Animations */

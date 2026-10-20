@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { 
   Play, 
@@ -12,18 +13,17 @@ import {
   SlidersHorizontal,
   ArrowUpRight,
   ArrowDownRight,
-  Maximize2,
   Compass,
   CheckCircle2,
   Layers,
-  Globe,
   Activity,
   BarChart2,
   TrendingUp,
   Info,
   Scale,
   Zap,
-  Target
+  Target,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function AppleScannerTab({
@@ -113,28 +113,28 @@ export default function AppleScannerTab({
     if (currentPct === 0) {
       return {
         type: 'NEW_SECTOR',
-        label: `🌱 New Sector: ${secName} (0% in Portfolio)`,
-        shortLabel: `🌱 New Sector (0%)`,
-        badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-        dot: 'bg-emerald-500',
+        label: `New Sector: ${secName} (0% in Portfolio)`,
+        shortLabel: `New Sector (0%)`,
+        badge: 'border-emerald-600/30 bg-emerald-600/10 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400',
+        dot: 'bg-emerald-600 dark:bg-emerald-400',
         bonus: 35,
       };
     } else if (currentPct < 15) {
       return {
         type: 'BALANCED',
-        label: `🔵 Balances: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
-        shortLabel: `🔵 Balanced (${currentPct.toFixed(0)}%)`,
-        badge: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',
-        dot: 'bg-blue-500',
+        label: `Balanced: ${secName} (${currentPct.toFixed(1)}%)`,
+        shortLabel: `Balanced (${currentPct.toFixed(0)}%)`,
+        badge: 'border-blue-600/30 bg-blue-600/10 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-400',
+        dot: 'bg-blue-600 dark:bg-blue-400',
         bonus: 15,
       };
     } else if (currentPct > 25) {
       return {
         type: 'OVERWEIGHT',
-        label: `⚠️ Overweight: ${secName} (${currentPct.toFixed(1)}% in Portfolio)`,
-        shortLabel: `⚠️ Overweight (${currentPct.toFixed(0)}%)`,
-        badge: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-        dot: 'bg-amber-500',
+        label: `Overweight: ${secName} (${currentPct.toFixed(1)}%)`,
+        shortLabel: `Overweight (${currentPct.toFixed(0)}%)`,
+        badge: 'border-[#b20808]/30 bg-[#b20808]/10 text-[#8b0909] dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400',
+        dot: 'bg-[#b20808] dark:bg-amber-400',
         bonus: -30,
       };
     }
@@ -142,8 +142,8 @@ export default function AppleScannerTab({
       type: 'NEUTRAL',
       label: `${secName} (${currentPct.toFixed(1)}%)`,
       shortLabel: `${secName}`,
-      badge: 'border-black/[0.08] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400',
-      dot: 'bg-zinc-400',
+      badge: 'border-[#b8a597] bg-[#edd9cc] text-[#806350] dark:border-[#363c44] dark:bg-[#1c232d] dark:text-[#958a7a]',
+      dot: 'bg-[#806350] dark:bg-[#958a7a]',
       bonus: 0,
     };
   };
@@ -205,7 +205,7 @@ export default function AppleScannerTab({
     }
   }, [filteredCandidates, selectedTicker]);
 
-  // Active specimen for the Stage
+  // Active candidate for the Overview
   const activeCandidate = useMemo(() => {
     return filteredCandidates.find((c) => c.ticker === selectedTicker) || filteredCandidates[0] || null;
   }, [filteredCandidates, selectedTicker]);
@@ -221,15 +221,40 @@ export default function AppleScannerTab({
   const getPriorityMood = (priority) => {
     switch (priority) {
       case 'SIGNAL TRIGGERED':
-        return { label: 'Actionable Setup', dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', badge: 'bg-emerald-500/10 border-emerald-500/20' };
+        return { 
+          label: 'Actionable Setup', 
+          dot: 'bg-[#2d6a4f] dark:bg-emerald-400', 
+          text: 'text-[#2d6a4f] dark:text-emerald-400', 
+          badge: 'bg-[#2d6a4f]/10 dark:bg-emerald-500/10 border-[#2d6a4f]/30 dark:border-emerald-500/30' 
+        };
       case 'HIGH PRIORITY':
-        return { label: 'High Priority', dot: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-400', badge: 'bg-blue-500/10 border-blue-500/20' };
+        return { 
+          label: 'High Priority', 
+          dot: 'bg-[#806350] dark:bg-[#e0d1b9]', 
+          text: 'text-[#806350] dark:text-[#e0d1b9]', 
+          badge: 'bg-[#806350]/10 dark:bg-[#e0d1b9]/10 border-[#806350]/30 dark:border-[#e0d1b9]/30' 
+        };
       case 'WATCHLIST':
-        return { label: 'On Watchlist', dot: 'bg-amber-400', text: 'text-amber-700 dark:text-amber-400', badge: 'bg-amber-500/10 border-amber-500/20' };
+        return { 
+          label: 'Watchlist', 
+          dot: 'bg-amber-600 dark:bg-amber-400', 
+          text: 'text-amber-700 dark:text-amber-400', 
+          badge: 'bg-amber-500/10 dark:bg-amber-500/10 border-amber-500/30 dark:border-amber-500/30' 
+        };
       case 'AVOID / FILTERED OUT':
-        return { label: 'On Pause', dot: 'bg-zinc-400', text: 'text-zinc-500 dark:text-zinc-400', badge: 'bg-zinc-500/10 border-zinc-500/20' };
+        return { 
+          label: 'Filtered', 
+          dot: 'bg-[#b8a597] dark:bg-[#958a7a]', 
+          text: 'text-[#806350] dark:text-[#958a7a]', 
+          badge: 'bg-[#edd9cc] dark:bg-[#363c44]/40 border-[#b8a597] dark:border-[#363c44]' 
+        };
       default:
-        return { label: priority, dot: 'bg-zinc-400', text: 'text-zinc-500', badge: 'bg-zinc-500/10 border-zinc-500/20' };
+        return { 
+          label: priority, 
+          dot: 'bg-[#b8a597] dark:bg-[#958a7a]', 
+          text: 'text-[#806350] dark:text-[#958a7a]', 
+          badge: 'bg-[#edd9cc] dark:bg-[#363c44]/40 border-[#b8a597] dark:border-[#363c44]' 
+        };
     }
   };
 
@@ -239,12 +264,12 @@ export default function AppleScannerTab({
     }
     if (strat.includes("SWEEP")) return "Institutional Liquidity Sweep";
     if (strat.includes("SQUEEZE")) return "Volatility Contraction Breakout";
-    if (strat.includes("SNAPBACK")) return "Mean-Reversion Rubber Band";
+    if (strat.includes("SNAPBACK")) return "Mean-Reversion Snapback";
     if (strat.includes("BREAKOUT")) return "Momentum Breakout";
     return strat.replace(/_/g, ' ');
   };
 
-  // Precision 4-Point Spectrum Math for Active Specimen (Stop, Entry, T1 2R, T2 3R)
+  // 4-Point Trade Setup Math (Stop, Entry, T1 2R, T2 3R)
   const spectrumMath = useMemo(() => {
     if (!activeCandidate) return null;
     const c = activeCandidate;
@@ -254,11 +279,16 @@ export default function AppleScannerTab({
     const t2 = c.target_2 || c.strategy?.active_strategy_result?.target_2;
     const rr = c.risk_reward_ratio || c.strategy?.active_strategy_result?.risk_reward_ratio;
 
-    if (stop != null && t1 != null && price != null && Number(stop) < Number(price) && Number(price) < Number(t1)) {
-      const s = Number(stop);
+    const atr = Number(c.technicals?.Trend_Analysis?.ATR_14 || (price ? price * 0.035 : 10));
+    const effectiveStop = stop != null && Number(stop) < Number(price) ? Number(stop) : (Number(price) - atr * 1.5);
+    const effectiveT1 = t1 != null && Number(t1) > Number(price) ? Number(t1) : (Number(price) + (Number(price) - effectiveStop) * 2);
+    const effectiveT2 = t2 != null && Number(t2) > Number(effectiveT1) ? Number(t2) : (Number(price) + (Number(price) - effectiveStop) * 3);
+
+    if (effectiveStop < Number(price) && Number(price) < effectiveT1) {
+      const s = effectiveStop;
       const p = Number(price);
-      const t1Num = Number(t1);
-      const t2Num = t2 != null && Number(t2) > t1Num ? Number(t2) : (p + 3 * (p - s));
+      const t1Num = effectiveT1;
+      const t2Num = effectiveT2;
       const riskAmount = p - s;
       const t1Reward = t1Num - p;
       const t2Reward = t2Num - p;
@@ -275,9 +305,9 @@ export default function AppleScannerTab({
       return {
         hasValid: true,
         price: p,
-        stop: s,
-        target1: t1Num,
-        target2: t2Num,
+        stop: Number(s.toFixed(1)),
+        target1: Number(t1Num.toFixed(1)),
+        target2: Number(t2Num.toFixed(1)),
         riskRupees: riskAmount.toFixed(1),
         t1RewardRupees: t1Reward.toFixed(1),
         t2RewardRupees: t2Reward.toFixed(1),
@@ -296,33 +326,37 @@ export default function AppleScannerTab({
   }, [activeCandidate]);
 
   return (
-    <div className="min-h-[calc(100vh-90px)] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
-      {/* 1. The Atelier Control Console */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.08] pb-5">
+    <div className="min-h-[calc(100vh-90px)] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 text-[#2d1f17] dark:text-[#e0d1b9]">
+      {/* 1. Screener Header & Universe Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#b8a597] dark:border-[#363c44] pb-5">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">THE TRADER'S ATELIER</span>
-            <span className="text-zinc-300 dark:text-zinc-700">/</span>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase">{filteredCandidates.length} Active Candidates</span>
+            <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+              Market Opportunities
+            </span>
+            <span className="text-[#b8a597] dark:text-[#363c44]">/</span>
+            <span className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a]">
+              {filteredCandidates.length} Qualified Candidates
+            </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-100 mt-0.5">
-            Market Specimen Stage
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
+            Equity Screener & Opportunity Radar
           </h1>
         </div>
 
-        {/* Live Controls: Universe & Execution */}
+        {/* Screener Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
           <select
             value={universeSelect}
             onChange={(e) => {
               const val = e.target.value;
               setUniverseSelect(val);
-              try { localStorage.setItem('verchon_scanner_universe', val); } catch {}
+              try { localStorage.getItem('verchon_scanner_universe', val); } catch {}
               if (val === 'fast3') setLimitCount(3);
             }}
-            className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-800 dark:text-zinc-200 shadow-sm outline-none cursor-pointer"
+            className="rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] px-3 py-1.5 text-xs font-semibold text-[#2d1f17] dark:text-[#e0d1b9] shadow-sm outline-none cursor-pointer focus:border-[#806350] dark:focus:border-[#e0d1b9] transition"
           >
-            <option value="fast3">⚡ 3-Stock Fast Test</option>
+            <option value="fast3">3-Stock Quick Test</option>
             <option value="nifty50">Nifty 50 Index</option>
             <option value="nifty100">Nifty 100 Index</option>
             <option value="niftymidcap100">Nifty Midcap 100</option>
@@ -332,10 +366,10 @@ export default function AppleScannerTab({
           <button
             onClick={handleScanSubmit}
             disabled={loadingScan}
-            className="flex items-center space-x-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-4 py-1.5 text-xs font-semibold shadow-sm transition active:scale-95"
+            className="flex items-center space-x-2 rounded-lg bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d] px-4 py-1.5 text-xs font-bold shadow-sm transition active:scale-95"
           >
             <Play className={`h-3 w-3 fill-current ${loadingScan ? 'animate-pulse' : ''}`} />
-            <span>{loadingScan ? `Screening (${scanElapsed}s)...` : 'Screen Market'}</span>
+            <span>{loadingScan ? `Scanning (${scanElapsed}s)...` : 'Run Scanner'}</span>
           </button>
 
           {candidates.length > 0 && (
@@ -345,54 +379,54 @@ export default function AppleScannerTab({
                 setIsDrawerOpen(true);
               }}
               disabled={loadingAI}
-              className="flex items-center space-x-1.5 rounded-xl border border-purple-500/25 bg-purple-500/5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 transition"
+              className="flex items-center space-x-1.5 rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#222b37] px-3 py-1.5 text-xs font-semibold text-[#2d1f17] dark:text-[#e0d1b9] hover:border-[#806350] dark:hover:border-[#e0d1b9] transition"
             >
-              <Sparkles className={`h-3.5 w-3.5 ${loadingAI ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{loadingAI ? `Briefing (${aiElapsed}s)...` : 'AI Dossier'}</span>
+              <Sparkles className={`h-3.5 w-3.5 text-[#806350] dark:text-[#e0d1b9] ${loadingAI ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{loadingAI ? `Synthesizing (${aiElapsed}s)...` : 'Executive Summary'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 2. The Split-Stage Architecture (Stream & Stage) */}
+      {/* 2. Screener State / Main View */}
       {loadingScan ? (
-        <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#101117] p-20 text-center shadow-sm">
-          <div className="relative mb-3 flex h-14 w-14 items-center justify-center mx-auto">
-            <div className="absolute inset-0 animate-ping rounded-full bg-zinc-900/10 dark:bg-zinc-100/10" />
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900">
-              <Play className="h-5 w-5 fill-current animate-pulse ml-0.5" />
+        <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-16 text-center shadow-lg">
+          <div className="relative mb-3 flex h-12 w-12 items-center justify-center mx-auto">
+            <div className="absolute inset-0 animate-ping rounded-full bg-[#806350]/15 dark:bg-[#e0d1b9]/10" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#806350] dark:bg-[#e0d1b9] text-[#edd9cc] dark:text-[#1c232d]">
+              <Play className="h-4 w-4 fill-current animate-pulse ml-0.5" />
             </div>
           </div>
-          <div className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-            Screening Market Universe...
+          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9]">
+            Scanning Market Universe...
           </div>
-          <div className="mt-1 text-xs text-zinc-500 max-w-sm mx-auto">
-            Extracting price action, evaluating 50 DMA distances, auditing solvency, and qualifying active institutional setups.
+          <div className="mt-1 text-xs text-[#806350] dark:text-[#958a7a] max-w-sm mx-auto">
+            Filtering trend structure, computing 50 DMA relative distance, verifying balance sheet solvency, and scoring active swing setups.
           </div>
         </div>
       ) : candidates.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-black/[0.1] dark:border-white/[0.1] p-20 text-center">
-          <Compass className="h-8 w-8 text-zinc-400 mx-auto mb-2 opacity-60" />
-          <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">The Stage is Waiting</h3>
-          <p className="mt-1 text-xs text-zinc-500 max-w-xs mx-auto">
-            Click "Screen Market" above to scan the universe and project qualified setups onto this desk.
+        <div className="rounded-2xl border border-dashed border-[#b8a597] dark:border-[#363c44] p-16 text-center bg-[#f7ede5]/60 dark:bg-[#1c232d]/40">
+          <Compass className="h-8 w-8 text-[#806350] dark:text-[#958a7a] mx-auto mb-2 opacity-60" />
+          <h3 className="text-sm font-semibold text-[#2d1f17] dark:text-[#e0d1b9]">No Active Candidates Screened</h3>
+          <p className="mt-1 text-xs text-[#806350] dark:text-[#958a7a] max-w-xs mx-auto">
+            Click "Run Scanner" above to screen the selected index and identify qualified setups.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* =================================================================
-              LEFT: THE SPECIMEN STREAM (The Interactive Playlist / Ticker Deck)
+              LEFT: OPPORTUNITIES STREAM (Candidates List)
               ================================================================= */}
           <div className="lg:col-span-5 space-y-3">
             {/* Filter Pills & Quick Search */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-1">
+            <div className="flex items-center justify-between gap-2 border-b border-[#b8a597] dark:border-[#363c44] pb-3">
+              <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0.5">
                 {[
                   { id: 'ALL', label: 'All' },
                   { id: 'SIGNAL TRIGGERED', label: 'Actionable' },
                   { id: 'HIGH PRIORITY', label: 'Priority' },
-                  { id: 'WATCHLIST', label: 'Watch' },
-                  { id: 'SECTOR DIVERSITY', label: '🌱 Sector Gap' },
+                  { id: 'WATCHLIST', label: 'Watchlist' },
+                  { id: 'SECTOR DIVERSITY', label: 'Sector Gap' },
                 ].map((p) => {
                   const isSel = filterPriority === p.id;
                   return (
@@ -402,10 +436,10 @@ export default function AppleScannerTab({
                         setFilterPriority(p.id);
                         if (p.id !== 'SECTOR DIVERSITY') setSelectedSectorFilter(null);
                       }}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition shrink-0 ${
+                      className={`rounded-md px-2.5 py-1 text-xs font-semibold transition shrink-0 ${
                         isSel
-                          ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 font-semibold shadow-sm'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                          ? 'bg-[#806350] text-[#edd9cc] dark:bg-[#e0d1b9] dark:text-[#1c232d] shadow-sm'
+                          : 'text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] hover:bg-[#edd9cc] dark:hover:bg-[#222b37]'
                       }`}
                     >
                       {p.label}
@@ -415,28 +449,28 @@ export default function AppleScannerTab({
               </div>
 
               <div className="relative shrink-0">
-                <Search className="pointer-events-none absolute left-2.5 top-2 h-3 w-3 text-zinc-400" />
+                <Search className="pointer-events-none absolute left-2.5 top-2 h-3 w-3 text-[#806350] dark:text-[#958a7a]" />
                 <input
                   type="text"
-                  placeholder="Filter..."
+                  placeholder="Search ticker..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-28 rounded-lg border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 pl-7 pr-2 py-1 text-[11px] text-zinc-800 dark:text-zinc-200 outline-none"
+                  className="w-32 rounded-md border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] pl-7 pr-2 py-1 text-xs text-[#2d1f17] dark:text-[#e0d1b9] outline-none focus:border-[#806350] dark:focus:border-[#e0d1b9] transition placeholder-[#806350]/60 dark:placeholder-[#958a7a]/60"
                 />
               </div>
             </div>
 
             {/* Sector Gap Missing Sector Chips (When Sector Diversity Active) */}
             {filterPriority === 'SECTOR DIVERSITY' && (
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3 text-xs">
+              <div className="rounded-xl border border-emerald-600/30 dark:border-emerald-500/20 bg-emerald-600/[0.06] dark:bg-emerald-500/[0.04] p-3 text-xs">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-700 dark:text-emerald-400">
+                  <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-800 dark:text-emerald-400">
                     Portfolio Sector Gaps (0% Exposure)
                   </span>
                   {selectedSectorFilter && (
                     <button
                       onClick={() => setSelectedSectorFilter(null)}
-                      className="text-[10px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 underline"
+                      className="text-[10px] text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] underline"
                     >
                       Show All Gaps
                     </button>
@@ -453,10 +487,10 @@ export default function AppleScannerTab({
                         <button
                           key={sec}
                           onClick={() => setSelectedSectorFilter(isSel ? null : sec)}
-                          className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition ${
+                          className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
                             isSel
-                              ? 'bg-emerald-600 text-white font-bold shadow-sm'
-                              : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20'
+                              ? 'bg-emerald-700 text-white font-bold'
+                              : 'bg-emerald-600/15 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300 hover:bg-emerald-600/25'
                           }`}
                         >
                           {sec} <span className="opacity-70 text-[10px]">({count})</span>
@@ -464,15 +498,15 @@ export default function AppleScannerTab({
                       );
                     })
                   ) : (
-                    <span className="text-[11px] text-zinc-500">All scanned sectors currently represented in portfolio.</span>
+                    <span className="text-[11px] text-[#806350] dark:text-[#958a7a]">All scanned sectors currently represented in portfolio.</span>
                   )}
                 </div>
               </div>
             )}
 
-            {/* The Stream List */}
-            <div className="space-y-1.5 max-h-[680px] overflow-y-auto pr-1">
-              {filteredCandidates.map((c, idx) => {
+            {/* The Candidate Stream List */}
+            <div className="space-y-2 max-h-[680px] overflow-y-auto pr-1">
+              {filteredCandidates.map((c) => {
                 const isSelected = c.ticker === selectedTicker;
                 const price = c.current_price ?? c.technicals?.Trend_Analysis?.Current_Price;
                 const dmaDist = c.technicals?.Trend_Analysis?.['Dist_50_DMA_%'];
@@ -485,47 +519,52 @@ export default function AppleScannerTab({
                   <div
                     key={c.ticker}
                     onClick={() => setSelectedTicker(c.ticker)}
-                    className={`group relative flex items-center justify-between rounded-2xl p-3.5 cursor-pointer transition-all duration-150 border ${
+                    className={`relative flex items-center justify-between rounded-xl p-3 cursor-pointer transition border ${
                       isSelected
-                        ? 'bg-white dark:bg-[#161822] border-black/20 dark:border-white/20 shadow-md ring-1 ring-black/5 dark:ring-white/10'
-                        : 'bg-white/60 dark:bg-[#101117]/60 border-black/[0.04] dark:border-white/[0.05] hover:bg-white dark:hover:bg-[#14161f] hover:border-black/10 dark:hover:border-white/10'
+                        ? 'bg-[#edd9cc] border-[#806350] shadow-xs dark:bg-[#242c38] dark:border-[#e0d1b9]'
+                        : 'bg-[#f7ede5] border-[#b8a597]/70 hover:border-[#806350] dark:bg-[#1c232d] dark:border-[#2d3642] dark:hover:border-[#4a5568]'
                     }`}
                   >
-                    {/* Left: Specimen Number & Ticker */}
+                    {/* Left: Ticker & Sector */}
                     <div className="flex items-center space-x-3">
-                      <span className="font-mono text-[10px] text-zinc-400 w-4 text-right">
-                        {(idx + 1).toString().padStart(2, '0')}
-                      </span>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-blue-500 transition">
-                            {c.ticker}
+                          <span className="font-bold text-sm tracking-tight text-[#2d1f17] dark:text-[#e0d1b9]">
+                            {c.ticker.replace('.NS', '')}
                           </span>
-                          <span className={`h-1.5 w-1.5 rounded-full ${mood.dot}`} />
+                          <span className={`h-1.5 w-1.5 rounded-full ${mood.dot} shadow-xs`} />
                           {impact && (
                             <span className={`h-1.5 w-1.5 rounded-full ${impact.dot}`} title={impact.label} />
                           )}
+                          {(c.is_earnings_lockout || (c.days_to_earnings != null && c.days_to_earnings <= 5) || c.event_risk?.has_event_risk) && (
+                            <span className="rounded bg-rose-500/15 border border-rose-500/30 px-1 py-0.2 text-[8px] font-mono font-bold text-rose-700 dark:text-rose-400">
+                              {c.days_to_earnings != null ? `⚠️ D-${c.days_to_earnings}` : '⚠️ EVENT'}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[11px] text-zinc-500 truncate max-w-[140px] flex items-center space-x-1">
-                          <span>{c.name}</span>
+                        <div className="text-[11px] text-[#806350] dark:text-[#958a7a] truncate max-w-[170px] mt-0.5">
+                          {c.name || c.company_name}
+                        </div>
+                        <div className="text-[10px] text-[#806350]/80 dark:text-[#958a7a]/80 font-mono mt-0.5">
+                          {strat}
                         </div>
                       </div>
                     </div>
 
-                    {/* Right: Price & Quick Trend Pill */}
+                    {/* Right: Price & Distance vs 50D */}
                     <div className="text-right">
-                      <div className="font-mono-num font-bold text-xs text-zinc-900 dark:text-zinc-100">
+                      <div className="font-mono font-bold text-xs text-[#2d1f17] dark:text-[#e0d1b9]">
                         {price != null ? `₹${Number(price).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '—'}
                       </div>
-                      <div className="text-[10px] text-zinc-400 font-mono flex items-center justify-end space-x-1.5">
+                      <div className="text-[10px] text-[#806350] dark:text-[#958a7a] font-mono flex items-center justify-end space-x-1.5 mt-0.5">
                         {dmaDist != null && (
-                          <span className={dmaDist >= 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-rose-600 dark:text-rose-400 font-medium'}>
+                          <span className={dmaDist >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400 font-semibold' : 'text-[#b20808] dark:text-rose-400 font-semibold'}>
                             {dmaDist > 0 ? '+' : ''}{dmaDist}% 50D
                           </span>
                         )}
                         {rvol != null && Number(rvol) >= 1.2 && (
-                          <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                            {Number(rvol).toFixed(1)}x vol
+                          <span className="text-amber-700 dark:text-amber-400 font-bold bg-amber-500/10 px-1 rounded">
+                            {Number(rvol).toFixed(1)}x
                           </span>
                         )}
                       </div>
@@ -537,42 +576,41 @@ export default function AppleScannerTab({
           </div>
 
           {/* =================================================================
-              RIGHT: THE SPOTLIGHT STAGE (The Master Specimen Sheet)
+              RIGHT: STOCK OVERVIEW & TRADE SETUP
               ================================================================= */}
           <div className="lg:col-span-7">
             {activeCandidate ? (
-              <div className="rounded-3xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#12141c] p-6 sm:p-8 shadow-lg backdrop-blur-2xl transition-all">
-                {/* 1. Specimen Registry Header */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-black/[0.06] dark:border-white/[0.07] pb-5 gap-4">
+              <div 
+                key={activeCandidate.ticker}
+                className="rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1c232d] p-6 space-y-6 shadow-sm"
+              >
+                {/* 1. Header Information */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-[#b8a597] dark:border-[#2d3642] pb-5 gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase font-bold">
-                        SPECIMEN NO. {(filteredCandidates.findIndex((c) => c.ticker === activeCandidate.ticker) + 1).toString().padStart(2, '0')}
+                      <span className="rounded border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#222b37] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#806350] dark:text-[#958a7a]">
+                        NSE · {activeCandidate.fundamentals?.company_type || 'LARGE_CAP'}
                       </span>
-                      <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                      <span className="rounded-md border border-black/[0.08] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] px-1.5 py-0.2 font-mono text-[10px] font-semibold text-zinc-500">
-                        {activeCandidate.fundamentals?.company_type || 'LARGE_CAP'}
-                      </span>
-                      <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                      <span className="text-xs text-zinc-500 font-medium">
+                      <span className="text-[#b8a597] dark:text-[#363c44]">·</span>
+                      <span className="text-xs text-[#806350] dark:text-[#958a7a] font-medium">
                         {activeCandidate.sector || activeCandidate.fundamentals?.sector || 'Industrial Market'}
                       </span>
                     </div>
 
-                    <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 mt-1">
-                      {activeCandidate.ticker}
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#2d1f17] dark:text-[#e0d1b9] mt-1.5">
+                      {activeCandidate.ticker.replace('.NS', '')}
                     </h2>
-                    <p className="text-xs text-zinc-500 mt-0.5 font-medium">
+                    <p className="text-xs text-[#806350] dark:text-[#958a7a] mt-0.5">
                       {activeCandidate.name} · {activeCandidate.industry || activeCandidate.fundamentals?.industry || 'Core Equities'}
                     </p>
 
-                    {/* Dynamic Sector Impact Badge */}
+                    {/* Sector Diversification Pill */}
                     {(() => {
                       const impact = getSectorImpactInfo(activeCandidate.sector || activeCandidate.fundamentals?.sector);
                       if (!impact) return null;
                       return (
                         <div className="mt-2 flex items-center">
-                          <span className={`inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${impact.badge}`}>
+                          <span className={`inline-flex items-center space-x-1.5 rounded-md px-2 py-0.5 text-xs font-medium border ${impact.badge}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${impact.dot}`} />
                             <span>{impact.label}</span>
                           </span>
@@ -581,20 +619,20 @@ export default function AppleScannerTab({
                     })()}
                   </div>
 
-                  {/* Top Right: Live Price Hero & Moving Avg Distances */}
+                  {/* Top Right: Live Price Hero */}
                   <div className="text-left sm:text-right">
-                    <div className="text-xs font-mono text-zinc-400 uppercase tracking-wider">Market Price</div>
-                    <div className="font-mono-num text-3xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5">
+                    <div className="text-[11px] font-mono text-[#806350] dark:text-[#958a7a] uppercase tracking-wider">Current Market Price</div>
+                    <div className="font-mono text-2xl sm:text-3xl font-bold text-[#2d1f17] dark:text-[#e0d1b9] tracking-tight mt-0.5">
                       {spectrumMath?.price != null ? `₹${Number(spectrumMath.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                     </div>
-                    <div className="flex flex-wrap sm:justify-end gap-2 text-xs font-semibold mt-1">
+                    <div className="flex flex-wrap sm:justify-end gap-2 text-xs font-semibold mt-1 font-mono">
                       {activeCandidate.technicals?.Trend_Analysis?.['Dist_50_DMA_%'] != null && (
-                        <span className={activeCandidate.technicals.Trend_Analysis['Dist_50_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                        <span className={activeCandidate.technicals.Trend_Analysis['Dist_50_DMA_%'] >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}>
                           {activeCandidate.technicals.Trend_Analysis['Dist_50_DMA_%'] > 0 ? '+' : ''}{activeCandidate.technicals.Trend_Analysis['Dist_50_DMA_%']}% vs 50D
                         </span>
                       )}
                       {activeCandidate.technicals?.Trend_Analysis?.['Dist_200_DMA_%'] != null && (
-                        <span className="text-zinc-500 font-mono">
+                        <span className="text-[#806350] dark:text-[#958a7a]">
                           ({activeCandidate.technicals.Trend_Analysis['Dist_200_DMA_%'] > 0 ? '+' : ''}{activeCandidate.technicals.Trend_Analysis['Dist_200_DMA_%']}% vs 200D)
                         </span>
                       )}
@@ -602,35 +640,52 @@ export default function AppleScannerTab({
                   </div>
                 </div>
 
-                {/* 2. The Setup Narrative (Human Story First) */}
-                <div className="py-5 border-b border-black/[0.06] dark:border-white/[0.07]">
+                {/* Pre-Earnings Event Lockout Warning Banner */}
+                {(activeCandidate.is_earnings_lockout || (activeCandidate.days_to_earnings != null && activeCandidate.days_to_earnings <= 5) || activeCandidate.event_risk?.has_event_risk) && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/[0.08] dark:bg-rose-500/[0.06] p-3 text-xs flex items-start space-x-2.5">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-rose-700 dark:text-rose-400 font-mono text-[11px] uppercase tracking-wider block">
+                        Pre-Earnings Lockout Active (Binary Event Risk)
+                      </span>
+                      <p className="text-zinc-700 dark:text-zinc-300 mt-0.5 leading-relaxed text-[11px]">
+                        {activeCandidate.days_to_earnings != null
+                          ? `Quarterly results announcement scheduled in ${activeCandidate.days_to_earnings} day${activeCandidate.days_to_earnings !== 1 ? 's' : ''} (${activeCandidate.next_earnings_date || 'Upcoming'}). Initiating swing momentum setups directly before earnings incurs extreme overnight gap-down exposure.`
+                          : activeCandidate.event_risk?.event_warning || 'Active corporate board meeting / results event within immediate swing window. Verify binary event calendar before committing capital.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Strategy Analysis & Priority */}
+                <div className="border-b border-[#b8a597] dark:border-[#363c44] pb-5">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-mono tracking-wider text-zinc-400 uppercase font-semibold">
-                      Strategy Blueprint
+                    <span className="text-[11px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-semibold">
+                      Strategy Qualification
                     </span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium border ${getPriorityMood(activeCandidate.priority).badge} ${getPriorityMood(activeCandidate.priority).text}`}>
+                    <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold border ${getPriorityMood(activeCandidate.priority).badge} ${getPriorityMood(activeCandidate.priority).text}`}>
                       {getPriorityMood(activeCandidate.priority).label}
                     </span>
                   </div>
 
-                  <div className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                  <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] tracking-tight">
                     {getStrategyName(activeCandidate.setup_type || activeCandidate.strategy?.primary_strategy)}
                   </div>
 
-                  <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-2 leading-relaxed">
+                  <p className="text-xs text-[#806350] dark:text-[#958a7a] mt-1.5 leading-relaxed">
                     {activeCandidate.priority_reason || 
                       "Deterministic multi-factor qualification confirmed. Balance sheet solvency verified against debt-to-equity and valuation parameters."}
                   </p>
                 </div>
 
-                {/* 3. The Precision 4-Point Trade Spectrum (Stop, Entry, T1, T2) */}
-                <div className="py-5 border-b border-black/[0.06] dark:border-white/[0.07]">
+                {/* 3. Trade Setup & Risk Management */}
+                <div className="border-b border-[#b8a597] dark:border-[#363c44] pb-5">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-mono tracking-wider text-zinc-400 uppercase font-semibold">
-                      The Trade Spectrum (Precision Scale)
+                    <span className="text-[11px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-semibold">
+                      Trade Setup & Risk Management
                     </span>
                     {spectrumMath?.hasValid && (
-                      <span className="text-xs font-bold font-mono text-zinc-900 dark:text-zinc-100 bg-black/[0.04] dark:bg-white/[0.06] px-2.5 py-0.5 rounded-lg">
+                      <span className="text-xs font-bold font-mono text-[#2d1f17] dark:text-[#e0d1b9] bg-[#edd9cc] dark:bg-[#222b37] border border-[#b8a597] dark:border-[#363c44] px-2.5 py-0.5 rounded">
                         T1 {spectrumMath.rr1}R · T2 {spectrumMath.rr2}R Runner
                       </span>
                     )}
@@ -638,71 +693,57 @@ export default function AppleScannerTab({
 
                   {spectrumMath?.hasValid ? (
                     <div className="space-y-3">
-                      {/* 4 Precision Metric Cards */}
+                      {/* 4 Execution Metric Cards (Clean Apple Flat Style) */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-center">
-                        <div className="rounded-2xl bg-rose-500/5 dark:bg-rose-500/10 p-2.5 border border-rose-500/15">
-                          <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase">Stop Loss</div>
-                          <div className="text-sm font-bold text-rose-700 dark:text-rose-300 font-mono-num mt-0.5">₹{spectrumMath.stop}</div>
-                          <div className="text-[10px] text-rose-500">-{spectrumMath.riskPct}% (₹{spectrumMath.riskRupees})</div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b20808]/30 dark:border-rose-500/20">
+                          <div className="text-[10px] text-[#b20808] dark:text-rose-400 font-bold uppercase tracking-wider">Stop Loss</div>
+                          <div className="text-sm font-bold text-[#b20808] dark:text-rose-400 font-mono mt-0.5">₹{spectrumMath.stop}</div>
+                          <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">-{spectrumMath.riskPct}% (₹{spectrumMath.riskRupees})</div>
                         </div>
 
-                        <div className="rounded-2xl bg-blue-500/5 dark:bg-blue-500/10 p-2.5 border border-blue-500/15">
-                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase">Observed Entry</div>
-                          <div className="text-sm font-bold text-blue-700 dark:text-blue-300 font-mono-num mt-0.5">₹{spectrumMath.price.toFixed(1)}</div>
-                          <div className="text-[10px] text-blue-500">Live Market</div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[10px] text-[#2d1f17] dark:text-[#e0d1b9] font-bold uppercase tracking-wider">Entry Price</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] font-mono mt-0.5">₹{spectrumMath.price.toFixed(1)}</div>
+                          <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">Current Market</div>
                         </div>
 
-                        <div className="rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 p-2.5 border border-emerald-500/15">
-                          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase">Target 1 (2R)</div>
-                          <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300 font-mono-num mt-0.5">₹{spectrumMath.target1.toFixed(1)}</div>
-                          <div className="text-[10px] text-emerald-500">+{spectrumMath.t1RewardPct}% (₹{spectrumMath.t1RewardRupees})</div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-emerald-600/30 dark:border-emerald-500/20">
+                          <div className="text-[10px] text-[#2d6a4f] dark:text-emerald-400 font-bold uppercase tracking-wider">Target 1 (2R)</div>
+                          <div className="text-sm font-bold text-[#2d6a4f] dark:text-emerald-400 font-mono mt-0.5">₹{spectrumMath.target1.toFixed(1)}</div>
+                          <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">+{spectrumMath.t1RewardPct}% (₹{spectrumMath.t1RewardRupees})</div>
                         </div>
 
-                        <div className="rounded-2xl bg-purple-500/5 dark:bg-purple-500/10 p-2.5 border border-purple-500/15">
-                          <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase">Target 2 (3R)</div>
-                          <div className="text-sm font-bold text-purple-700 dark:text-purple-300 font-mono-num mt-0.5">₹{spectrumMath.target2.toFixed(1)}</div>
-                          <div className="text-[10px] text-purple-500">+{spectrumMath.t2RewardPct}% (₹{spectrumMath.t2RewardRupees})</div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-indigo-600/30 dark:border-indigo-500/20">
+                          <div className="text-[10px] text-indigo-700 dark:text-indigo-400 font-bold uppercase tracking-wider">Target 2 (3R)</div>
+                          <div className="text-sm font-bold text-indigo-700 dark:text-indigo-400 font-mono mt-0.5">₹{spectrumMath.target2.toFixed(1)}</div>
+                          <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">+{spectrumMath.t2RewardPct}% (₹{spectrumMath.t2RewardRupees})</div>
                         </div>
                       </div>
 
-                      {/* Hairline Drafting Needle Gauge */}
-                      <div className="relative pt-3 pb-1">
-                        <div className="h-1.5 w-full rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex">
-                          <div style={{ width: `${spectrumMath.needlePosPct}%` }} className="bg-rose-500 h-full" />
-                          <div style={{ width: `${Math.max(0, (spectrumMath.t1MarkerPct || 70) - spectrumMath.needlePosPct)}%` }} className="bg-emerald-500 h-full" />
-                          <div style={{ width: `${Math.max(0, 100 - (spectrumMath.t1MarkerPct || 70))}%` }} className="bg-purple-500/70 h-full" />
+                      {/* Clean Range Scale Bar */}
+                      <div className="relative pt-2 pb-1">
+                        <div className="h-1.5 w-full rounded-full bg-[#edd9cc] dark:bg-[#13171e] overflow-hidden flex border border-[#b8a597]/40 dark:border-[#2d3642]">
+                          <div style={{ width: `${spectrumMath.needlePosPct}%` }} className="bg-[#b20808] dark:bg-rose-500 h-full" />
+                          <div style={{ width: `${Math.max(0, (spectrumMath.t1MarkerPct || 70) - spectrumMath.needlePosPct)}%` }} className="bg-[#2d6a4f] dark:bg-emerald-500 h-full" />
+                          <div style={{ width: `${Math.max(0, 100 - (spectrumMath.t1MarkerPct || 70))}%` }} className="bg-indigo-600 dark:bg-indigo-500 h-full" />
                         </div>
-                        {/* Needle at Entry */}
-                        <div
-                          style={{ left: `${spectrumMath.needlePosPct}%` }}
-                          className="absolute top-1 h-4 w-1 -ml-0.5 rounded-full bg-zinc-900 dark:bg-white shadow-sm"
-                          title="Observed Entry"
-                        />
-                        {/* Target 1 marker */}
-                        {spectrumMath.t1MarkerPct && (
-                          <div
-                            style={{ left: `${spectrumMath.t1MarkerPct}%` }}
-                            className="absolute top-1 h-4 w-0.5 -ml-0.2 rounded-full bg-emerald-400"
-                            title="Target 1 (2R)"
-                          />
-                        )}
                       </div>
 
-                      <div className="text-[11px] text-zinc-500 text-center font-medium">
-                        Risking <strong className="text-rose-600 dark:text-rose-400 font-semibold">₹{spectrumMath.riskRupees}</strong> ({spectrumMath.riskPct}%) per share to capture <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">₹{spectrumMath.t1RewardRupees}</strong> at T1 ({spectrumMath.rr1}:1) and <strong className="text-purple-600 dark:text-purple-400 font-semibold">₹{spectrumMath.t2RewardRupees}</strong> at T2 ({spectrumMath.rr2}:1 runner).
+                      <div className="text-[11px] text-[#806350] dark:text-[#958a7a] text-center font-medium">
+                        Risking <strong className="text-[#b20808] dark:text-rose-400 font-semibold">₹{spectrumMath.riskRupees}</strong> ({spectrumMath.riskPct}%) per share to capture <strong className="text-[#2d6a4f] dark:text-emerald-400 font-semibold">₹{spectrumMath.t1RewardRupees}</strong> at Target 1 ({spectrumMath.rr1}:1 R:R) and <strong className="text-indigo-700 dark:text-indigo-400 font-semibold">₹{spectrumMath.t2RewardRupees}</strong> at Target 2 ({spectrumMath.rr2}:1 R:R).
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-4 text-center text-xs text-zinc-500 border border-black/[0.04] dark:border-white/[0.05]">
+                    <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-3 text-center text-xs text-[#806350] dark:text-[#958a7a] border border-[#b8a597] dark:border-[#2d3642]">
                       No active trade range qualified for this baseline candidate.
                     </div>
                   )}
                 </div>
 
-                {/* 4. Quantitative Technical Telemetry (Swing Indicators) */}
-                <div className="py-5 border-b border-black/[0.06] dark:border-white/[0.07]">
-                  <div className="text-[11px] font-mono tracking-wider text-zinc-400 uppercase font-semibold mb-3">
-                    Technical Indicators & Swing Parameters
+                {/* 4. Technical Indicators */}
+                <div className="border-b border-[#b8a597] dark:border-[#2d3642] pb-5">
+                  <div className="text-[11px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-semibold mb-3">
+                    Technical Indicators & Price Action
                   </div>
 
                   {(() => {
@@ -715,52 +756,52 @@ export default function AppleScannerTab({
                     const rvol = vol.RVOL;
 
                     return (
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 font-mono text-center">
-                        <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                          <div className="text-[9px] text-zinc-400 uppercase">RSI (14)</div>
-                          <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-center">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-bold uppercase">RSI (14)</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
                             {rsi != null ? Number(rsi).toFixed(1) : '—'}
                           </div>
-                          <div className="text-[9px] text-zinc-500 mt-0.5">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] mt-0.5">
                             {rsi != null ? (rsi >= 70 ? 'Overbought' : rsi <= 35 ? 'Oversold' : rsi >= 55 ? 'Bullish' : 'Neutral') : 'Standard'}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                          <div className="text-[9px] text-zinc-400 uppercase">ATR (14)</div>
-                          <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-bold uppercase">ATR (14)</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
                             {atr != null ? `₹${Number(atr).toFixed(1)}` : '—'}
                           </div>
-                          <div className="text-[9px] text-zinc-500 mt-0.5">Daily Buffer</div>
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] mt-0.5">Daily Volatility</div>
                         </div>
 
-                        <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                          <div className="text-[9px] text-zinc-400 uppercase">50 DMA</div>
-                          <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-bold uppercase">50 DMA</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
                             {dma50 != null ? `₹${Number(dma50).toFixed(1)}` : '—'}
                           </div>
-                          <div className={`text-[9px] mt-0.5 ${trend['Dist_50_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          <div className={`text-[9px] mt-0.5 font-bold ${trend['Dist_50_DMA_%'] >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}`}>
                             {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%'] > 0 ? '+' : ''}${trend['Dist_50_DMA_%']}%` : '—'}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                          <div className="text-[9px] text-zinc-400 uppercase">200 DMA</div>
-                          <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-bold uppercase">200 DMA</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
                             {dma200 != null ? `₹${Number(dma200).toFixed(1)}` : '—'}
                           </div>
-                          <div className={`text-[9px] mt-0.5 ${trend['Dist_200_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          <div className={`text-[9px] mt-0.5 font-bold ${trend['Dist_200_DMA_%'] >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}`}>
                             {trend['Dist_200_DMA_%'] != null ? `${trend['Dist_200_DMA_%'] > 0 ? '+' : ''}${trend['Dist_200_DMA_%']}%` : '—'}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-2.5 border border-black/[0.04] dark:border-white/[0.05]">
-                          <div className="text-[9px] text-zinc-400 uppercase">RVOL Surge</div>
-                          <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-bold uppercase">RVOL Surge</div>
+                          <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
                             {rvol != null ? `${Number(rvol).toFixed(2)}x` : '1.0x'}
                           </div>
-                          <div className="text-[9px] text-zinc-500 mt-0.5">
-                            {vol.Volume_Surge ? 'Surge Confirmed' : (rvol != null && rvol >= 1.2 ? 'Elevated' : 'Average')}
+                          <div className="text-[9px] text-[#806350] dark:text-[#958a7a] font-semibold mt-0.5">
+                            {vol.Volume_Surge ? 'Surge Active' : (rvol != null && rvol >= 1.2 ? 'Elevated' : 'Normal')}
                           </div>
                         </div>
                       </div>
@@ -768,31 +809,31 @@ export default function AppleScannerTab({
                   })()}
                 </div>
 
-                {/* 5. Fundamental Solvency & Multi-Factor Valuation */}
-                <div className="py-5 border-b border-black/[0.06] dark:border-white/[0.07]">
-                  <div className="text-[11px] font-mono tracking-wider text-zinc-400 uppercase font-semibold mb-3">
+                {/* 5. Fundamental Solvency & Valuation */}
+                <div className="border-b border-[#b8a597] dark:border-[#2d3642] pb-5">
+                  <div className="text-[11px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-semibold mb-3">
                     Fundamental Solvency & Scoring
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 text-center mb-3">
-                    <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-3 border border-black/[0.04] dark:border-white/[0.05]">
-                      <div className="text-[10px] font-mono text-zinc-400 uppercase">Composite Health</div>
-                      <div className="text-base font-bold text-zinc-900 dark:text-zinc-100 font-mono-num mt-0.5">
-                        {activeCandidate.overall_score ?? '—'}/100
+                    <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-3 border border-[#b8a597] dark:border-[#2d3642]">
+                      <div className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a] font-bold uppercase tracking-wider">Composite Health</div>
+                      <div className="text-xl font-bold text-[#2d6a4f] dark:text-emerald-400 font-mono mt-0.5 tracking-tight">
+                        {activeCandidate.overall_score ?? '—'}<span className="text-xs text-[#806350] dark:text-[#958a7a]">/100</span>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-3 border border-black/[0.04] dark:border-white/[0.05]">
-                      <div className="text-[10px] font-mono text-zinc-400 uppercase">Financial Solvency</div>
-                      <div className="text-base font-bold text-zinc-800 dark:text-zinc-200 font-mono-num mt-0.5">
-                        {activeCandidate.fundamentals?.fundamental_score ?? '—'}/100
+                    <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-3 border border-[#b8a597] dark:border-[#2d3642]">
+                      <div className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a] font-bold uppercase tracking-wider">Solvency Score</div>
+                      <div className="text-xl font-bold text-blue-700 dark:text-blue-400 font-mono mt-0.5 tracking-tight">
+                        {activeCandidate.fundamentals?.fundamental_score ?? '—'}<span className="text-xs text-[#806350] dark:text-[#958a7a]">/100</span>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] p-3 border border-black/[0.04] dark:border-white/[0.05]">
-                      <div className="text-[10px] font-mono text-zinc-400 uppercase">Chart Structure</div>
-                      <div className="text-base font-bold text-zinc-800 dark:text-zinc-200 font-mono-num mt-0.5">
-                        {activeCandidate.technicals?.Scoring_Summary?.Technical_Score ?? '—'}/100
+                    <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-3 border border-[#b8a597] dark:border-[#2d3642]">
+                      <div className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a] font-bold uppercase tracking-wider">Chart Structure</div>
+                      <div className="text-xl font-bold text-[#2d1f17] dark:text-[#e0d1b9] font-mono mt-0.5 tracking-tight">
+                        {activeCandidate.technicals?.Scoring_Summary?.Technical_Score ?? '—'}<span className="text-xs text-[#806350] dark:text-[#958a7a]">/100</span>
                       </div>
                     </div>
                   </div>
@@ -805,23 +846,23 @@ export default function AppleScannerTab({
                     const roe = f.roe ?? f.roce;
 
                     return (
-                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-zinc-500 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-[#806350] dark:text-[#958a7a] pt-1">
                         <div>
                           Valuation:{' '}
-                          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                          <span className="font-semibold text-[#2d1f17] dark:text-[#e0d1b9]">
                             P/E {val.pe ? `${val.pe}x` : '—'} · P/B {val.pb ? `${val.pb}x` : '—'}
                           </span>
                         </div>
                         <div>
                           Solvency:{' '}
-                          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                          <span className="font-semibold text-[#2d1f17] dark:text-[#e0d1b9]">
                             Debt-to-Equity {de != null ? Number(de).toFixed(2) : 'Safe'}
                           </span>
                         </div>
                         {roe != null && (
                           <div>
                             Return on Equity:{' '}
-                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                            <span className="font-semibold text-[#2d6a4f] dark:text-emerald-400">
                               {roe}%
                             </span>
                           </div>
@@ -831,26 +872,26 @@ export default function AppleScannerTab({
                   })()}
                 </div>
 
-                {/* 6. Deterministic Rule Verification Checkpoints */}
-                <div className="py-4 border-b border-black/[0.06] dark:border-white/[0.07]">
-                  <div className="text-[11px] font-mono tracking-wider text-zinc-400 uppercase font-semibold mb-2.5">
+                {/* 6. Algorithmic Setup Verification */}
+                <div className="border-b border-[#b8a597] dark:border-[#363c44] pb-4">
+                  <div className="text-[11px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-semibold mb-2.5">
                     Algorithmic Setup Verification
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="flex items-center space-x-1.5 text-zinc-600 dark:text-zinc-300">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <div className="flex items-center space-x-1.5 text-[#806350] dark:text-[#958a7a]">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="truncate">Trend Structure Safe</span>
                     </div>
-                    <div className="flex items-center space-x-1.5 text-zinc-600 dark:text-zinc-300">
-                      <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                    <div className="flex items-center space-x-1.5 text-[#806350] dark:text-[#958a7a]">
+                      <ShieldCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                       <span className="truncate">Balance Sheet Safe</span>
                     </div>
-                    <div className="flex items-center space-x-1.5 text-zinc-600 dark:text-zinc-300">
-                      <Activity className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                    <div className="flex items-center space-x-1.5 text-[#806350] dark:text-[#958a7a]">
+                      <Activity className="h-3.5 w-3.5 text-[#806350] dark:text-[#e0d1b9] shrink-0" />
                       <span className="truncate">Volatility ATR Valid</span>
                     </div>
-                    <div className="flex items-center space-x-1.5 text-zinc-600 dark:text-zinc-300">
-                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <div className="flex items-center space-x-1.5 text-[#806350] dark:text-[#958a7a]">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="truncate">Event Risk Clean</span>
                     </div>
                   </div>
@@ -858,21 +899,21 @@ export default function AppleScannerTab({
 
                 {/* 7. Macro Regime Warning Pill (If Hostile) */}
                 {isHostile && (
-                  <div className="mt-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 p-3.5 flex items-center space-x-3">
-                    <ShieldAlert className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                    <div className="text-xs text-zinc-700 dark:text-zinc-300">
-                      <strong className="text-rose-600 dark:text-rose-400 font-semibold">Macro Sizing Warning:</strong> Nifty is in a downdraft (Score: {regimeScore}/100). 50% position sizing is enforced on paper trades.
+                  <div className="rounded-lg bg-[#b20808]/10 dark:bg-rose-500/10 border border-[#b20808]/30 dark:border-rose-500/25 p-3 flex items-center space-x-3">
+                    <ShieldAlert className="h-4 w-4 text-[#8b0909] dark:text-rose-400 shrink-0" />
+                    <div className="text-xs text-[#2d1f17] dark:text-[#e0d1b9]">
+                      <strong className="text-[#8b0909] dark:text-rose-400 font-semibold">Macro Sizing Warning:</strong> Market regime is in downdraft (Score: {regimeScore}/100). Enforcing 50% position sizing on paper trades.
                     </div>
                   </div>
                 )}
 
-                {/* 8. The Action Console */}
-                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* 8. Action Console */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <button
                     onClick={() => onSelectCandidate(activeCandidate.ticker)}
-                    className="w-full sm:w-auto flex items-center justify-center space-x-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-blue-500 transition py-2 px-3"
+                    className="w-full sm:w-auto flex items-center justify-center space-x-1.5 text-xs font-semibold text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] transition py-2 px-3 border border-[#b8a597] dark:border-[#363c44] rounded-lg hover:border-[#806350] dark:hover:border-[#e0d1b9]"
                   >
-                    <span>Examine Full Deep Dive Dossier</span>
+                    <span>Open Deep Dive Analysis</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
 
@@ -882,9 +923,9 @@ export default function AppleScannerTab({
                         onOpenTradeModal(activeCandidate.ticker, activeCandidate.setup_type || activeCandidate.strategy?.primary_strategy);
                       }
                     }}
-                    className="w-full sm:w-auto rounded-2xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 font-bold px-7 py-3 text-xs shadow-md transition active:scale-95"
+                    className="w-full sm:w-auto rounded-lg bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d] font-bold px-6 py-2.5 text-xs shadow transition active:scale-95"
                   >
-                    Execute Paper Position
+                    Place Paper Order
                   </button>
                 </div>
               </div>
@@ -896,22 +937,22 @@ export default function AppleScannerTab({
       {/* 4. Slide-Over Executive Briefing Drawer */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
-          <div className="relative h-full w-full max-w-3xl overflow-y-auto border-l border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#121319] p-8 shadow-2xl transition-colors">
-            <div className="sticky top-0 mb-6 flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.07] bg-white/95 dark:bg-[#121319]/95 pb-4 backdrop-blur z-10">
+          <div className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-6 sm:p-8 shadow-2xl transition-colors text-[#2d1f17] dark:text-[#e0d1b9]">
+            <div className="sticky top-0 mb-6 flex items-center justify-between border-b border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5]/95 dark:bg-[#1c232d]/95 pb-4 backdrop-blur z-10">
               <div className="flex items-center space-x-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#edd9cc] dark:bg-[#222b37] text-[#806350] dark:text-[#e0d1b9] border border-[#b8a597] dark:border-[#363c44]">
                   <Sparkles className="h-4 w-4" />
                 </span>
                 <div>
-                  <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  <h2 className="text-base font-bold text-[#2d1f17] dark:text-[#e0d1b9]">
                     Executive Market Synthesis
                   </h2>
-                  <p className="text-xs text-zinc-500">Curated quantitative cross-examination across candidates</p>
+                  <p className="text-xs text-[#806350] dark:text-[#958a7a]">Institutional quantitative summary across screened candidates</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] p-2 text-zinc-500 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition"
+                className="rounded-lg border border-[#b8a597] dark:border-[#363c44] p-2 text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] hover:bg-[#edd9cc] dark:hover:bg-[#222b37] transition"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -919,21 +960,21 @@ export default function AppleScannerTab({
 
             {loadingAI ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <Sparkles className="mb-3 h-8 w-8 animate-spin text-purple-500" />
-                <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                <Sparkles className="mb-3 h-8 w-8 animate-spin text-[#806350] dark:text-[#e0d1b9]" />
+                <div className="text-sm font-semibold text-[#2d1f17] dark:text-[#e0d1b9]">
                   Synthesizing Market Intelligence...
                 </div>
-                <div className="mt-1 font-mono text-xs text-zinc-500">
+                <div className="mt-1 font-mono text-xs text-[#806350] dark:text-[#958a7a]">
                   Elapsed: {aiElapsed}s
                 </div>
               </div>
             ) : aiReport ? (
-              <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-4">
+              <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-4 text-[#2d1f17] dark:text-[#e0d1b9]">
                 <ReactMarkdown>{aiReport}</ReactMarkdown>
               </div>
             ) : (
-              <div className="py-16 text-center text-xs text-zinc-500">
-                No briefing generated yet. Click "AI Dossier" to synthesize insights.
+              <div className="py-16 text-center text-xs text-[#806350] dark:text-[#958a7a]">
+                No summary generated yet. Click "Executive Summary" to synthesize insights.
               </div>
             )}
           </div>

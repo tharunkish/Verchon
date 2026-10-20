@@ -5,49 +5,65 @@ import React from 'react';
  * Inspired by Raycast / Linear dark aesthetic with angled organic light streaks
  * and a deep vignette mask to maintain 100% crystal-clear foreground legibility.
  */
-export default function BackgroundAura() {
+export default function BackgroundAura({ colorMode = 'dark', themeStyle = 'apple' }) {
+  const isLight = colorMode === 'light';
+
+  if (isLight) {
+    return (
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#edd9cc]">
+        {/* Editorial Warm Beige & Crimson Light Atmosphere */}
+        <div className="absolute -top-[15%] left-[10%] h-[600px] w-[700px] rounded-full bg-[#f7ede5]/70 blur-[120px]" />
+        <div className="absolute top-[25%] right-[5%] h-[550px] w-[650px] rounded-full bg-[#b20808]/5 blur-[150px]" />
+        <div className="absolute -bottom-[15%] left-[25%] h-[500px] w-[750px] rounded-full bg-[#806350]/8 blur-[140px]" />
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(128, 99, 80, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(128, 99, 80, 0.4) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#edd9cc]/20 via-transparent to-[#edd9cc]/50" />
+      </div>
+    );
+  }
+
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#050507]">
-      {/* Volumetric Layered Crimson Nebula */}
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#1c232d]">
+      {/* Subtle, architectural quiet-luxury ambient atmosphere */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {/* Layer 1: Primary Diagonal Crimson Light Slash */}
+        {/* Layer 1: Deep slate tone */}
         <div 
-          className="animate-crimson-beam-1 absolute -top-[12%] left-[12%] h-[780px] w-[950px] -rotate-[32deg] rounded-[100%] bg-gradient-to-tr from-[#68071e] via-[#c9183b] to-[#e11d48] opacity-55 blur-[105px]"
+          className="absolute -top-[10%] left-[8%] h-[750px] w-[950px] rounded-full bg-[#283341] opacity-35 blur-[140px]"
         />
 
-        {/* Layer 2: Secondary Counter-Atmosphere Ruby Glow */}
+        {/* Layer 2: Subtle warm cashmere breath */}
         <div 
-          className="animate-crimson-beam-2 absolute top-[12%] right-[4%] h-[640px] w-[800px] -rotate-[26deg] rounded-[100%] bg-gradient-to-br from-[#e11d48] via-[#a80e2b] to-[#45020e] opacity-45 blur-[115px]"
+          className="absolute top-[25%] right-[5%] h-[650px] w-[850px] rounded-full bg-[#958a7a]/10 opacity-25 blur-[150px]"
         />
 
-        {/* Layer 3: Radiant Core Crimson Energy Streak */}
+        {/* Layer 3: Muted base anchor */}
         <div 
-          className="animate-crimson-pulse absolute top-[22%] left-[26%] h-[420px] w-[680px] -rotate-[34deg] rounded-[90px] bg-gradient-to-r from-[#d01c38] via-[#ff224c] to-[#990824] opacity-40 blur-[80px]"
-        />
-
-        {/* Layer 4: Deep Ambient Wine/Crimson Floor Anchor */}
-        <div 
-          className="animate-crimson-drift absolute -bottom-[22%] left-[28%] h-[520px] w-[840px] rounded-[100%] bg-[#520516] opacity-35 blur-[130px]"
+          className="absolute -bottom-[20%] left-[20%] h-[550px] w-[900px] rounded-full bg-[#222b37] opacity-40 blur-[130px]"
         />
       </div>
 
-      {/* Subtle Micro-Grid Texture */}
+      {/* Subtle Editorial Micro-Grid Texture */}
       <div 
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.025]"
         style={{
-          backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
+          backgroundImage: 'linear-gradient(rgba(224, 209, 185, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(224, 209, 185, 0.3) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
         }}
       />
 
-      {/* Dark Vignette & Edge Shadow: Guarantees zero contrast degradation for tables, cards & charts */}
+      {/* Dark Vignette: Smooth center contrast with organic edge refraction */}
       <div 
-        className="absolute inset-0 bg-gradient-to-b from-[#050507]/60 via-transparent to-[#050507]/90"
+        className="absolute inset-0 bg-gradient-to-b from-[#1c232d]/40 via-transparent to-[#1c232d]/80"
       />
       <div 
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(ellipse 95% 85% at 50% 32%, transparent 32%, #050507 90%)',
+          background: 'radial-gradient(ellipse 95% 85% at 50% 30%, transparent 40%, #1c232d 95%)',
         }}
       />
     </div>

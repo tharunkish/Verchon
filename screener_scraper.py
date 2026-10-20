@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from bs4 import BeautifulSoup
 
-# Local cache configuration: 3 days for company fundamentals, 60 days for NSE index constituents
+# Local cache configuration: 7 days for company fundamentals (quarterly data), 60 days for NSE index constituents
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".screener_cache")
-CACHE_TTL_SECONDS = 3 * 24 * 3600  # 3 days
+CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
 INDEX_CACHE_TTL_SECONDS = 60 * 24 * 3600  # 60 days
 
 HEADERS = {
@@ -345,7 +345,7 @@ def scrape_screener_data(
     for url in urls_to_try:
         for attempt in range(retries):
             try:
-                r = session.get(url, timeout=12)
+                r = session.get(url, timeout=5)
                 if r.status_code == 200:
                     resp = r
                     final_url = url
@@ -358,6 +358,37 @@ def scrape_screener_data(
             break
 
     if resp is None:
+        # Fallback to stale cache if available rather than breaking the application
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                if isinstance(cached_data, dict):
+                    mtime = os.path.getmtime(cache_file)
+                    age_seconds = time.time() - mtime
+                    if "DATA_QUALITY" not in cached_data:
+                        cached_data["DATA_QUALITY"] = {
+                            "status": "FALLBACK_CACHE",
+                            "is_valid": True,
+                            "is_fallback": True,
+                            "errors": ["STALE_FALLBACK (Screener.in unreachable)"],
+                            "scraped_at": datetime.fromtimestamp(mtime).isoformat(),
+                            "cached": True,
+                            "cache_age_seconds": round(age_seconds, 1),
+                            "source_url": cached_data.get("COMPANY", {}).get("url"),
+                        }
+                    else:
+                        cached_data["DATA_QUALITY"]["cached"] = True
+                        cached_data["DATA_QUALITY"]["is_fallback"] = True
+                        cached_data["DATA_QUALITY"]["status"] = "FALLBACK_CACHE"
+                        errors = cached_data["DATA_QUALITY"].get("errors", [])
+                        if "STALE_FALLBACK (Screener.in unreachable)" not in errors:
+                            errors.append("STALE_FALLBACK (Screener.in unreachable)")
+                        cached_data["DATA_QUALITY"]["errors"] = errors
+                        cached_data["DATA_QUALITY"]["cache_age_seconds"] = round(age_seconds, 1)
+                    return cached_data
+            except Exception:
+                pass
         raise ConnectionError(f"Could not retrieve Screener page for {clean_sym} (Verify symbol / connectivity).")
 
     soup = BeautifulSoup(resp.content, "html.parser")

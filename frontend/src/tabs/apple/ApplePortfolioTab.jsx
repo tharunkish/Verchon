@@ -23,9 +23,14 @@ import {
   Layers,
   TrendingUp,
   TrendingDown,
-  Percent
+  Percent,
+  BookOpen
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import OrderExecutionModal from '../../components/OrderExecutionModal';
+import PortfolioAiAssistant from '../../components/PortfolioAiAssistant';
+import TradeJournalView from '../../components/apple/TradeJournalView';
 
 export default function ApplePortfolioTab({ 
   positions = [], 
@@ -97,6 +102,9 @@ export default function ApplePortfolioTab({
   const losingPositionsCount = openPositions.filter((p) => (p.unrealized_pnl || 0) < 0).length;
 
   const [sectorData, setSectorData] = useState(null);
+  const [portfolioView, setPortfolioView] = useState('CAMPAIGNS'); // 'CAMPAIGNS' | 'JOURNAL'
+  const [journalData, setJournalData] = useState(null);
+  const [journalLoading, setJournalLoading] = useState(false);
 
   const fetchSectorExposure = async () => {
     try {
@@ -108,15 +116,31 @@ export default function ApplePortfolioTab({
     } catch {}
   };
 
+  const fetchJournalData = async () => {
+    setJournalLoading(true);
+    try {
+      const res = await fetch('/api/paper-trades/journal');
+      if (res.ok) {
+        const json = await res.json();
+        setJournalData(json);
+      }
+    } catch (err) {
+      console.error('Failed to fetch journal data:', err);
+    } finally {
+      setJournalLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSectorExposure();
+    fetchJournalData();
   }, [positions, account]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       if (onRefreshQuotes) await onRefreshQuotes();
-      await fetchSectorExposure();
+      await Promise.all([fetchSectorExposure(), fetchJournalData()]);
     } finally {
       setRefreshing(false);
     }
@@ -180,82 +204,89 @@ export default function ApplePortfolioTab({
       {/* ===================================================================
           1. THE SOVEREIGN VAULT: NARRATIVE CAPITAL BRIEFING (Human & Cinematic)
           =================================================================== */}
-      <div className="rounded-3xl border border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#111218] p-6 sm:p-8 shadow-sm backdrop-blur-2xl transition-colors space-y-6">
+      <div className="relative overflow-hidden rounded-3xl apple-glass apple-card-elevated p-6 sm:p-8 space-y-6">
         {/* Top Header Row: Total Equity & Console Actions */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-black/[0.05] dark:border-white/[0.06]">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-black/[0.05] dark:border-[#363c44]">
           <div>
-            <div className="flex items-center space-x-2 text-[10px] font-mono tracking-widest text-zinc-400 uppercase font-semibold">
-              <span>PORTFOLIO BRIEFING</span>
+            <div className="flex items-center space-x-2 text-[10px] font-mono tracking-widest text-zinc-400 dark:text-[#958a7a] uppercase font-semibold">
+              <span className="flex items-center space-x-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>PORTFOLIO BRIEFING</span>
+              </span>
               <span className="text-zinc-300 dark:text-zinc-700">·</span>
               <span>SOVEREIGN VAULT</span>
             </div>
             
             <div className="flex flex-wrap items-baseline gap-3 mt-1.5">
-              <span className="font-mono-num text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+              <span className="font-mono-num text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-zinc-900 dark:text-[#e0d1b9] drop-shadow-sm">
                 ₹{Math.round(totalEquity).toLocaleString('en-IN')}
               </span>
-              <span className={`inline-flex items-center text-xs font-bold px-3 py-1 rounded-full ${
+              <span className={`inline-flex items-center text-xs font-bold px-3 py-1 rounded-full shadow-sm ${
                 totalCombinedPnl >= 0 
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20' 
-                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' 
+                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
               }`}>
                 {totalCombinedPnl >= 0 ? '+' : ''}₹{totalCombinedPnl.toFixed(1)} All-Time Return ({totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(2)}%)
               </span>
             </div>
 
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
-              Starting capital: <strong className="text-zinc-800 dark:text-zinc-200 font-mono">₹{Math.round(startingCapital).toLocaleString('en-IN')}</strong> · 
-              {' '}<strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{openPositions.length} active trade campaign{openPositions.length !== 1 ? 's' : ''} in flight</strong>.
+            <p className="text-xs text-zinc-600 dark:text-[#958a7a] mt-2 leading-relaxed">
+              Starting capital: <strong className="text-zinc-800 dark:text-[#e0d1b9] font-mono">₹{Math.round(startingCapital).toLocaleString('en-IN')}</strong> · 
+              {' '}<strong className="text-zinc-900 dark:text-[#e0d1b9] font-semibold">{openPositions.length} active trade campaign{openPositions.length !== 1 ? 's' : ''} in flight</strong>.
             </p>
           </div>
 
-          {/* Quick Vault Action Console */}
+          {/* Quick Vault Action Console with Apple Micro-Haptics */}
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => handleOpenNewTrade()}
-              className="flex items-center space-x-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-4 py-2 text-xs font-semibold shadow-sm transition active:scale-95"
+              className="flex items-center space-x-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 text-white dark:text-[#1c232d] px-4 py-2 text-xs font-bold shadow-md transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Deploy New Trade</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
               onClick={handleRefresh}
               disabled={refreshing}
               title="Refresh Live Quotes"
-              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
+              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition shadow-xs"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-500' : ''}`} />
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setIsEditCapitalModalOpen(true)}
               title="Adjust Starting Capital & Risk Parameter"
-              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-zinc-900 p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition"
+              className="rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md p-2 text-zinc-600 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition shadow-xs"
             >
               <Sliders className="h-3.5 w-3.5" />
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setIsResetModalOpen(true)}
               title="Reset Portfolio & Wipes Ledger"
-              className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
+              className="rounded-xl border border-rose-500/20 bg-rose-500/10 backdrop-blur-md p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition shadow-xs"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-            </button>
+            </motion.button>
           </div>
         </div>
 
         {/* ===================================================================
             PROMINENT DUAL P&L SHOWCASE: UNREALIZED MTM & SETTLED REALIZED
             =================================================================== */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Card 1: LIVE UNREALIZED P&L (Floating MTM) */}
-          <div className={`rounded-2xl p-5 border transition-all ${
-            totalUnrealizedPnl >= 0 
-              ? 'bg-gradient-to-br from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent border-emerald-500/30' 
-              : 'bg-gradient-to-br from-rose-500/[0.08] via-rose-500/[0.03] to-transparent border-rose-500/30'
-          }`}>
+          <div className="relative overflow-hidden rounded-2xl p-5 border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] shadow-sm transition-all">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 {totalUnrealizedPnl >= 0 ? (
@@ -263,14 +294,16 @@ export default function ApplePortfolioTab({
                 ) : (
                   <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 )}
-                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-[#958a7a]">
                   LIVE UNREALIZED P&L
                 </span>
               </div>
-              <span className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                totalUnrealizedPnl >= 0 ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
+              <span className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                totalUnrealizedPnl >= 0 
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25' 
+                  : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/25'
               }`}>
-                <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${totalUnrealizedPnl >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <span className={`h-1.5 w-1.5 rounded-full animate-ping ${totalUnrealizedPnl >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                 <span>ACTIVE MTM</span>
               </span>
             </div>
@@ -281,33 +314,29 @@ export default function ApplePortfolioTab({
               {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 dark:text-[#958a7a] font-mono gap-1">
               <span className={`font-bold ${unrealizedReturnPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                 {unrealizedReturnPct >= 0 ? '+' : ''}{unrealizedReturnPct.toFixed(2)}% ROI
               </span>
               <span>on ₹{Math.round(totalInvested).toLocaleString('en-IN')} deployed</span>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
+            <div className="mt-3 pt-2.5 border-t border-[#b8a597]/40 dark:border-[#2d3642] flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#958a7a]">
               <span>{winningPositionsCount} In Profit · {losingPositionsCount} Trailing</span>
-              <span className="font-mono text-zinc-400">Risk at stop: ₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</span>
+              <span className="font-mono">Risk at stop: ₹{Math.round(totalCapitalAtRisk).toLocaleString('en-IN')}</span>
             </div>
           </div>
 
           {/* Card 2: NET REALIZED P&L (Banked / Settled Trades) */}
-          <div className={`rounded-2xl p-5 border transition-all ${
-            totalNetRealizedPnl >= 0 
-              ? 'bg-gradient-to-br from-blue-500/[0.08] via-purple-500/[0.03] to-transparent border-blue-500/30 dark:border-purple-500/30' 
-              : 'bg-gradient-to-br from-rose-500/[0.08] via-rose-500/[0.03] to-transparent border-rose-500/30'
-          }`}>
+          <div className="relative overflow-hidden rounded-2xl p-5 border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] shadow-sm transition-all">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <CheckCircle2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                <CheckCircle2 className="h-4 w-4 text-[#806350] dark:text-[#e0d1b9]" />
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-[#958a7a]">
                   NET REALIZED P&L
                 </span>
               </div>
-              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#806350]/10 text-[#806350] dark:bg-[#e0d1b9]/10 dark:text-[#e0d1b9] border border-[#806350]/20 dark:border-[#e0d1b9]/20">
                 <span>SETTLED LEDGER</span>
               </span>
             </div>
@@ -318,47 +347,47 @@ export default function ApplePortfolioTab({
               {totalNetRealizedPnl >= 0 ? '+' : ''}₹{totalNetRealizedPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
-              <span className="font-bold text-zinc-700 dark:text-zinc-300">
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 dark:text-[#958a7a] font-mono gap-1">
+              <span className="font-bold text-zinc-700 dark:text-[#e0d1b9]">
                 {winRate}% Win Rate
               </span>
               <span>{closedPositions.length} closed trade{closedPositions.length !== 1 ? 's' : ''}</span>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Profit Factor: <strong className="text-zinc-700 dark:text-zinc-300">{profitFactor}x</strong></span>
+            <div className="mt-3 pt-2.5 border-t border-[#b8a597]/40 dark:border-[#2d3642] flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#958a7a]">
+              <span>Profit Factor: <strong className="text-zinc-700 dark:text-[#e0d1b9]">{profitFactor}x</strong></span>
               <span className="font-mono text-amber-600 dark:text-amber-400">₹{Math.round(totalChargesPaid)} statutory fees paid</span>
             </div>
           </div>
 
           {/* Card 3: AVAILABLE DRY POWDER (Liquidity & Capital Reserves) */}
-          <div className="rounded-2xl p-5 border border-black/[0.06] dark:border-white/[0.07] bg-black/[0.015] dark:bg-white/[0.02]">
+          <div className="relative overflow-hidden rounded-2xl p-5 border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-300">
+                <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                <span className="font-mono text-[11px] font-bold tracking-wider uppercase text-zinc-600 dark:text-[#958a7a]">
                   AVAILABLE CASH
                 </span>
               </div>
-              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-400">
+              <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/[0.04] dark:bg-[#13171e] text-zinc-600 dark:text-[#e0d1b9] border border-[#b8a597]/40 dark:border-[#2d3642]">
                 <span>DRY POWDER</span>
               </span>
             </div>
 
-            <div className="font-mono-num text-3xl sm:text-4xl font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+            <div className="font-mono-num text-3xl sm:text-4xl font-black tracking-tight text-zinc-900 dark:text-[#e0d1b9]">
               ₹{Math.round(availableCash).toLocaleString('en-IN')}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 font-mono gap-1">
-              <span className="font-bold text-zinc-700 dark:text-zinc-300">
+            <div className="mt-2 flex flex-wrap items-center justify-between text-xs text-zinc-500 dark:text-[#958a7a] font-mono gap-1">
+              <span className="font-bold text-zinc-700 dark:text-[#e0d1b9]">
                 {((availableCash / (totalEquity || 1)) * 100).toFixed(1)}% Reserves
               </span>
               <span>₹{Math.round(totalInvested).toLocaleString('en-IN')} in play</span>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Avg Return: <strong className="text-zinc-700 dark:text-zinc-300">{avgRMultiple}R</strong></span>
-              <span className="font-mono text-zinc-400">{openPositions.length} campaign{openPositions.length !== 1 ? 's' : ''} running</span>
+            <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-[#363c44] flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#958a7a]">
+              <span>Avg Return: <strong className="text-zinc-700 dark:text-[#e0d1b9]">{avgRMultiple}R</strong></span>
+              <span className="font-mono text-zinc-400 dark:text-[#958a7a]">{openPositions.length} campaign{openPositions.length !== 1 ? 's' : ''} running</span>
             </div>
           </div>
         </div>
@@ -438,6 +467,74 @@ export default function ApplePortfolioTab({
           </div>
         )}
       </div>
+
+      {/* ===================================================================
+          SUB-NAVIGATION: ACTIVE CAMPAIGNS vs TRADE JOURNAL & PERFORMANCE ANALYTICS
+          =================================================================== */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
+        <div className="flex items-center space-x-1.5 bg-black/[0.03] dark:bg-white/[0.04] p-1 rounded-2xl border border-black/[0.04] dark:border-white/[0.05]">
+          <button
+            onClick={() => setPortfolioView('CAMPAIGNS')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              portfolioView === 'CAMPAIGNS'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Active Campaigns ({openPositions.length})</span>
+          </button>
+
+          <button
+            onClick={() => setPortfolioView('JOURNAL')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              portfolioView === 'JOURNAL'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span>Trade Journal & Performance ({journalData?.summary?.total_campaigns || closedPositions.length})</span>
+            {journalData?.summary?.expectancy_r !== undefined && (
+              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                journalData.summary.expectancy_r >= 0
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+              }`}>
+                {journalData.summary.expectancy_r >= 0 ? '+' : ''}{journalData.summary.expectancy_r}R
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="text-[11px] font-mono text-zinc-400">
+          {portfolioView === 'CAMPAIGNS' ? (
+            <span>Live Flight Strips &amp; Trailing Targets</span>
+          ) : (
+            <span>Auditable Realized R, Friction &amp; Behavioral Review</span>
+          )}
+        </div>
+      </div>
+
+      {portfolioView === 'CAMPAIGNS' ? (
+        <>
+          {/* ===================================================================
+              1.5. PORTFOLIO INTELLIGENCE ASSISTANT (Google Finance Style)
+              =================================================================== */}
+          <PortfolioAiAssistant
+        positions={positions}
+        account={account}
+        onTriggerPartial={(pos, qty) => {
+          setPartialModalPos(pos);
+          setPartialQty(qty || Math.floor((pos.quantity || 1) / 2) || 1);
+        }}
+        onTriggerUpdateStop={(posId, newStop) => {
+          if (onUpdateStop) onUpdateStop(posId, newStop);
+        }}
+        onTriggerClose={(posId, exitPrice) => {
+          if (onClosePosition) onClosePosition(posId, 'AI_ADVISORY_EXIT', exitPrice);
+        }}
+      />
 
       {/* ===================================================================
           2. THE TRADE FLIGHT STRIPS (Wide Horizontal Precision Tickets)
@@ -527,14 +624,16 @@ export default function ApplePortfolioTab({
               const initialRiskRupees = Math.max(0, (entryP - stopP) * pos.quantity);
 
               return (
-                <div
+                <motion.div
                   key={pos.id}
-                  className={`rounded-2xl border transition-all duration-200 p-5 ${
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className={`rounded-2xl border transition-all duration-200 p-5 apple-card-elevated backdrop-blur-xl ${
                     isExitAlert
-                      ? 'border-rose-500/40 bg-rose-500/[0.03] dark:bg-rose-500/[0.05] shadow-sm ring-1 ring-rose-500/20'
+                      ? 'border-rose-500/40 bg-rose-500/[0.04] dark:bg-rose-500/[0.06] shadow-sm ring-1 ring-rose-500/25'
                       : isTargetHit
-                      ? 'border-emerald-500/40 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05] shadow-sm ring-1 ring-emerald-500/20'
-                      : 'border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#121319] hover:border-black/15 dark:hover:border-white/15 shadow-sm'
+                      ? 'border-emerald-500/40 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] shadow-sm ring-1 ring-emerald-500/25'
+                      : 'border-black/[0.06] dark:border-white/[0.08] bg-white/70 dark:bg-[#121319]/80 hover:border-black/15 dark:hover:border-white/20 shadow-sm'
                   }`}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -554,6 +653,29 @@ export default function ApplePortfolioTab({
                           </span>
                         )}
                       </div>
+
+                      {pos.earnings_review && (
+                        <div className="mt-1 flex items-center space-x-1.5">
+                          <span
+                            className={`inline-flex items-center space-x-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase border ${
+                              pos.earnings_review.verdict === 'POSITIVE'
+                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                : pos.earnings_review.verdict === 'NEGATIVE'
+                                ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                                : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            }`}
+                            title={`Earnings Review: ${pos.earnings_review.verdict} (${pos.earnings_review.verdict_badge}) - ${pos.earnings_review.rationale}`}
+                          >
+                            <Sparkles className="h-2.5 w-2.5" />
+                            <span>{pos.earnings_review.quarter}: {pos.earnings_review.verdict_badge}</span>
+                          </span>
+                          {pos.earnings_review.dividend_note && (
+                            <span className="text-[9px] font-mono text-purple-600 dark:text-purple-400 truncate max-w-[120px]">
+                              {pos.earnings_review.dividend_note}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <div className="text-xs text-zinc-500 font-medium mt-0.5 truncate">
                         {pos.strategy_name} · In flight {pos.holding_sessions || 0}d
@@ -680,52 +802,67 @@ export default function ApplePortfolioTab({
                         </div>
                       </div>
 
-                      {/* Action Micro-Buttons */}
+                      {/* Action Micro-Buttons with Apple Tactile Spring Haptics */}
                       <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
                         {/* Lock Breakeven */}
                         {stopP < entryP && (
-                          <button
-                            onClick={() => onUpdateStop && onUpdateStop(pos.id, entryP)}
-                            className="flex items-center space-x-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 text-xs font-semibold transition"
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
+                            onClick={() => {
+                              if (onUpdateStop) onUpdateStop(pos.id, entryP);
+                              confetti({ particleCount: 30, spread: 45, origin: { y: 0.8 } });
+                            }}
+                            className="flex items-center space-x-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 text-xs font-semibold transition shadow-xs"
                             title="Move safety stop to your buy price so you cannot lose money on this trade"
                           >
                             <Lock className="h-3 w-3" />
                             <span className="hidden sm:inline">Lock B/E</span>
-                          </button>
+                          </motion.button>
                         )}
 
                         {/* Partial Scale Out (Sell 50%) */}
                         {pos.quantity > 1 && (
-                          <button
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.92 }}
                             onClick={() => {
                               setPartialModalPos(pos);
                               setPartialQty(Math.floor(pos.quantity / 2));
+                              if (pnl > 0) {
+                                confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+                              }
                             }}
-                            className="flex items-center space-x-1 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 px-3 py-1.5 text-xs font-semibold transition"
+                            className="flex items-center space-x-1 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 px-3 py-1.5 text-xs font-semibold transition shadow-xs"
                             title="Sell 50% shares to lock profit"
                           >
                             <Scissors className="h-3 w-3" />
                             <span className="hidden sm:inline">Bank 50%</span>
-                          </button>
+                          </motion.button>
                         )}
 
                         {/* Liquidate / Close */}
-                        <button
-                          onClick={() =>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => {
+                            if (pnl > 0) {
+                              confetti({ particleCount: 65, spread: 70, origin: { y: 0.75 } });
+                            }
                             onClosePosition(
                               pos.id,
                               isExitAlert ? pos.exit_alert?.reason : isTargetHit ? 'TARGET_REACHED' : 'MANUAL_CLOSE',
                               currP
-                            )
-                          }
-                          className="rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-3.5 py-1.5 text-xs font-bold shadow-sm transition active:scale-95"
+                            );
+                          }}
+                          className="rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-950 px-3.5 py-1.5 text-xs font-bold shadow-sm transition"
                         >
                           Exit
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -791,6 +928,14 @@ export default function ApplePortfolioTab({
             </table>
           </div>
         </div>
+      )}
+        </>
+      ) : (
+        <TradeJournalView
+          journalData={journalData}
+          onRefreshJournal={fetchJournalData}
+          loading={journalLoading}
+        />
       )}
 
       {/* ===================================================================

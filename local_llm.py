@@ -124,7 +124,7 @@ def start_local_server() -> bool:
     cmd = [
         BINARY_PATH,
         "-m", MODEL_PATH,
-        "-c", "4096",
+        "-c", "8192",
         "-ngl", "99",
         "-t", "6",
         "--port", str(LOCAL_SERVER_PORT),
@@ -174,12 +174,16 @@ def start_local_server() -> bool:
         return False
 
 
-def stop_local_server():
+def stop_local_server(force_all: bool = False):
     """
     Cleanly stop local llama-server and free all GPU/RAM memory.
     Guarantees that no orphaned llama-server.exe processes linger on Windows.
+    Only terminates if this process owns the server, unless force_all is True.
     """
     global _server_process
+
+    if _server_process is None and not force_all:
+        return
 
     # 1. Terminate tracked subprocess handle if present
     if _server_process is not None:
@@ -196,36 +200,37 @@ def stop_local_server():
         finally:
             _server_process = None
 
-    # 2. Iterate and kill any llama-server.exe process via psutil
-    try:
-        import psutil
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                pname = proc.info.get('name') or ''
-                if 'llama-server' in pname.lower():
-                    proc.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-    except Exception:
-        pass
-
-    # 3. Fail-safe taskkill on Windows to ensure 0 VRAM leaks
-    if os.name == "nt":
+    # 2. Iterate and kill any llama-server.exe process via psutil if force_all
+    if force_all:
         try:
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "llama-server.exe", "/T"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=2,
-            )
+            import psutil
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    pname = proc.info.get('name') or ''
+                    if 'llama-server' in pname.lower():
+                        proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
         except Exception:
             pass
+
+        # 3. Fail-safe taskkill on Windows to ensure 0 VRAM leaks
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", "llama-server.exe", "/T"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=2,
+                )
+            except Exception:
+                pass
 
     print("  [OK] Local Qwen server stopped. GPU VRAM completely freed.")
 
 
-# Register automatic cleanup on process exit
-atexit.register(stop_local_server)
+# Register automatic cleanup on process exit only for processes that started it
+atexit.register(lambda: stop_local_server(force_all=False))
 
 
 def get_active_provider() -> str:
@@ -369,7 +374,7 @@ def stream_local_qwen(
                     token = delta.get("content") or delta.get("reasoning_content") or ""
                     if token:
                         token_count += 1
-                        yield token
+                        yield clean_mojibake(token)
                 except Exception:
                     continue
 
@@ -439,7 +444,7 @@ def chat_with_stock(
     payload = {
         "model": "qwen2.5-coder-7b",
         "messages": messages,
-        "max_tokens": 400,
+        "max_tokens": 1200,
         "temperature": 0.2,
         "stream": False,
     }
@@ -489,7 +494,7 @@ def stream_chat_with_stock(
     payload = {
         "model": "qwen2.5-coder-7b",
         "messages": messages,
-        "max_tokens": 400,
+        "max_tokens": 1200,
         "temperature": 0.2,
         "stream": True,
     }
@@ -706,6 +711,246 @@ def stream_qwen_market_briefing(candidates: List[Dict[str, Any]], regime: Option
     """
     system_prompt, prompt = build_market_briefing_prompts(candidates, regime)
     return stream_local_qwen(prompt, system_prompt=system_prompt, max_tokens=1800, temperature=0.3)
+
+
+# =====================================================================
+# PORTFOLIO AI ADVISOR & CONSULTANT (Google Finance Style)
+# =====================================================================
+
+def format_portfolio_telemetry_for_prompt(telemetry: Dict[str, Any]) -> str:
+    """Formats raw telemetry into a compact, high-density text block for LLM prompts."""
+    p = telemetry.get("portfolio", {})
+    r = telemetry.get("regime", {})
+    secs = telemetry.get("sectors", [])
+    pos_list = telemetry.get("positions", [])
+
+    lines = [
+        "=== PORTFOLIO TELEMETRY (LIVE GROUNDED DATA) ===",
+        f"Total Equity: ₹{p.get('total_equity', 0):,.2f}",
+        f"Available Cash: ₹{p.get('available_cash', 0):,.2f} ({p.get('cash_reserve_pct', 0):.1f}% dry powder)",
+        f"Starting Capital: ₹{p.get('starting_capital', 0):,.2f}",
+        f"All-Time Return: {p.get('all_time_return_pct', 0):.2f}% (Combined P&L: ₹{p.get('all_time_combined_pnl', 0):,.2f})",
+        f"Total Unrealized MTM: ₹{p.get('total_unrealized_pnl', 0):,.2f}",
+        f"Total Realized Net: ₹{p.get('total_realized_net', 0):,.2f}",
+        f"Total Statutory Fees Paid: ₹{p.get('total_statutory_charges', 0):,.2f}",
+        f"Win Rate: {p.get('win_rate_pct', 0)}% | Profit Factor: {p.get('profit_factor', 1.0)}",
+        f"Open Campaigns: {len(pos_list)} | Total Risk at Stop: ₹{p.get('total_capital_at_risk', 0):,.2f} ({p.get('total_capital_at_risk_pct', 0):.2f}% of equity)",
+        "",
+        "=== MARKET REGIME ===",
+        f"Regime: {r.get('regime', 'NEUTRAL')} (Score: {r.get('regime_score', 50)}/100, Stance: {r.get('stance', 'CAUTIOUS')})",
+        f"Nifty 50 Close: {r.get('nifty_close', 'N/A')} | Closes Below 50-DMA: {r.get('consecutive_closes_below_50dma', 0)}",
+        "",
+        "=== SECTOR EXPOSURE ===",
+    ]
+    for s in secs:
+        lines.append(f"- {s.get('sector')}: ₹{s.get('amount', 0):,.0f} ({s.get('pct', 0):.1f}% of equity, {s.get('count', 0)} positions)")
+
+    lines.append("")
+    lines.append("=== ACTIVE OPEN POSITIONS ===")
+    if not pos_list:
+        lines.append("No active open positions. 100% in cash.")
+    else:
+        for pos in pos_list:
+            sym = pos.get("symbol", pos.get("ticker", ""))
+            qty = pos.get("quantity", 0)
+            entry = pos.get("entry_price", 0)
+            curr = pos.get("current_price", entry)
+            stop = pos.get("stop_price", entry)
+            t1 = pos.get("target_1", entry)
+            r_mult = pos.get("r_multiple", 0)
+            pnl = pos.get("unrealized_pnl", 0)
+            pnl_pct = pos.get("unrealized_pnl_pct", 0)
+            t1_hit = pos.get("target_1_hit", False)
+            hold = pos.get("holding_sessions", 0)
+            strat = pos.get("strategy", "Momentum")
+            alert = pos.get("exit_alert", {})
+            cat = pos.get("catalyst", {}) or {}
+
+            pos_str = (
+                f"- {sym} (ID: {pos.get('id')}): {qty} shares @ ₹{entry:,.2f} (Now: ₹{curr:,.2f}, P&L: ₹{pnl:,.2f} / {pnl_pct:+.2f}%, {r_mult:+.2f}R). "
+                f"Stop: ₹{stop:,.2f}, Target 1: ₹{t1:,.2f} (Hit: {t1_hit}). Strategy: {strat}. Held {hold} sessions. "
+                f"50-DMA: ₹{pos.get('dma_50', 'N/A')}"
+            )
+            if cat and cat.get("has_earnings_soon"):
+                pos_str += f" | ⚠️ EARNINGS IN {cat.get('days_to_earnings')} DAYS ({cat.get('earnings_date')})"
+            if pos.get("earnings_review"):
+                er = pos["earnings_review"]
+                pos_str += f" | 📢 EARNINGS REVIEW: {er.get('verdict')} ({er.get('verdict_badge')}) - {er.get('rationale')}"
+            if alert and alert.get("should_exit"):
+                pos_str += f" | 🚨 EXIT ALERT: {alert.get('reason')}"
+            lines.append(pos_str)
+
+    return "\n".join(lines)
+
+
+def build_portfolio_briefing_prompt(telemetry: Dict[str, Any]) -> tuple[str, str]:
+    """Builds system and user prompts for Google Finance-style executive briefing."""
+    context = format_portfolio_telemetry_for_prompt(telemetry)
+    system_prompt = (
+        "You are an Institutional Portfolio Risk Officer (Google Finance style). "
+        "Provide a crisp, direct, beautifully structured executive briefing on the user's paper trading portfolio.\n"
+        "Formatting rules:\n"
+        "1. Write an Executive Overview paragraph (1-2 sentences) summarizing current equity, net P&L, and cash posture.\n"
+        "2. Follow with 2 to 3 bullet points with bold titles:\n"
+        "   - **Market Stance:** Stance on cash reserves vs current market regime.\n"
+        "   - **Active Trades:** Highlights of positions nearing profit targets or stops (e.g. TECHM +13%, PNB near stop).\n"
+        "   - **Catalyst Horizon:** Imminent earnings or binary event threats.\n"
+        "3. DO NOT output a standalone empty 'Recommended Actions' heading or empty bullet points. If you recommend an action, embed the tag directly at the end of the relevant sentence:\n"
+        "   - To trim 50%: [ACTION:TRIM_50:TICKER:QTY:Bank 50% on TICKER]\n"
+        "   - To update/tighten stop: [ACTION:UPDATE_STOP:TICKER:NEW_PRICE:Tighten Stop to ₹PRICE]\n"
+        "   - To close: [ACTION:EXIT:TICKER:Exit TICKER Now]\n"
+        "4. Keep it concise, high-signal, and clean. Always use the ₹ symbol for currency."
+    )
+    user_prompt = f"{context}\n\nProvide the Google Finance-style executive briefing now."
+    return system_prompt, user_prompt
+
+
+def build_portfolio_consult_context(telemetry: Dict[str, Any]) -> str:
+    """Builds system prompt for multi-turn interactive back-and-forth consultation."""
+    context = format_portfolio_telemetry_for_prompt(telemetry)
+    return (
+        "You are an elite, quantitative Portfolio Risk Analyst & CIO (Google Finance style). "
+        "You are having a direct, multi-turn consultation with the portfolio manager.\n"
+        "Strict rules:\n"
+        "1. Base all reasoning strictly on the live portfolio telemetry provided below.\n"
+        "2. Keep answers concise, direct, and structured with bold numbers and bullet points. Never lecture or give generic disclaimers.\n"
+        "3. You can stress-test drops, discuss whether to lock breakeven vs take 50% profit, evaluate sector concentration, and advise on dry powder deployment.\n"
+        "4. If advising a concrete trade action, include a clickable action tag:\n"
+        "   - [ACTION:TRIM_50:TICKER:QTY:BUTTON_LABEL]\n"
+        "   - [ACTION:UPDATE_STOP:TICKER:NEW_PRICE:BUTTON_LABEL]\n"
+        "   - [ACTION:EXIT:TICKER:BUTTON_LABEL]\n"
+        f"\n{context}"
+    )
+
+
+def clean_mojibake(text: str) -> str:
+    """Cleans common Windows CP1252 mojibake artifacts into proper UTF-8 symbols."""
+    if not text:
+        return text
+    return (
+        text.replace("\u00e2\u0082\u00b9", "₹")
+            .replace("\u00e2\u201a\u00b9", "₹")
+            .replace("â¹", "₹")
+            .replace("â‚¹", "₹")
+            .replace("â€™", "'")
+            .replace("â€œ", '"')
+            .replace("â€\x9d", '"')
+            .replace("â€”", "—")
+    )
+
+
+def generate_portfolio_briefing(telemetry: Dict[str, Any]) -> str:
+    """Generates the Google Finance portfolio briefing using active provider."""
+    system_prompt, user_prompt = build_portfolio_briefing_prompt(telemetry)
+
+    # Route 1: Local Qwen (Strict when provider is qwen)
+    if get_active_provider() == "qwen":
+        raw = query_local_qwen(user_prompt, system_prompt=system_prompt, max_tokens=1200, temperature=0.2)
+        return clean_mojibake(raw)
+
+    # Route 2: Gemini Cloud (Only when explicitly selected)
+    try:
+        import aianalysis as ai
+        client = ai.get_gemini_client()
+        res = client.models.generate_content(
+            model=ai.STAGE2_MODEL_DEFAULT,
+            contents=f"{system_prompt}\n\n{user_prompt}"
+        )
+        return clean_mojibake(res.text.strip())
+    except Exception as err:
+        return f"Portfolio briefing unavailable: {err}"
+
+
+def stream_chat_with_portfolio(
+    telemetry: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    user_message: str,
+):
+    """
+    Multi-turn interactive conversation with the portfolio (token streaming generator).
+    Strictly adheres to active provider: routes to Local Qwen or Gemini Cloud.
+    """
+    system_prompt = build_portfolio_consult_context(telemetry)
+
+    # Route 1: Local Qwen (when provider is qwen)
+    if get_active_provider() == "qwen":
+        if not is_server_healthy():
+            start_local_server()
+
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in chat_history[-8:]:
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+        messages.append({"role": "user", "content": user_message})
+
+        payload = {
+            "model": "qwen2.5-coder-7b",
+            "messages": messages,
+            "max_tokens": 2000,
+            "temperature": 0.2,
+            "stream": True,
+        }
+
+        try:
+            with requests.post(
+                f"{LOCAL_SERVER_URL}/v1/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                stream=True,
+                timeout=120,
+            ) as res:
+                res.raise_for_status()
+                for line in res.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    line = line.strip()
+                    if line.startswith("data: "):
+                        data_part = line[6:].strip()
+                        if data_part == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_part)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            token = delta.get("content") or delta.get("reasoning_content") or ""
+                            if token:
+                                yield token
+                        except Exception:
+                            continue
+            return
+        except Exception as e:
+            yield f"Local Qwen error: {e}. Please ensure local model server is running."
+            return
+
+    # Route 2: Gemini Cloud (Only when provider is explicitly 'gemini')
+    try:
+        import aianalysis as ai
+        client = ai.get_gemini_client()
+        full_convo = f"{system_prompt}\n\n"
+        for msg in chat_history[-6:]:
+            role = "User" if msg.get("role") == "user" else "Advisor"
+            full_convo += f"{role}: {msg.get('content')}\n"
+        full_convo += f"User: {user_message}\nAdvisor:"
+
+        response = client.models.generate_content_stream(
+            model=ai.STAGE2_MODEL_DEFAULT,
+            contents=full_convo,
+        )
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+    except Exception as err:
+        yield f"Consultation unavailable: {err}"
+
+
+def chat_with_portfolio(
+    telemetry: Dict[str, Any],
+    chat_history: List[Dict[str, str]],
+    user_message: str,
+) -> str:
+    """Non-streaming version of chat_with_portfolio."""
+    tokens = []
+    for tok in stream_chat_with_portfolio(telemetry, chat_history, user_message):
+        tokens.append(tok)
+    return "".join(tokens)
 
 
 

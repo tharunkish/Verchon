@@ -8,9 +8,12 @@ wrapping existing analytical engines without modifying base logic.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -21,6 +24,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("server")
 
 import aianalysis as ai
 import ai_parser
@@ -191,6 +196,25 @@ class PaperAccountUpdateRequest(BaseModel):
     risk_per_trade_pct: Optional[float] = None
 
 
+class PaperAiConsultRequest(BaseModel):
+    message: str
+    history: List[Dict[str, Any]] = []
+
+
+class JournalUpdateRequest(BaseModel):
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+
+
+# In-memory cache for Portfolio AI Advisor briefing
+PORTFOLIO_AI_CACHE: Dict[str, Any] = {
+    "briefing": None,
+    "telemetry": None,
+    "timestamp": 0,
+    "provider": None,
+}
+
 
 # =====================================================================
 # 3. API ENDPOINTS
@@ -354,7 +378,8 @@ def get_ai_diagnostics() -> Dict[str, Any]:
 
 
 @app.post("/api/ai-dossier/{ticker}")
-def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
+@app.post("/api/ai-dossier/{ticker}")
+def generate_single_stock_ai_dossier(ticker: str, force: bool = False) -> Dict[str, Any]:
     """
     Generates or retrieves an on-demand structured AI Dossier specifically for one stock.
     Routes to Local Qwen 3.5 4B or Cloud Gemini depending on active user setting.
@@ -362,12 +387,13 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     formatted_sym = ta.format_nse_ticker(clean_sym)
 
-    # If already cached from a previous synthesis, return immediately
-    if clean_sym in AI_REPORT_CACHE["dossiers"]:
+    # If already cached from a previous synthesis and not forced, return immediately
+    if not force and clean_sym in AI_REPORT_CACHE["dossiers"]:
+        cached_dossier = ai_parser.clean_mojibake(AI_REPORT_CACHE["dossiers"][clean_sym])
         return serialize_for_json({
             "ticker": formatted_sym,
             "cached": True,
-            "dossier": AI_REPORT_CACHE["dossiers"][clean_sym],
+            "dossier": cached_dossier,
             "diagnostics": AI_REPORT_CACHE.get("diagnostics", []),
         })
 
@@ -382,6 +408,7 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             
             print(f"  [2/3] Querying local Qwen engine on port 8085 (prompting with full context)...")
             rep_md = local_llm.generate_qwen_stock_dossier(formatted_sym, cand_data)
+            rep_md = ai_parser.clean_mojibake(rep_md)
             
             print(f"  [3/3] Parsing Markdown into structured cards (Thesis, Invalidation, Contradictions, Questions)...")
             stock_dossier = ai_parser.parse_stock_ai_section(clean_sym, rep_md)
@@ -392,6 +419,7 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
                     "thesis": [f"Local Qwen qualitative assessment generated for {clean_sym}."],
                     "risks": {"setup_invalidation": "Break below recent swing support."},
                 }
+            stock_dossier = ai_parser.clean_mojibake(stock_dossier)
 
             AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
             AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
@@ -416,20 +444,27 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
             candidates=[{"name": clean_sym, "ticker": formatted_sym}],
             verbose=False,
         )
-        rep_md = pipeline_result.get("report_markdown", "")
+        rep_md = ai_parser.clean_mojibake(pipeline_result.get("report_markdown", ""))
         diagnostics = pipeline_result.get("diagnostics", [])
         parsed = ai_parser.parse_full_report_by_tickers([clean_sym, formatted_sym], rep_md)
         stock_dossier = parsed.get("dossiers", {}).get(clean_sym) or parsed.get("dossiers", {}).get(formatted_sym)
 
-        if stock_dossier:
-            AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
-            AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
+        if not stock_dossier:
+            stock_dossier = {
+                "raw_section": rep_md,
+                "thesis": [f"Cloud Gemini research dossier generated for {clean_sym}."],
+                "risks": {"setup_invalidation": "Break below recent swing support."},
+            }
+        stock_dossier = ai_parser.clean_mojibake(stock_dossier)
+
+        AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
+        AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
         AI_REPORT_CACHE["diagnostics"] = diagnostics
 
         return serialize_for_json({
             "ticker": formatted_sym,
             "cached": False,
-            "dossier": stock_dossier or {"raw_section": rep_md, "thesis": []},
+            "dossier": stock_dossier,
             "raw_markdown": rep_md,
             "diagnostics": diagnostics,
         })
@@ -438,34 +473,75 @@ def generate_single_stock_ai_dossier(ticker: str) -> Dict[str, Any]:
 
 
 @app.post("/api/ai-dossier/{ticker}/stream")
-def stream_single_stock_ai_dossier(ticker: str):
+def stream_single_stock_ai_dossier(ticker: str, force: bool = False):
     """
     Streams an on-demand structured AI Dossier token-by-token using Server-Sent Events (SSE).
-    Sends individual tokens while Qwen generates, then emits a final structured payload.
+    Sends individual tokens while generating, then emits a final structured payload.
+    Supports force=true to bypass cache and synthesize a fresh report.
     """
     clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
     formatted_sym = ta.format_nse_ticker(clean_sym)
 
     def event_stream():
-        # Check cache first
-        if clean_sym in AI_REPORT_CACHE["dossiers"]:
+        # Check cache only if not forced
+        if not force and clean_sym in AI_REPORT_CACHE["dossiers"]:
+            cached_dossier = ai_parser.clean_mojibake(AI_REPORT_CACHE["dossiers"][clean_sym])
             cached_data = {
                 "type": "done",
                 "ticker": formatted_sym,
                 "cached": True,
-                "dossier": AI_REPORT_CACHE["dossiers"][clean_sym],
-                "raw_markdown": AI_REPORT_CACHE["dossiers"][clean_sym].get("raw_section", ""),
+                "dossier": cached_dossier,
+                "raw_markdown": cached_dossier.get("raw_section", "") or cached_dossier.get("raw_markdown", ""),
                 "diagnostics": AI_REPORT_CACHE.get("diagnostics", []),
             }
             yield f"data: {json.dumps(cached_data)}\n\n"
             return
 
+        active_provider = local_llm.get_active_provider()
+
+        # Route to Gemini if cloud provider is active
+        if active_provider == "gemini":
+            try:
+                pipeline_result = ai.run_ai_research_pipeline(
+                    candidates=[{"name": clean_sym, "ticker": formatted_sym}],
+                    verbose=False,
+                )
+                rep_md = ai_parser.clean_mojibake(pipeline_result.get("report_markdown", ""))
+                diagnostics = pipeline_result.get("diagnostics", [])
+                parsed = ai_parser.parse_full_report_by_tickers([clean_sym, formatted_sym], rep_md)
+                stock_dossier = parsed.get("dossiers", {}).get(clean_sym) or parsed.get("dossiers", {}).get(formatted_sym)
+                if not stock_dossier:
+                    stock_dossier = {
+                        "raw_section": rep_md,
+                        "thesis": [f"Cloud Gemini qualitative research generated for {clean_sym}."],
+                        "risks": {"setup_invalidation": "Break below recent swing support."},
+                    }
+                stock_dossier = ai_parser.clean_mojibake(stock_dossier)
+                AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
+                AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
+
+                done_payload = {
+                    "type": "done",
+                    "ticker": formatted_sym,
+                    "cached": False,
+                    "dossier": stock_dossier,
+                    "raw_markdown": rep_md,
+                    "diagnostics": diagnostics,
+                }
+                yield f"data: {json.dumps(done_payload)}\n\n"
+                return
+            except Exception as err:
+                yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
+                return
+
+        # Route to Local Qwen
         try:
             cand_data = ra.analyze_candidate(formatted_sym)
             token_list = []
             for token in local_llm.stream_qwen_stock_dossier(formatted_sym, cand_data):
-                token_list.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                cleaned_token = local_llm.clean_mojibake(token)
+                token_list.append(cleaned_token)
+                yield f"data: {json.dumps({'type': 'token', 'content': cleaned_token})}\n\n"
 
             full_md = "".join(token_list)
             stock_dossier = ai_parser.parse_stock_ai_section(clean_sym, full_md)
@@ -475,6 +551,7 @@ def stream_single_stock_ai_dossier(ticker: str):
                     "thesis": [f"Local Qwen qualitative assessment generated for {clean_sym}."],
                     "risks": {"setup_invalidation": "Break below recent swing support."},
                 }
+            stock_dossier = ai_parser.clean_mojibake(stock_dossier)
 
             AI_REPORT_CACHE["dossiers"][clean_sym] = stock_dossier
             AI_REPORT_CACHE["dossiers"][formatted_sym] = stock_dossier
@@ -621,44 +698,116 @@ def stream_ai_report_endpoint(req: AIReportRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+# In-memory News Hub Cache (15 min TTL) to eliminate UI freeze
+_NEWS_HUB_CACHE: Dict[str, Any] = {}
+_NEWS_HUB_CACHE_TIME: float = 0.0
+_NEWS_HUB_CACHE_TTL: float = 900.0  # 15 minutes
+
 @app.get("/api/news-hub")
-def get_news_hub_data() -> Dict[str, Any]:
+def get_news_hub_data(force_refresh: bool = False) -> Dict[str, Any]:
     """
     Returns aggregated corporate filings, upcoming earnings radar,
-    and live market news feed for Tab 4.
+    and live market news feed for Tab 4 with in-memory caching and concurrent fetching.
     """
+    global _NEWS_HUB_CACHE, _NEWS_HUB_CACHE_TIME
+    now_ts = time.time()
+    if not force_refresh and _NEWS_HUB_CACHE and (now_ts - _NEWS_HUB_CACHE_TIME < _NEWS_HUB_CACHE_TTL):
+        return _NEWS_HUB_CACHE
+
     try:
         filings = event_engine.get_aggregate_corporate_announcements(limit=40)
         market_news = event_engine.fetch_market_news_feed(limit=25)
 
-        # Build upcoming earnings radar across popular screened stocks
-        sample_tickers = ["PNB", "REDINGTON", "HAL", "TECHM", "TCS", "ICICIBANK", "SBIN", "BEL", "ADANIPORTS", "MOTHERSON"]
+        # Build upcoming earnings radar across active reporting universe + held portfolio positions
+        open_positions = ps.get_paper_positions()
+        held_tickers = set(
+            p.get("ticker", "").replace(".NS", "").replace(".BO", "").strip().upper()
+            for p in open_positions if p.get("status") == "OPEN"
+        )
+
+        base_tickers = [
+            "HDFCBANK", "AXISBANK", "RELIANCE", "INFY", "KOTAKBANK", "LT", "ITC",
+            "BEL", "ADANIPORTS", "SBIN", "REDINGTON", "HAL", "TECHM", "TCS", "PNB",
+            "TATASTEEL", "TITAN", "BAJFINANCE", "MARUTI", "SUNPHARMA"
+        ]
+        # Held positions prioritized at the top of inspection
+        combined_tickers = list(dict.fromkeys(list(held_tickers) + base_tickers))
+
+        def _fetch_radar_item(clean_t: str):
+            try:
+                radar = event_engine.fetch_corporate_radar(f"{clean_t}.NS")
+                dt = radar.get("next_earnings_date")
+                days = radar.get("days_to_earnings")
+                is_held = clean_t in held_tickers
+
+                # Filter to confirmed upcoming future dates (days >= 0)
+                if dt and days is not None and days >= 0:
+                    return {
+                        "ticker": f"{clean_t}.NS",
+                        "next_earnings_date": dt,
+                        "days_to_earnings": days,
+                        "is_held": is_held,
+                        "badge": radar.get("event_risk_badge"),
+                        "status": radar.get("event_risk_status"),
+                        "reason": radar.get("event_risk_reason"),
+                        "past_surprises": radar.get("past_earnings_track_record", [])[:4],
+                        "gap_stats": radar.get("gap_stats", {}),
+                        "gap_reactions": radar.get("gap_reactions", [])[:4],
+                    }
+            except Exception as e:
+                logger.warning(f"Error fetching radar for {clean_t}: {e}")
+            return None
+
         upcoming_earnings = []
-        for t in sample_tickers:
-            radar = event_engine.fetch_corporate_radar(f"{t}.NS")
-            if radar.get("next_earnings_date"):
-                upcoming_earnings.append({
-                    "ticker": f"{t}.NS",
-                    "next_earnings_date": radar.get("next_earnings_date"),
-                    "days_to_earnings": radar.get("days_to_earnings"),
-                    "badge": radar.get("event_risk_badge"),
-                    "status": radar.get("event_risk_status"),
-                    "reason": radar.get("event_risk_reason"),
-                    "past_surprises": radar.get("past_earnings_track_record", [])[:2],
-                })
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [
+                executor.submit(_fetch_radar_item, t.replace(".NS", "").replace(".BO", "").strip().upper())
+                for t in combined_tickers
+                if t.strip()
+            ]
+            for f in as_completed(futures):
+                res = f.result()
+                if res:
+                    upcoming_earnings.append(res)
 
-        # Sort upcoming earnings by days remaining
-        upcoming_earnings.sort(key=lambda x: x.get("days_to_earnings") if x.get("days_to_earnings") is not None else 999)
+        # Sort: held positions with upcoming earnings <= 14d first, then by days remaining
+        upcoming_earnings.sort(key=lambda x: (
+            0 if x.get("is_held") and (x.get("days_to_earnings", 999) <= 14) else 1,
+            x.get("days_to_earnings") if x.get("days_to_earnings") is not None else 999
+        ))
 
-        return serialize_for_json({
+        # Build recent earnings report cards & review scorecards
+        recent_earnings_reviews = event_engine.get_recent_earnings_reviews(combined_tickers[:15], limit=8)
+
+        data = serialize_for_json({
             "upcoming_earnings": upcoming_earnings,
+            "recent_earnings_reviews": recent_earnings_reviews,
             "recent_filings": filings,
             "market_news": market_news,
             "updated_at": datetime.now().isoformat(),
         })
+        _NEWS_HUB_CACHE = data
+        _NEWS_HUB_CACHE_TIME = time.time()
+        return data
     except Exception as e:
         print(f"[!] News Hub error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/corporate-events/earnings-review/{ticker}")
+def get_single_earnings_review(ticker: str) -> Dict[str, Any]:
+    """
+    Returns empirical Earnings Report Card for a ticker:
+    Projected vs Actual, operational highlights, dividend declaration, and overall review verdict.
+    """
+    try:
+        card = event_engine.fetch_earnings_report_card(ticker)
+        return serialize_for_json(card)
+    except Exception as e:
+        logger.error(f"Failed to fetch earnings review for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/api/stocks/{ticker}")
@@ -681,18 +830,27 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
             pass
         candidate_dossier = ra.analyze_candidate(formatted_sym, as_of_date=as_of_date, market_context=m_ctx)
 
-        # 2. Fetch 1Y OHLCV for interactive chart
+        # 2. Fetch 2Y OHLCV for interactive multi-timeframe chart
         candles: List[Dict[str, Any]] = []
+        ema_20_line: List[Dict[str, Any]] = []
         dma_50_line: List[Dict[str, Any]] = []
         dma_200_line: List[Dict[str, Any]] = []
+        vol_ma_line: List[Dict[str, Any]] = []
+
+        weekly_candles: List[Dict[str, Any]] = []
+        weekly_ema_10_line: List[Dict[str, Any]] = []
+        weekly_dma_40_line: List[Dict[str, Any]] = []
+        weekly_vol_ma_line: List[Dict[str, Any]] = []
 
         try:
-            stock_df, _ = ta.fetch_daily_ohlcv(formatted_sym, period="1y", as_of_date=as_of_date)
+            stock_df, _ = ta.fetch_daily_ohlcv(formatted_sym, period="2y", as_of_date=as_of_date)
             if stock_df is not None and not stock_df.empty:
-                # Calculate rolling moving averages
                 close_s = stock_df["Close"]
+                vol_s = stock_df["Volume"]
+                ema20 = close_s.ewm(span=20, adjust=False).mean()
                 ma50 = close_s.rolling(window=50).mean()
                 ma200 = close_s.rolling(window=200).mean() if len(close_s) >= 200 else ma50
+                vol_ma20 = vol_s.rolling(window=20).mean()
 
                 for idx in range(len(stock_df)):
                     date_val = stock_df.index[idx]
@@ -713,10 +871,48 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
                         "volume": int(c_vol),
                     })
 
+                    if pd.notna(ema20.iloc[idx]):
+                        ema_20_line.append({"time": date_str, "value": round(float(ema20.iloc[idx]), 2)})
                     if pd.notna(ma50.iloc[idx]):
                         dma_50_line.append({"time": date_str, "value": round(float(ma50.iloc[idx]), 2)})
                     if pd.notna(ma200.iloc[idx]):
                         dma_200_line.append({"time": date_str, "value": round(float(ma200.iloc[idx]), 2)})
+                    if pd.notna(vol_ma20.iloc[idx]):
+                        vol_ma_line.append({"time": date_str, "value": round(float(vol_ma20.iloc[idx]), 2)})
+
+                # Weekly resampled candles & weekly moving averages
+                try:
+                    w_df = stock_df.resample('W-FRI').agg({
+                        'Open': 'first',
+                        'High': 'max',
+                        'Low': 'min',
+                        'Close': 'last',
+                        'Volume': 'sum'
+                    }).dropna()
+                    if not w_df.empty:
+                        w_close = w_df["Close"]
+                        w_ema10 = w_close.ewm(span=10, adjust=False).mean()
+                        w_ma40 = w_close.rolling(window=40).mean() if len(w_close) >= 40 else w_ema10
+                        w_vol_ma = w_df["Volume"].rolling(window=10).mean()
+
+                        for w_idx in range(len(w_df)):
+                            w_date = w_df.index[w_idx].strftime("%Y-%m-%d")
+                            weekly_candles.append({
+                                "time": w_date,
+                                "open": round(float(w_df["Open"].iloc[w_idx]), 2),
+                                "high": round(float(w_df["High"].iloc[w_idx]), 2),
+                                "low": round(float(w_df["Low"].iloc[w_idx]), 2),
+                                "close": round(float(w_df["Close"].iloc[w_idx]), 2),
+                                "volume": int(w_df["Volume"].iloc[w_idx]),
+                            })
+                            if pd.notna(w_ema10.iloc[w_idx]):
+                                weekly_ema_10_line.append({"time": w_date, "value": round(float(w_ema10.iloc[w_idx]), 2)})
+                            if pd.notna(w_ma40.iloc[w_idx]):
+                                weekly_dma_40_line.append({"time": w_date, "value": round(float(w_ma40.iloc[w_idx]), 2)})
+                            if pd.notna(w_vol_ma.iloc[w_idx]):
+                                weekly_vol_ma_line.append({"time": w_date, "value": round(float(w_vol_ma.iloc[w_idx]), 2)})
+                except Exception as w_err:
+                    print(f"[!] Weekly resample warning: {w_err}")
 
             # 2.1 Calculate technical buy signal markers for TradingView chart
             chart_signal_data = {"markers": []}
@@ -896,9 +1092,17 @@ def get_stock_deep_dive(ticker: str, as_of_date: Optional[str] = None) -> Dict[s
             "dossier": candidate_dossier,
             "chart": {
                 "candles": candles,
+                "ema_20": ema_20_line,
                 "dma_50": dma_50_line,
                 "dma_200": dma_200_line,
+                "vol_ma_20": vol_ma_line,
                 "markers": chart_signal_data.get("markers", []),
+                "weekly": {
+                    "candles": weekly_candles,
+                    "ema_10": weekly_ema_10_line,
+                    "dma_40": weekly_dma_40_line,
+                    "vol_ma_10": weekly_vol_ma_line,
+                },
             },
             "rule_breakdown": rule_breakdown,
             "corporate_radar": corporate_radar,
@@ -1070,6 +1274,137 @@ def close_paper_trade(req: PaperPositionCloseRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to close paper position: {e}")
 
 
+@app.get("/api/paper-trades/journal")
+def get_paper_trade_journal() -> Dict[str, Any]:
+    """Returns comprehensive quantitative trade journal analytics, calendar heatmap, and strategy attribution."""
+    try:
+        return serialize_for_json(ps.get_trade_journal_analytics())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Journal analytics error: {e}")
+
+
+@app.post("/api/paper-trades/journal/{position_id}")
+def update_paper_trade_journal(position_id: str, req: JournalUpdateRequest) -> Dict[str, Any]:
+    """Updates user reflection tags and notes on a trade campaign/position."""
+    try:
+        updated = ps.update_position_journal(
+            position_id=position_id,
+            tags=req.tags,
+            notes=req.notes,
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Trade position not found")
+        return serialize_for_json(updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update trade journal: {e}")
+
+
+
+# =====================================================================
+# PORTFOLIO AI ADVISOR & CONSULTANT (Google Finance Style)
+# =====================================================================
+
+@app.get("/api/paper-trades/ai-briefing")
+def get_paper_portfolio_briefing(force_refresh: bool = False) -> Dict[str, Any]:
+    """
+    Returns a Google Finance-style executive portfolio briefing:
+    - 1-2 sentence executive snapshot of overall equity, cash reserve, and market regime
+    - 2-3 actionable bullets with embedded [ACTION:...] tags for 1-click execution
+    - Complete live portfolio telemetry snapshot
+    Cached for 3 minutes unless force_refresh is True.
+    """
+    now = time.time()
+    cache_age = now - PORTFOLIO_AI_CACHE.get("timestamp", 0)
+
+    if not force_refresh and PORTFOLIO_AI_CACHE.get("briefing") and cache_age < 180:
+        return serialize_for_json({
+            "briefing": PORTFOLIO_AI_CACHE["briefing"],
+            "telemetry": PORTFOLIO_AI_CACHE["telemetry"],
+            "cached": True,
+            "cache_age_seconds": round(cache_age, 1),
+            "provider": PORTFOLIO_AI_CACHE.get("provider", local_llm.get_active_provider()),
+        })
+
+    try:
+        telemetry = ps.get_clean_portfolio_telemetry()
+        active_provider = local_llm.get_active_provider()
+        briefing_text = local_llm.generate_portfolio_briefing(telemetry)
+
+        PORTFOLIO_AI_CACHE["briefing"] = briefing_text
+        PORTFOLIO_AI_CACHE["telemetry"] = telemetry
+        PORTFOLIO_AI_CACHE["timestamp"] = now
+        PORTFOLIO_AI_CACHE["provider"] = active_provider
+
+        return serialize_for_json({
+            "briefing": briefing_text,
+            "telemetry": telemetry,
+            "cached": False,
+            "cache_age_seconds": 0,
+            "provider": active_provider,
+        })
+    except Exception as e:
+        logger.error(f"Failed to generate portfolio briefing: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate portfolio briefing: {e}")
+
+
+@app.post("/api/paper-trades/ai-consult")
+def consult_paper_portfolio(req: PaperAiConsultRequest) -> Dict[str, Any]:
+    """
+    Interactive Q&A consultation for the paper portfolio (non-streaming).
+    Grounded in real-time ledger, positions, sector weights, corporate radar, and regime.
+    """
+    try:
+        telemetry = ps.get_clean_portfolio_telemetry()
+        reply = local_llm.chat_with_portfolio(
+            telemetry=telemetry,
+            chat_history=req.history,
+            user_message=req.message,
+        )
+        return serialize_for_json({
+            "reply": reply,
+            "provider": local_llm.get_active_provider(),
+        })
+    except Exception as e:
+        logger.error(f"Portfolio consultation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Consultation error: {e}")
+
+
+@app.post("/api/paper-trades/ai-consult/stream")
+def stream_consult_paper_portfolio(req: PaperAiConsultRequest):
+    """
+    Interactive Q&A consultation with token-by-token streaming via SSE.
+    Enables conversational back-and-forth directly with the portfolio.
+    """
+    def event_stream():
+        try:
+            telemetry = ps.get_clean_portfolio_telemetry()
+            token_list = []
+            for token in local_llm.stream_chat_with_portfolio(
+                telemetry=telemetry,
+                chat_history=req.history,
+                user_message=req.message,
+            ):
+                token_list.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            full_reply = "".join(token_list)
+            yield f"data: {json.dumps({'type': 'done', 'reply': full_reply})}\n\n"
+        except Exception as err:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 # =====================================================================
 # SYSTEM RESTART, HEALTH & AI LIFECYCLE ENDPOINTS
 # =====================================================================
@@ -1166,8 +1501,24 @@ if os.path.exists(dist_dir):
             raise HTTPException(status_code=404, detail="API route not found")
         target = os.path.join(dist_dir, full_path)
         if full_path and os.path.exists(target) and os.path.isfile(target):
+            if target.endswith(".html"):
+                return FileResponse(
+                    target,
+                    headers={
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                    },
+                )
             return FileResponse(target)
-        return FileResponse(os.path.join(dist_dir, "index.html"))
+        return FileResponse(
+            os.path.join(dist_dir, "index.html"),
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
 
 if __name__ == "__main__":

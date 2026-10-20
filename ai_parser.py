@@ -12,6 +12,26 @@ import re
 from typing import Any, Dict, List, Optional
 
 
+def clean_mojibake(val: Any) -> Any:
+    """Recursively cleans Windows CP1252 mojibake artifacts into proper UTF-8 symbols."""
+    if isinstance(val, str):
+        return (
+            val.replace("\u00e2\u0082\u00b9", "₹")
+               .replace("\u00e2\u201a\u00b9", "₹")
+               .replace("â¹", "₹")
+               .replace("â‚¹", "₹")
+               .replace("â€™", "'")
+               .replace("â€œ", '"')
+               .replace("â€\x9d", '"')
+               .replace("â€”", "—")
+        )
+    elif isinstance(val, list):
+        return [clean_mojibake(item) for item in val]
+    elif isinstance(val, dict):
+        return {k: clean_mojibake(v) for k, v in val.items()}
+    return val
+
+
 SECTION_DEFINITIONS = {
     "thesis": [
         "Why it entered the shortlist",
@@ -262,7 +282,7 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
     strengthen_conditions = to_bullet_list(extracted_blocks.get("strengthen_conditions", ""))
     weaken_conditions = to_bullet_list(extracted_blocks.get("weaken_conditions", ""))
 
-    return {
+    return clean_mojibake({
         "ticker": clean_tick,
         "thesis": thesis,
         "bull_case": bull_case,
@@ -276,7 +296,7 @@ def parse_stock_ai_section(ticker: str, full_markdown: str) -> Optional[Dict[str
         "strengthen_conditions": strengthen_conditions,
         "weaken_conditions": weaken_conditions,
         "raw_section": section_text,
-    }
+    })
 
 
 def parse_macro_backdrop(full_markdown: str) -> str:
@@ -285,7 +305,7 @@ def parse_macro_backdrop(full_markdown: str) -> str:
         return ""
     m = re.search(r"##\s*1\.\s*Market Backdrop\s*(.*?)(?=(?:\n##\s|\Z))", full_markdown, re.DOTALL | re.IGNORECASE)
     if m:
-        return m.group(1).strip()
+        return clean_mojibake(m.group(1).strip())
     return ""
 
 
@@ -295,7 +315,7 @@ def parse_cross_stock_comparison(full_markdown: str) -> str:
         return ""
     m = re.search(r"##\s*4\.\s*Cross-Stock Comparison.*?\s*(.*?)(?=(?:\n##\s|\Z))", full_markdown, re.DOTALL | re.IGNORECASE)
     if m:
-        return m.group(1).strip()
+        return clean_mojibake(m.group(1).strip())
     return ""
 
 
@@ -314,8 +334,8 @@ def parse_full_report_by_tickers(tickers: List[str], full_markdown: str) -> Dict
             dossiers[clean] = parsed
             dossiers[f"{clean}.NS"] = parsed
 
-    return {
+    return clean_mojibake({
         "macro_backdrop": parse_macro_backdrop(full_markdown),
         "cross_comparison": parse_cross_stock_comparison(full_markdown),
         "dossiers": dossiers,
-    }
+    })

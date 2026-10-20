@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Search, Command, Settings, RotateCcw, Sun, Moon, Compass, PieChart, LineChart, Newspaper, ShieldAlert, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function AppleHeader({
@@ -21,22 +22,22 @@ export default function AppleHeader({
       case 'SUPPORTIVE':
         return {
           label: 'Market Supportive',
-          dot: 'bg-emerald-500',
-          badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+          dot: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]',
+          badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25 shadow-sm',
           icon: ShieldCheck,
         };
       case 'HOSTILE':
         return {
           label: 'Caution: Downdraft',
-          dot: 'bg-rose-500',
-          badge: 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/20',
+          dot: 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]',
+          badge: 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/25 shadow-sm',
           icon: ShieldAlert,
         };
       case 'CAUTION':
         return {
           label: 'Market Uncertain',
-          dot: 'bg-amber-500',
-          badge: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
+          dot: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]',
+          badge: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/25 shadow-sm',
           icon: AlertCircle,
         };
       default:
@@ -65,84 +66,102 @@ export default function AppleHeader({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] dark:border-white/[0.07] bg-white/80 dark:bg-[#0c0d12]/80 backdrop-blur-2xl transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full border-b border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc]/90 dark:bg-[#1c232d]/92 backdrop-blur-2xl transition-all duration-300">
       {/* Top Bar: Brand & System Pulse */}
       <div className="flex h-14 items-center justify-between px-5 sm:px-8 max-w-7xl mx-auto">
         {/* Left: Warm Crafted Monogram */}
         <div className="flex items-center space-x-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-b from-zinc-800 to-zinc-950 dark:from-zinc-100 dark:to-zinc-300 text-white dark:text-zinc-950 font-semibold text-sm shadow-sm">
+          <motion.div 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#806350] dark:bg-[#222b37] border border-[#806350]/30 dark:border-[#363c44] text-[#edd9cc] dark:text-[#e0d1b9] font-bold text-sm shadow-md cursor-default font-mono"
+          >
             V
-          </div>
+          </motion.div>
           <div className="flex flex-col">
-            <span className="text-xs font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              VERCHON
+            <span className="text-xs font-black tracking-tight text-[#2d1f17] dark:text-[#e0d1b9] flex items-center space-x-1.5">
+              <span>VERCHON</span>
+              <span className="h-1 w-1 rounded-full bg-[#b20808] dark:bg-[#958a7a]" />
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-              Swing Trading Journal
+            <span className="text-[10px] text-[#806350] dark:text-[#958a7a] font-medium">
+              Swing Trading Terminal
             </span>
           </div>
         </div>
 
         {/* Center: Calm Market Advisory Pill */}
-        <div className={`hidden md:flex items-center space-x-2.5 rounded-full border px-4 py-1 text-xs backdrop-blur-md transition-colors ${reg.badge}`}>
+        <motion.div 
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className={`hidden md:flex items-center space-x-2.5 rounded-full border px-4 py-1.5 text-xs backdrop-blur-xl transition-all ${reg.badge}`}
+        >
           <span className={`h-2 w-2 rounded-full ${reg.dot}`} />
           <span className="font-semibold">{reg.label}</span>
           <span className="opacity-40">·</span>
-          <span className="font-medium">Nifty 50 {price}</span>
+          <span className="font-semibold font-mono-num">Nifty 50 {price}</span>
           <span className="opacity-40">·</span>
-          <span className="font-medium text-[11px] opacity-80">Health {regimeScore}/100</span>
-        </div>
+          <span className="font-semibold font-mono-num text-[11px] opacity-90">Health {regimeScore}/100</span>
+        </motion.div>
 
         {/* Right: Search & Tactile Actions */}
         <div className="flex items-center space-x-2">
           {/* Search Trigger */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
             onClick={onOpenCommandK}
-            className="flex items-center space-x-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.03] dark:bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+            className="flex items-center space-x-2 rounded-xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#222b37] hover:bg-[#e8dacd] dark:hover:bg-[#283341] px-3.5 py-1.5 text-xs text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] hover:dark:text-[#e0d1b9] transition shadow-xs"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline text-[11px]">Search Ticker</span>
-            <kbd className="hidden sm:inline-block rounded border border-black/[0.1] dark:border-white/[0.15] bg-white dark:bg-zinc-800 px-1 font-mono text-[9px] text-zinc-500">
+            <Search className="h-3.5 w-3.5 opacity-70" />
+            <span className="hidden sm:inline text-[11px] font-medium">Search Ticker</span>
+            <kbd className="hidden sm:inline-block rounded border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#1c232d] px-1 font-mono text-[9px] text-[#806350] dark:text-[#958a7a] shadow-2xs">
               ⌘K
             </kbd>
-          </button>
+          </motion.button>
 
           {/* 1-Click Appearance Switcher */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={toggleColorMode}
             title={`Switch to ${colorMode === 'dark' ? 'Light' : 'Dark'} Mode`}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.03] dark:bg-white/[0.04] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#222b37] hover:bg-[#e8dacd] dark:hover:bg-[#283341] text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] transition shadow-xs"
           >
             {colorMode === 'dark' ? (
-              <Sun className="h-3.5 w-3.5 text-amber-400" />
+              <Sun className="h-3.5 w-3.5 text-[#e0d1b9]" />
             ) : (
-              <Moon className="h-3.5 w-3.5 text-blue-500" />
+              <Moon className="h-3.5 w-3.5 text-[#806350]" />
             )}
-          </button>
+          </motion.button>
 
           {/* Preferences */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={onOpenSettings}
             title="Preferences"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-black/[0.03] dark:bg-white/[0.04] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#222b37] hover:bg-[#e8dacd] dark:hover:bg-[#283341] text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] transition shadow-xs"
           >
             <Settings className="h-3.5 w-3.5" />
-          </button>
+          </motion.button>
 
           {/* System Restart */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={onOpenRestartModal}
             title="Restart System & Local AI"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition shadow-xs"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-          </button>
+          </motion.button>
         </div>
       </div>
 
-      {/* Segmented Apple Navigation Tabs */}
-      <div className="flex h-11 items-center px-5 sm:px-8 max-w-7xl mx-auto overflow-x-auto no-scrollbar">
-        <div className="flex items-center space-x-1 p-0.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.05]">
+      {/* Segmented Apple Navigation Tabs with Fluid Spring Pill */}
+      <div className="flex h-12 items-center px-5 sm:px-8 max-w-7xl mx-auto overflow-x-auto no-scrollbar">
+        <div className="flex items-center space-x-1 p-1 rounded-2xl apple-dock">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -150,14 +169,23 @@ export default function AppleHeader({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center space-x-2 rounded-lg px-3.5 py-1 text-xs transition-all duration-150 ${
+                className={`relative flex items-center space-x-2 rounded-xl px-4 py-1.5 text-xs font-semibold transition-colors duration-200 ${
                   isActive
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-100 font-semibold shadow-sm'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ? 'text-[#edd9cc] dark:text-[#1c232d]'
+                    : 'text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9]'
                 }`}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-blue-500' : 'text-zinc-400 dark:text-zinc-500'}`} />
-                <span>{item.label}</span>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabPill"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    className="absolute inset-0 rounded-xl bg-[#806350] dark:bg-[#e0d1b9] shadow-sm border border-[#806350]/30 dark:border-transparent"
+                  />
+                )}
+                <span className="relative z-10 flex items-center space-x-2">
+                  <Icon className={`h-3.5 w-3.5 transition-colors ${isActive ? 'text-[#edd9cc] dark:text-[#1c232d]' : 'text-[#806350] dark:text-[#958a7a]'}`} />
+                  <span>{item.label}</span>
+                </span>
               </button>
             );
           })}

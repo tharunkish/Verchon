@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import TerminalHeader from './components/terminal/TerminalHeader';
 import AppleHeader from './components/apple/AppleHeader';
 import CommandK from './components/CommandK';
@@ -97,8 +98,12 @@ export default function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam && ['scanner', 'portfolio', 'deepdive', 'news'].includes(tabParam.toLowerCase())) {
-        return tabParam.toLowerCase();
+      if (tabParam) {
+        const lower = tabParam.toLowerCase();
+        if (lower === 'radar') return 'news';
+        if (['scanner', 'portfolio', 'deepdive', 'news'].includes(lower)) {
+          return lower;
+        }
       }
       return localStorage.getItem('verchon_active_tab') || 'scanner';
     } catch {
@@ -123,9 +128,10 @@ export default function App() {
   const [selectedTicker, setSelectedTickerState] = useState(getInitialTicker);
 
   const setActiveTab = (tab) => {
-    setActiveTabState(tab);
+    const target = tab?.toLowerCase() === 'radar' ? 'news' : tab;
+    setActiveTabState(target);
     try {
-      localStorage.setItem('verchon_active_tab', tab);
+      localStorage.setItem('verchon_active_tab', target);
     } catch {}
   };
 
@@ -528,15 +534,8 @@ export default function App() {
         ? 'bg-[#050508] text-zinc-100 font-mono' 
         : 'bg-[var(--bg-canvas)] text-[var(--text-primary)] font-sans'
     }`}>
-      {/* Background Ambience */}
-      {isTerminal ? (
-        <BackgroundAura />
-      ) : (
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-30 dark:opacity-20 transition-opacity duration-500">
-          <div className="absolute -top-[25%] -left-[10%] h-[600px] w-[600px] rounded-full bg-blue-500/10 blur-[140px] dark:bg-blue-600/15" />
-          <div className="absolute top-[20%] -right-[15%] h-[600px] w-[600px] rounded-full bg-indigo-500/10 blur-[150px] dark:bg-indigo-600/15" />
-        </div>
-      )}
+      {/* Atmospheric Background Aurora Layer */}
+      <BackgroundAura colorMode={colorMode} themeStyle={themeStyle} />
 
       {/* Header: Exact Classic Terminal or Humane Apple Header */}
       {isTerminal ? (
@@ -562,121 +561,131 @@ export default function App() {
         />
       )}
 
-      {/* Main Full-Screen Workspace Body */}
-      <main className="relative z-10 w-full">
-        {/* Scanner Tab: Exact Classic Monospace Terminal or Humane Apple Scanner */}
-        {activeTab === 'scanner' && (
-          isTerminal ? (
-            <TerminalScannerTab
-              candidates={candidates}
-              loadingScan={loadingScan}
-              regime={regime}
-              onRunScan={handleRunScan}
-              onSelectCandidate={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-              onOpenTradeModal={handleOpenTradeModal}
-              aiReport={aiReport}
-              loadingAI={loadingAI}
-              onGenerateAIReport={handleGenerateAIReport}
-            />
-          ) : (
-            <AppleScannerTab
-              candidates={candidates}
-              loadingScan={loadingScan}
-              regime={regime}
-              onRunScan={handleRunScan}
-              onSelectCandidate={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-              onOpenTradeModal={handleOpenTradeModal}
-              aiReport={aiReport}
-              loadingAI={loadingAI}
-              onGenerateAIReport={handleGenerateAIReport}
-            />
-          )
-        )}
+      {/* Main Full-Screen Workspace Body with Apple Fluid Tab Transitions */}
+      <main className="relative z-10 w-full overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, y: -6, filter: 'blur(2px)' }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {/* Scanner Tab: Exact Classic Monospace Terminal or Humane Apple Scanner */}
+            {activeTab === 'scanner' && (
+              isTerminal ? (
+                <TerminalScannerTab
+                  candidates={candidates}
+                  loadingScan={loadingScan}
+                  regime={regime}
+                  onRunScan={handleRunScan}
+                  onSelectCandidate={(ticker) => {
+                    setSelectedTicker(ticker);
+                    setActiveTab('deepdive');
+                  }}
+                  onOpenTradeModal={handleOpenTradeModal}
+                  aiReport={aiReport}
+                  loadingAI={loadingAI}
+                  onGenerateAIReport={handleGenerateAIReport}
+                />
+              ) : (
+                <AppleScannerTab
+                  candidates={candidates}
+                  loadingScan={loadingScan}
+                  regime={regime}
+                  onRunScan={handleRunScan}
+                  onSelectCandidate={(ticker) => {
+                    setSelectedTicker(ticker);
+                    setActiveTab('deepdive');
+                  }}
+                  onOpenTradeModal={handleOpenTradeModal}
+                  aiReport={aiReport}
+                  loadingAI={loadingAI}
+                  onGenerateAIReport={handleGenerateAIReport}
+                />
+              )
+            )}
 
-        {/* Portfolio Tab: Exact Classic Monospace Terminal or Humane Apple Portfolio Atelier */}
-        {activeTab === 'portfolio' && (
-          isTerminal ? (
-            <TerminalPortfolioTab
-              positions={paperPositions}
-              account={paperAccount}
-              onAddPosition={handleAddPaperPosition}
-              onClosePosition={handleClosePaperPosition}
-              onUpdateStop={handleUpdateStop}
-              onUpdateAccount={handleUpdateAccount}
-              onResetAccount={handleResetAccount}
-              onRefreshQuotes={() => {
-                fetchPaperPositions();
-                fetchPaperAccount();
-              }}
-              candidates={candidates}
-            />
-          ) : (
-            <ApplePortfolioTab
-              positions={paperPositions}
-              account={paperAccount}
-              onAddPosition={handleAddPaperPosition}
-              onClosePosition={handleClosePaperPosition}
-              onUpdateStop={handleUpdateStop}
-              onUpdateAccount={handleUpdateAccount}
-              onResetAccount={handleResetAccount}
-              onRefreshQuotes={() => {
-                fetchPaperPositions();
-                fetchPaperAccount();
-              }}
-              candidates={candidates}
-            />
-          )
-        )}
+            {/* Portfolio Tab: Exact Classic Monospace Terminal or Humane Apple Portfolio Atelier */}
+            {activeTab === 'portfolio' && (
+              isTerminal ? (
+                <TerminalPortfolioTab
+                  positions={paperPositions}
+                  account={paperAccount}
+                  onAddPosition={handleAddPaperPosition}
+                  onClosePosition={handleClosePaperPosition}
+                  onUpdateStop={handleUpdateStop}
+                  onUpdateAccount={handleUpdateAccount}
+                  onResetAccount={handleResetAccount}
+                  onRefreshQuotes={() => {
+                    fetchPaperPositions();
+                    fetchPaperAccount();
+                  }}
+                  candidates={candidates}
+                />
+              ) : (
+                <ApplePortfolioTab
+                  positions={paperPositions}
+                  account={paperAccount}
+                  onAddPosition={handleAddPaperPosition}
+                  onClosePosition={handleClosePaperPosition}
+                  onUpdateStop={handleUpdateStop}
+                  onUpdateAccount={handleUpdateAccount}
+                  onResetAccount={handleResetAccount}
+                  onRefreshQuotes={() => {
+                    fetchPaperPositions();
+                    fetchPaperAccount();
+                  }}
+                  candidates={candidates}
+                />
+              )
+            )}
 
-        {/* Deep Dive Tab: Exact Classic Monospace Terminal or Sovereign Apple Dossier */}
-        {activeTab === 'deepdive' && (
-          isTerminal ? (
-            <TerminalDeepDiveTab
-              selectedTicker={selectedTicker}
-              onSelectTicker={setSelectedTicker}
-              onLogPaperTrade={handleAddPaperPosition}
-              onOpenTradeModal={handleOpenTradeModal}
-              themeMode={themeMode}
-              themeStyle={themeStyle}
-              colorMode={colorMode}
-            />
-          ) : (
-            <AppleDeepDiveTab
-              selectedTicker={selectedTicker}
-              onSelectTicker={setSelectedTicker}
-              onLogPaperTrade={handleAddPaperPosition}
-              onOpenTradeModal={handleOpenTradeModal}
-              themeMode={themeMode}
-              candidates={candidates}
-              regime={regime}
-            />
-          )
-        )}
+            {/* Deep Dive Tab: Exact Classic Monospace Terminal or Sovereign Apple Dossier */}
+            {activeTab === 'deepdive' && (
+              isTerminal ? (
+                <TerminalDeepDiveTab
+                  selectedTicker={selectedTicker}
+                  onSelectTicker={setSelectedTicker}
+                  onLogPaperTrade={handleAddPaperPosition}
+                  onOpenTradeModal={handleOpenTradeModal}
+                  themeMode={themeMode}
+                  themeStyle={themeStyle}
+                  colorMode={colorMode}
+                />
+              ) : (
+                <AppleDeepDiveTab
+                  selectedTicker={selectedTicker}
+                  onSelectTicker={setSelectedTicker}
+                  onLogPaperTrade={handleAddPaperPosition}
+                  onOpenTradeModal={handleOpenTradeModal}
+                  themeMode={themeMode}
+                  candidates={candidates}
+                  regime={regime}
+                />
+              )
+            )}
 
-        {/* Corporate News & Events Radar Tab */}
-        {activeTab === 'news' && (
-          isTerminal ? (
-            <NewsTab
-              onSelectStock={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-            />
-          ) : (
-            <AppleNewsTab
-              onSelectStock={(ticker) => {
-                setSelectedTicker(ticker);
-                setActiveTab('deepdive');
-              }}
-            />
-          )
-        )}
+            {/* Corporate News & Events Radar Tab */}
+            {activeTab === 'news' && (
+              isTerminal ? (
+                <NewsTab
+                  onSelectStock={(ticker) => {
+                    setSelectedTicker(ticker);
+                    setActiveTab('deepdive');
+                  }}
+                />
+              ) : (
+                <AppleNewsTab
+                  onSelectStock={(ticker) => {
+                    setSelectedTicker(ticker);
+                    setActiveTab('deepdive');
+                  }}
+                />
+              )
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Global Order Execution Modal */}

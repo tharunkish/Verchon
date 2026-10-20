@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import tempfile
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -26,12 +27,15 @@ import techanalysis as ta
 
 logger = logging.getLogger("paper_store")
 
+_LEDGER_LOCK = threading.RLock()
+
 HISTORY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".history")
 LEDGER_FILE = os.path.join(HISTORY_DIR, "paper_positions.json")
 ACCOUNT_FILE = os.path.join(HISTORY_DIR, "paper_account.json")
 
 DEFAULT_STARTING_CAPITAL = 1000000.0  # ₹10,00,000 (10 Lakhs INR)
 DEFAULT_RISK_PER_TRADE_PCT = 1.0     # 1.0% risk rule per trade
+
 
 
 def _ensure_history_dir() -> None:
@@ -45,53 +49,56 @@ def _ensure_history_dir() -> None:
 
 def _load_account_raw() -> Dict[str, Any]:
     """Safely loads account data or initializes defaults."""
-    _ensure_history_dir()
-    if not os.path.exists(ACCOUNT_FILE):
-        account_data = {
-            "starting_capital": DEFAULT_STARTING_CAPITAL,
-            "available_cash": DEFAULT_STARTING_CAPITAL,
-            "risk_per_trade_pct": DEFAULT_RISK_PER_TRADE_PCT,
-            "currency": "INR",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
-        _save_account_raw(account_data)
-        return account_data
+    with _LEDGER_LOCK:
+        _ensure_history_dir()
+        if not os.path.exists(ACCOUNT_FILE):
+            account_data = {
+                "starting_capital": DEFAULT_STARTING_CAPITAL,
+                "available_cash": DEFAULT_STARTING_CAPITAL,
+                "risk_per_trade_pct": DEFAULT_RISK_PER_TRADE_PCT,
+                "currency": "INR",
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+            }
+            _save_account_raw(account_data)
+            return account_data
 
-    try:
-        with open(ACCOUNT_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if not content:
+        try:
+            with open(ACCOUNT_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if not content:
+                    return _load_account_raw()
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    return data
                 return _load_account_raw()
-            data = json.loads(content)
-            if isinstance(data, dict):
-                return data
-            return _load_account_raw()
-    except Exception as e:
-        logger.error(f"Failed to read paper account ({e}). Rebuilding defaults.")
-        return {
-            "starting_capital": DEFAULT_STARTING_CAPITAL,
-            "available_cash": DEFAULT_STARTING_CAPITAL,
-            "risk_per_trade_pct": DEFAULT_RISK_PER_TRADE_PCT,
-            "currency": "INR",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
+        except Exception as e:
+            logger.error(f"Failed to read paper account ({e}). Rebuilding defaults.")
+            return {
+                "starting_capital": DEFAULT_STARTING_CAPITAL,
+                "available_cash": DEFAULT_STARTING_CAPITAL,
+                "risk_per_trade_pct": DEFAULT_RISK_PER_TRADE_PCT,
+                "currency": "INR",
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+            }
 
 
 def _save_account_raw(account_data: Dict[str, Any]) -> bool:
     """Saves account data atomically."""
-    _ensure_history_dir()
-    try:
-        dir_name = os.path.dirname(ACCOUNT_FILE)
-        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(account_data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, ACCOUNT_FILE)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save paper account ({e}).")
-        return False
+    with _LEDGER_LOCK:
+        _ensure_history_dir()
+        try:
+            dir_name = os.path.dirname(ACCOUNT_FILE)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(account_data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, ACCOUNT_FILE)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save paper account ({e}).")
+            return False
+
 
 
 def get_paper_account() -> Dict[str, Any]:
@@ -414,38 +421,41 @@ def get_trade_setup_quote(
 
 def _load_ledger_raw() -> List[Dict[str, Any]]:
     """Safely loads the JSON ledger."""
-    _ensure_history_dir()
-    if not os.path.exists(LEDGER_FILE):
-        return []
-
-    try:
-        with open(LEDGER_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if not content:
-                return []
-            data = json.loads(content)
-            if isinstance(data, list):
-                return data
-            logger.warning("Paper ledger is not a list. Resetting to empty list.")
+    with _LEDGER_LOCK:
+        _ensure_history_dir()
+        if not os.path.exists(LEDGER_FILE):
             return []
-    except Exception as e:
-        logger.error(f"Failed to read paper ledger ({e}). Recovering with empty list.")
-        return []
+
+        try:
+            with open(LEDGER_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if not content:
+                    return []
+                data = json.loads(content)
+                if isinstance(data, list):
+                    return data
+                logger.warning("Paper ledger is not a list. Resetting to empty list.")
+                return []
+        except Exception as e:
+            logger.error(f"Failed to read paper ledger ({e}). Recovering with empty list.")
+            return []
 
 
 def _save_ledger_raw(positions: List[Dict[str, Any]]) -> bool:
     """Saves positions atomically using a temporary file."""
-    _ensure_history_dir()
-    try:
-        dir_name = os.path.dirname(LEDGER_FILE)
-        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(positions, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, LEDGER_FILE)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save paper ledger ({e}).")
-        return False
+    with _LEDGER_LOCK:
+        _ensure_history_dir()
+        try:
+            dir_name = os.path.dirname(LEDGER_FILE)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(positions, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, LEDGER_FILE)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save paper ledger ({e}).")
+            return False
+
 
 
 def get_paper_positions(evaluate_exits: bool = True) -> List[Dict[str, Any]]:
@@ -642,11 +652,24 @@ def add_paper_position(
     capital_deployed = round(entry_p * qty, 2)
     total_cash_outflow = round(capital_deployed + buy_charges, 2)
 
+    new_id = f"trade_{uuid.uuid4().hex[:8]}"
+
+    regime_str = "SUPPORTIVE"
+    try:
+        import marketregime as mr
+        r_ctx = mr.fetch_market_regime()
+        if r_ctx and "regime" in r_ctx:
+            regime_str = r_ctx["regime"]
+    except Exception:
+        pass
+
     new_pos: Dict[str, Any] = {
-        "id": f"trade_{uuid.uuid4().hex[:8]}",
+        "id": new_id,
+        "campaign_id": new_id,
         "ticker": formatted_sym,
         "entry_price": entry_p,
         "stop_price": stop_p,
+        "initial_stop_price": stop_p,
         "target_1": t1,
         "target_2": t2,
         "quantity": qty,
@@ -656,8 +679,10 @@ def add_paper_position(
         "initial_risk_amount": round(initial_r * qty, 2),
         "entry_date": now_date,
         "strategy_name": strategy_name,
+        "entry_market_regime": regime_str,
         "status": "OPEN",
         "buy_charges": buy_charges,
+        "itemized_buy_charges": buy_cost_breakdown,
         "total_charges": buy_charges,
         "exit_reason": None,
         "exit_price": None,
@@ -667,6 +692,8 @@ def add_paper_position(
         "realized_pnl_pct": None,
         "r_multiple": 0.0,
         "notes": notes or "",
+        "journal_tags": [],
+        "journal_notes": notes or "",
         "created_at": datetime.now().isoformat(),
     }
 
@@ -737,8 +764,10 @@ def close_paper_position(
 
     entry_p = float(target_pos.get("entry_price", 0.0))
     stop_p = float(target_pos.get("stop_price", entry_p * 0.95))
+    initial_stop_p = float(target_pos.get("initial_stop_price") or target_pos.get("stop_price") or (entry_p * 0.95))
     total_qty = int(target_pos.get("quantity", 1))
     resolved_exit_p = round(float(exit_price), 2) if exit_price is not None else entry_p
+    campaign_id = target_pos.get("campaign_id") or target_pos.get("id")
 
     if not exit_reason or not str(exit_reason).strip():
         raise ValueError("Exit reason must be a non-empty string")
@@ -762,10 +791,24 @@ def close_paper_position(
     net_pnl = round(gross_pnl - total_trade_charges, 2)
     gross_pnl_pct = round(((resolved_exit_p - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
 
-    initial_r = entry_p - stop_p
+    # R-multiple strictly based on fixed inception risk
+    initial_r = entry_p - initial_stop_p
     r_multiple = round((resolved_exit_p - entry_p) / initial_r, 2) if initial_r > 0 else 0.0
 
     cash_inflow = round((resolved_exit_p * close_qty) - sell_charges, 2)
+
+    # Classify documented system execution quality
+    reason_upper = exit_reason.upper()
+    if "TARGET" in reason_upper or "T1" in reason_upper or "T2" in reason_upper:
+        exec_type = "PROGRAMMED_TARGET"
+    elif "STOP" in reason_upper and any(k in reason_upper for k in ["50", "DMA", "EMA", "TRAIL"]):
+        exec_type = "PROGRAMMED_TRAIL"
+    elif "STOP" in reason_upper:
+        exec_type = "PROGRAMMED_STOP"
+    else:
+        exec_type = "DISCRETIONARY_EXIT"
+
+    itemized_buy = calculate_transaction_costs(entry_p, close_qty, is_buy=True)
 
     if is_partial:
         # 1. Update remaining open position
@@ -774,29 +817,39 @@ def close_paper_position(
         target_pos["quantity"] = remaining_qty
         target_pos["buy_charges"] = remaining_buy_charges
 
-        # 2. Record new closed record for partial execution
+        # 2. Record new closed record for partial execution leg
         partial_closed_rec = {
             "id": f"trade_{uuid.uuid4().hex[:8]}",
+            "campaign_id": campaign_id,
             "ticker": target_pos["ticker"],
             "entry_price": entry_p,
             "stop_price": stop_p,
+            "initial_stop_price": initial_stop_p,
             "target_1": target_pos.get("target_1"),
             "target_2": target_pos.get("target_2"),
             "quantity": close_qty,
             "initial_quantity": total_qty,
             "strategy_name": target_pos.get("strategy_name"),
+            "entry_market_regime": target_pos.get("entry_market_regime", "SUPPORTIVE"),
             "status": "CLOSED",
             "entry_date": target_pos.get("entry_date"),
             "exit_reason": f"PARTIAL_EXIT ({exit_reason})",
+            "execution_type": exec_type,
             "exit_price": resolved_exit_p,
             "exit_date": datetime.now().strftime("%Y-%m-%d"),
             "buy_charges": allocated_buy_charges,
             "sell_charges": sell_charges,
             "total_charges": total_trade_charges,
+            "itemized_charges": {
+                "buy": itemized_buy,
+                "sell": sell_costs,
+            },
             "realized_pnl": gross_pnl,
             "net_pnl": net_pnl,
             "realized_pnl_pct": gross_pnl_pct,
             "r_multiple": r_multiple,
+            "journal_tags": target_pos.get("journal_tags", []),
+            "journal_notes": target_pos.get("journal_notes", target_pos.get("notes", "")),
             "created_at": target_pos.get("created_at"),
             "closed_at": datetime.now().isoformat(),
         }
@@ -804,17 +857,28 @@ def close_paper_position(
         result_returned = partial_closed_rec
     else:
         # Full Close
+        target_pos["campaign_id"] = campaign_id
+        target_pos["initial_stop_price"] = initial_stop_p
         target_pos["status"] = "CLOSED"
         target_pos["exit_reason"] = exit_reason
+        target_pos["execution_type"] = exec_type
         target_pos["exit_price"] = resolved_exit_p
         target_pos["exit_date"] = datetime.now().strftime("%Y-%m-%d")
         target_pos["sell_charges"] = sell_charges
         target_pos["total_charges"] = total_trade_charges
+        target_pos["itemized_charges"] = {
+            "buy": itemized_buy,
+            "sell": sell_costs,
+        }
         target_pos["realized_pnl"] = gross_pnl
         target_pos["net_pnl"] = net_pnl
         target_pos["realized_pnl_pct"] = gross_pnl_pct
         target_pos["r_multiple"] = r_multiple
         target_pos["closed_at"] = datetime.now().isoformat()
+        if "journal_tags" not in target_pos:
+            target_pos["journal_tags"] = []
+        if "journal_notes" not in target_pos:
+            target_pos["journal_notes"] = target_pos.get("notes", "")
         result_returned = target_pos
 
     _save_ledger_raw(positions)
@@ -826,6 +890,379 @@ def close_paper_position(
     _save_account_raw(account_raw)
 
     return result_returned
+
+
+# =============================================================================
+# 4.1 TRADE JOURNAL & QUANTITATIVE PERFORMANCE ANALYTICS
+# =============================================================================
+
+def get_trade_journal_analytics() -> Dict[str, Any]:
+    """
+    Computes rigorous, zero-gimmick quantitative trade journal analytics:
+    1. Arithmetic mean expectancy: E_R = (1/N) * sum(R_i) based on initial risk at entry.
+    2. Campaign-level aggregation: groups multi-stage partial exit legs into unified campaigns.
+    3. Realized calendar P&L and R-multiple heatmap dictionary.
+    4. Strategy-by-Market-Regime cross-tabulation matrix.
+    5. Strategy attribution with sample-size confidence tags.
+    6. Auditable Indian statutory friction metrics.
+    """
+    with _LEDGER_LOCK:
+        positions = _load_ledger_raw()
+
+    closed_positions = [p for p in positions if p.get("status") == "CLOSED"]
+
+    if not closed_positions:
+        return {
+            "summary": {
+                "expectancy_r": 0.0,
+                "total_campaigns": 0,
+                "win_rate_pct": 0.0,
+                "win_count": 0,
+                "loss_count": 0,
+                "breakeven_count": 0,
+                "profit_factor": 1.0,
+                "avg_win_r": 0.0,
+                "avg_loss_r": 0.0,
+                "gross_realized_gains": 0.0,
+                "gross_realized_losses": 0.0,
+                "total_gross_pnl": 0.0,
+                "total_statutory_charges": 0.0,
+                "total_net_pnl": 0.0,
+                "frictional_drag_pct": 0.0,
+                "avg_holding_sessions_win": 0.0,
+                "avg_holding_sessions_loss": 0.0,
+            },
+            "regime_matrix": [],
+            "strategy_attribution": [],
+            "execution_quality_breakdown": {
+                "PROGRAMMED_TARGET": 0,
+                "PROGRAMMED_STOP": 0,
+                "PROGRAMMED_TRAIL": 0,
+                "DISCRETIONARY_EXIT": 0,
+                "PARTIAL_STAGED_EXIT": 0,
+            },
+            "heatmap": {},
+            "campaigns": [],
+        }
+
+    # 1. Group closed legs into Campaigns by campaign_id (or fallback to id)
+    campaigns_map: Dict[str, List[Dict[str, Any]]] = {}
+    for pos in closed_positions:
+        cid = pos.get("campaign_id") or pos.get("id")
+        if cid not in campaigns_map:
+            campaigns_map[cid] = []
+        campaigns_map[cid].append(pos)
+
+    campaigns: List[Dict[str, Any]] = []
+
+    for cid, legs in campaigns_map.items():
+        first_leg = legs[0]
+        ticker = first_leg.get("ticker", "UNKNOWN")
+        strat = first_leg.get("strategy_name", "SWING_MOMENTUM")
+        entry_p = float(first_leg.get("entry_price", 0.0))
+        init_stop = float(first_leg.get("initial_stop_price") or first_leg.get("stop_price") or (entry_p * 0.95))
+        init_r = round(entry_p - init_stop, 2)
+
+        total_qty = sum(int(l.get("quantity", 1)) for l in legs)
+        gross_pnl = round(sum(float(l.get("realized_pnl", 0.0)) for l in legs), 2)
+        total_charges = round(sum(float(l.get("total_charges", 0.0)) for l in legs), 2)
+        net_pnl = round(sum(float(l.get("net_pnl", l.get("realized_pnl", 0.0))) for l in legs), 2)
+
+        # Weighted blended exit price across all legs
+        if total_qty > 0:
+            blended_exit_p = round(
+                sum(float(l.get("exit_price", entry_p)) * int(l.get("quantity", 1)) for l in legs) / total_qty, 2
+            )
+        else:
+            blended_exit_p = entry_p
+
+        # R-multiple strictly anchored to initial risk at inception
+        if init_r > 0:
+            campaign_r = round((blended_exit_p - entry_p) / init_r, 2)
+        else:
+            campaign_r = 0.0
+
+        # Holding duration
+        holding_sessions = max((int(l.get("holding_sessions", 1)) for l in legs), default=1)
+
+        # Entry and exit dates
+        entry_date = first_leg.get("entry_date") or str(first_leg.get("created_at", ""))[:10]
+        exit_date = max((l.get("exit_date") or str(l.get("closed_at", ""))[:10] for l in legs), default=entry_date)
+
+        # Execution quality determination
+        exec_types = [l.get("execution_type") or "DISCRETIONARY_EXIT" for l in legs]
+        if len(set(exec_types)) == 1:
+            primary_exec = exec_types[0]
+        else:
+            primary_exec = "PARTIAL_STAGED_EXIT"
+
+        regime = first_leg.get("entry_market_regime") or "SUPPORTIVE"
+
+        # Itemized charges summary across legs
+        itemized_buy = calculate_transaction_costs(entry_p, total_qty, is_buy=True)
+        itemized_sell_total = {
+            "brokerage": 0.0,
+            "stt": 0.0,
+            "exchange_charges": 0.0,
+            "sebi_charges": 0.0,
+            "stamp_duty": 0.0,
+            "gst": 0.0,
+            "total_charges": 0.0,
+        }
+        for l in legs:
+            l_exit_p = float(l.get("exit_price", entry_p))
+            l_qty = int(l.get("quantity", 1))
+            l_costs = calculate_transaction_costs(l_exit_p, l_qty, is_buy=False)
+            for k in itemized_sell_total:
+                itemized_sell_total[k] = round(itemized_sell_total[k] + l_costs.get(k, 0.0), 2)
+
+        campaigns.append({
+            "campaign_id": cid,
+            "ticker": ticker,
+            "strategy_name": strat,
+            "entry_date": entry_date,
+            "exit_date": exit_date,
+            "entry_price": entry_p,
+            "initial_stop_price": init_stop,
+            "initial_risk_amount": round(init_r * total_qty, 2) if init_r > 0 else 0.0,
+            "total_quantity": total_qty,
+            "blended_exit_price": blended_exit_p,
+            "gross_pnl": gross_pnl,
+            "total_charges": total_charges,
+            "net_pnl": net_pnl,
+            "campaign_r": campaign_r,
+            "holding_sessions": holding_sessions,
+            "entry_market_regime": regime,
+            "execution_type": primary_exec,
+            "journal_tags": first_leg.get("journal_tags") or [],
+            "journal_notes": first_leg.get("journal_notes") or first_leg.get("notes") or "",
+            "itemized_charges": {
+                "buy": itemized_buy,
+                "sell": itemized_sell_total,
+                "total": total_charges,
+            },
+            "legs": [
+                {
+                    "id": l.get("id"),
+                    "quantity": int(l.get("quantity", 1)),
+                    "exit_price": float(l.get("exit_price", entry_p)),
+                    "exit_date": l.get("exit_date") or str(l.get("closed_at", ""))[:10],
+                    "exit_reason": l.get("exit_reason", "EXIT"),
+                    "execution_type": l.get("execution_type") or "DISCRETIONARY_EXIT",
+                    "gross_pnl": float(l.get("realized_pnl", 0.0)),
+                    "net_pnl": float(l.get("net_pnl", l.get("realized_pnl", 0.0))),
+                    "r_multiple": float(l.get("r_multiple", 0.0)),
+                    "total_charges": float(l.get("total_charges", 0.0)),
+                }
+                for l in legs
+            ],
+        })
+
+    # Sort campaigns chronologically by exit date descending
+    campaigns.sort(key=lambda c: str(c.get("exit_date", "")), reverse=True)
+
+    # 2. Arithmetic Mean Expectancy: E_R = (1/N) * sum(R_i)
+    total_campaigns = len(campaigns)
+    all_r_multiples = [c["campaign_r"] for c in campaigns]
+    expectancy_r = round(sum(all_r_multiples) / total_campaigns, 2) if total_campaigns > 0 else 0.0
+
+    # Categorize outcomes (breakevens strictly preserved in N)
+    wins = [c for c in campaigns if c["net_pnl"] > 0 and c["campaign_r"] > 0.05]
+    losses = [c for c in campaigns if c["net_pnl"] < 0 and c["campaign_r"] < -0.05]
+    breakevens = [c for c in campaigns if abs(c["campaign_r"]) <= 0.05 or c["net_pnl"] == 0]
+
+    win_count = len(wins)
+    loss_count = len(losses)
+    breakeven_count = len(breakevens)
+    win_rate_pct = round((win_count / total_campaigns) * 100, 1) if total_campaigns > 0 else 0.0
+
+    # Factual gross gains on winning trades vs gross losses on losing trades
+    gross_realized_gains = round(sum(c["net_pnl"] for c in wins), 2)
+    gross_realized_losses = round(abs(sum(c["net_pnl"] for c in losses)), 2)
+    profit_factor = (
+        round(gross_realized_gains / gross_realized_losses, 2)
+        if gross_realized_losses > 0
+        else (99.9 if gross_realized_gains > 0 else 1.0)
+    )
+
+    avg_win_r = round(sum(c["campaign_r"] for c in wins) / win_count, 2) if win_count > 0 else 0.0
+    avg_loss_r = round(sum(c["campaign_r"] for c in losses) / loss_count, 2) if loss_count > 0 else 0.0
+
+    total_gross_pnl = round(sum(c["gross_pnl"] for c in campaigns), 2)
+    total_statutory_charges = round(sum(c["total_charges"] for c in campaigns), 2)
+    total_net_pnl = round(sum(c["net_pnl"] for c in campaigns), 2)
+
+    # Frictional drag % on gross gains
+    sum_gross_wins = sum(c["gross_pnl"] for c in wins if c["gross_pnl"] > 0)
+    frictional_drag_pct = round((total_statutory_charges / sum_gross_wins) * 100, 1) if sum_gross_wins > 0 else 0.0
+
+    # Holding sessions
+    avg_holding_win = round(sum(c["holding_sessions"] for c in wins) / win_count, 1) if win_count > 0 else 0.0
+    avg_holding_loss = round(sum(c["holding_sessions"] for c in losses) / loss_count, 1) if loss_count > 0 else 0.0
+
+    # 3. Calendar Realized P&L / R-Multiple Heatmap
+    heatmap: Dict[str, Dict[str, Any]] = {}
+    for c in campaigns:
+        dt_str = str(c.get("exit_date") or "")
+        if not dt_str:
+            continue
+        if dt_str not in heatmap:
+            heatmap[dt_str] = {
+                "realized_net": 0.0,
+                "r_multiple": 0.0,
+                "trade_count": 0,
+                "tickers": [],
+            }
+        heatmap[dt_str]["realized_net"] = round(heatmap[dt_str]["realized_net"] + c["net_pnl"], 2)
+        heatmap[dt_str]["r_multiple"] = round(heatmap[dt_str]["r_multiple"] + c["campaign_r"], 2)
+        heatmap[dt_str]["trade_count"] += 1
+        if c["ticker"] not in heatmap[dt_str]["tickers"]:
+            heatmap[dt_str]["tickers"].append(c["ticker"])
+
+    # 4. Strategy Attribution with Sample-Size Confidence Tags
+    strategy_groups: Dict[str, List[Dict[str, Any]]] = {}
+    for c in campaigns:
+        s_name = c["strategy_name"]
+        if s_name not in strategy_groups:
+            strategy_groups[s_name] = []
+        strategy_groups[s_name].append(c)
+
+    strategy_attribution: List[Dict[str, Any]] = []
+    for s_name, s_camps in strategy_groups.items():
+        s_n = len(s_camps)
+        s_wins = [sc for sc in s_camps if sc["net_pnl"] > 0]
+        s_losses = [sc for sc in s_camps if sc["net_pnl"] < 0]
+        s_win_rate = round((len(s_wins) / s_n) * 100, 1) if s_n > 0 else 0.0
+        s_net_pnl = round(sum(sc["net_pnl"] for sc in s_camps), 2)
+        s_avg_r = round(sum(sc["campaign_r"] for sc in s_camps) / s_n, 2) if s_n > 0 else 0.0
+
+        s_gains = sum(sc["net_pnl"] for sc in s_wins)
+        s_loss_sum = abs(sum(sc["net_pnl"] for sc in s_losses))
+        s_pf = round(s_gains / s_loss_sum, 2) if s_loss_sum > 0 else (99.9 if s_gains > 0 else 1.0)
+
+        if s_n < 5:
+            conf = "INSUFFICIENT_SAMPLE"
+        elif s_n < 15:
+            conf = "EARLY_EVIDENCE"
+        elif s_n < 30:
+            conf = "DEVELOPING_SAMPLE"
+        else:
+            conf = "STATISTICALLY_MEANINGFUL"
+
+        strategy_attribution.append({
+            "strategy": s_name,
+            "trade_count": s_n,
+            "win_rate_pct": s_win_rate,
+            "net_pnl": s_net_pnl,
+            "avg_r": s_avg_r,
+            "profit_factor": s_pf,
+            "sample_confidence": conf,
+        })
+
+    strategy_attribution.sort(key=lambda s: s["trade_count"], reverse=True)
+
+    # 5. Strategy-by-Market-Regime Cross-Tabulation Matrix
+    standard_strats = ["VCP_BREAKOUT", "LIQUIDITY_SWEEP", "VOLATILITY_SQUEEZE", "SWING_MOMENTUM"]
+    all_strat_names = list(dict.fromkeys(standard_strats + list(strategy_groups.keys())))
+
+    regime_matrix: List[Dict[str, Any]] = []
+    for s_name in all_strat_names:
+        c_for_strat = strategy_groups.get(s_name, [])
+
+        def _calc_regime_cell(camps_sub: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+            if not camps_sub:
+                return None
+            cnt = len(camps_sub)
+            avg_r = round(sum(c["campaign_r"] for c in camps_sub) / cnt, 2)
+            net_p = round(sum(c["net_pnl"] for c in camps_sub), 2)
+            return {
+                "count": cnt,
+                "avg_r": avg_r,
+                "net_pnl": net_p,
+            }
+
+        bullish_camps = [c for c in c_for_strat if str(c.get("entry_market_regime", "")).upper() in ["SUPPORTIVE", "BULLISH"]]
+        sideways_camps = [c for c in c_for_strat if str(c.get("entry_market_regime", "")).upper() in ["NEUTRAL", "SIDEWAYS"]]
+        bearish_camps = [c for c in c_for_strat if str(c.get("entry_market_regime", "")).upper() in ["CAUTION", "HOSTILE", "BEARISH"]]
+
+        regime_matrix.append({
+            "strategy": s_name,
+            "bullish": _calc_regime_cell(bullish_camps),
+            "sideways": _calc_regime_cell(sideways_camps),
+            "bearish": _calc_regime_cell(bearish_camps),
+        })
+
+    # 6. Execution Quality Breakdown
+    exec_breakdown = {
+        "PROGRAMMED_TARGET": 0,
+        "PROGRAMMED_STOP": 0,
+        "PROGRAMMED_TRAIL": 0,
+        "DISCRETIONARY_EXIT": 0,
+        "PARTIAL_STAGED_EXIT": 0,
+    }
+    for c in campaigns:
+        etype = c.get("execution_type") or "DISCRETIONARY_EXIT"
+        if etype in exec_breakdown:
+            exec_breakdown[etype] += 1
+        else:
+            exec_breakdown["DISCRETIONARY_EXIT"] += 1
+
+    return {
+        "summary": {
+            "expectancy_r": expectancy_r,
+            "total_campaigns": total_campaigns,
+            "win_rate_pct": win_rate_pct,
+            "win_count": win_count,
+            "loss_count": loss_count,
+            "breakeven_count": breakeven_count,
+            "profit_factor": profit_factor,
+            "avg_win_r": avg_win_r,
+            "avg_loss_r": avg_loss_r,
+            "gross_realized_gains": gross_realized_gains,
+            "gross_realized_losses": gross_realized_losses,
+            "total_gross_pnl": total_gross_pnl,
+            "total_statutory_charges": total_statutory_charges,
+            "total_net_pnl": total_net_pnl,
+            "frictional_drag_pct": frictional_drag_pct,
+            "avg_holding_sessions_win": avg_holding_win,
+            "avg_holding_sessions_loss": avg_holding_loss,
+        },
+        "regime_matrix": regime_matrix,
+        "strategy_attribution": strategy_attribution,
+        "execution_quality_breakdown": exec_breakdown,
+        "heatmap": heatmap,
+        "campaigns": campaigns,
+    }
+
+
+def update_position_journal(
+    position_id: str,
+    tags: Optional[List[str]] = None,
+    notes: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Safely updates reflection tags and notes for a campaign/position.
+    Maintains thread-safe atomic file persistence.
+    """
+    with _LEDGER_LOCK:
+        positions = _load_ledger_raw()
+        target = None
+
+        for p in positions:
+            if p.get("id") == position_id or p.get("campaign_id") == position_id:
+                target = p
+                if tags is not None:
+                    p["journal_tags"] = [str(t).strip() for t in tags if str(t).strip()]
+                if notes is not None:
+                    p["journal_notes"] = str(notes).strip()
+                p["updated_at"] = datetime.now().isoformat()
+
+        if target is not None:
+            _save_ledger_raw(positions)
+            return target
+
+        return None
+
 
 
 # =============================================================================
@@ -1029,5 +1466,159 @@ def get_proposed_trade_impact(
         "total_risk_after": new_total_risk,
         "existing_position_in_stock": existing_stock_pos is not None,
         "warnings": warnings,
+    }
+
+
+def get_clean_portfolio_telemetry() -> Dict[str, Any]:
+    """
+    Assembles a compact, deterministic, zero-hallucination telemetry snapshot
+    of the entire paper portfolio for the AI Advisor:
+    - Sovereign Vault Ledger (equity, cash, dry powder %, all-time net P&L, fees paid)
+    - Active Position Telemetry (live MTM, R-multiples, 50-DMA health, exit alerts)
+    - Sector & Risk Exposure (concentrations, total capital at risk)
+    - Seismic Corporate Radar (upcoming earnings & filings for held tickers)
+    - Macro Market Regime (Downdraft vs Confirmed Rally, Nifty Health Score)
+    """
+    import event_engine as ee
+    import marketregime as mr
+
+    # 1. Sovereign Ledger & Account
+    account = get_paper_account()
+    total_equity = account.get("total_equity", DEFAULT_STARTING_CAPITAL)
+    available_cash = account.get("available_cash", DEFAULT_STARTING_CAPITAL)
+    starting_capital = account.get("starting_capital", DEFAULT_STARTING_CAPITAL)
+    cash_reserve_pct = round((available_cash / total_equity) * 100, 2) if total_equity > 0 else 100.0
+
+    # 2. Open Positions
+    all_positions = get_paper_positions(evaluate_exits=True)
+    open_positions = [p for p in all_positions if p.get("status") == "OPEN"]
+    closed_positions = [p for p in all_positions if p.get("status") == "CLOSED"]
+
+    total_unrealized_pnl = round(sum(p.get("unrealized_pnl", 0.0) for p in open_positions), 2)
+    total_realized_net = account.get("total_realized_net", 0.0)
+    all_time_combined_pnl = round(total_realized_net + total_unrealized_pnl, 2)
+    all_time_return_pct = round(((total_equity - starting_capital) / starting_capital) * 100, 2) if starting_capital > 0 else 0.0
+
+    # 3. Sector & Capital At Risk
+    sector_risk = get_portfolio_sector_and_risk_exposure()
+    total_risk_at_stop = sector_risk.get("total_risk_at_stop", 0.0)
+    total_risk_pct = sector_risk.get("total_risk_at_stop_pct", 0.0)
+
+    # 4. Market Regime Context
+    regime_data = {}
+    try:
+        regime_data = mr.analyze_market_regime()
+    except Exception as e:
+        logger.warning(f"Could not fetch market regime for telemetry: {e}")
+        regime_data = {"regime": "NEUTRAL", "regime_score": 50, "market_stance": "CAUTIOUS"}
+
+    regime_summary = {
+        "regime": regime_data.get("regime", "NEUTRAL"),
+        "regime_score": regime_data.get("regime_score", 50),
+        "stance": regime_data.get("market_stance", "CAUTIOUS"),
+        "nifty_close": regime_data.get("benchmark_summary", {}).get("current_close"),
+        "consecutive_closes_below_50dma": regime_data.get("trend_metrics", {}).get("consecutive_closes_below_50dma", 0),
+    }
+
+    # 5. Position Details + Corporate Radar Enrichment
+    compact_positions = []
+    for pos in open_positions:
+        ticker = pos.get("ticker", "")
+        clean_sym = ticker.replace(".NS", "").replace(".BO", "").strip().upper()
+        pos_id = pos.get("id", "")
+        qty = int(pos.get("quantity", 0))
+        entry_p = float(pos.get("entry_price", 0.0))
+        curr_p = float(pos.get("current_price", entry_p))
+        stop_p = float(pos.get("stop_price", entry_p * 0.95))
+        t1 = float(pos.get("target_1", entry_p * 1.05))
+        t2 = float(pos.get("target_2", entry_p * 1.10))
+        pos_val = round(curr_p * qty, 2)
+        pos_pct = round((pos_val / total_equity) * 100, 2) if total_equity > 0 else 0.0
+        r_mult = float(pos.get("r_multiple", 0.0))
+        pnl = float(pos.get("unrealized_pnl", 0.0))
+        pnl_pct = float(pos.get("unrealized_pnl_pct", 0.0))
+
+        # Check for upcoming corporate radar catalysts and recent earnings reviews
+        catalyst_info = None
+        earnings_review = None
+        try:
+            radar = ee.fetch_corporate_radar(clean_sym)
+            if radar:
+                catalyst_info = {
+                    "has_earnings_soon": radar.get("has_earnings_soon", False),
+                    "days_to_earnings": radar.get("days_to_earnings"),
+                    "earnings_date": radar.get("earnings_date"),
+                    "recent_announcement": radar.get("recent_headlines", [None])[0] if radar.get("recent_headlines") else None,
+                }
+        except Exception:
+            pass
+
+        try:
+            rc = ee.fetch_earnings_report_card(clean_sym)
+            if rc and (rc.get("metrics", {}).get("eps_actual") is not None or rc.get("metrics", {}).get("profit_yoy_pct") is not None):
+                earnings_review = {
+                    "verdict": rc.get("verdict"),
+                    "verdict_badge": rc.get("verdict_badge"),
+                    "quarter": rc.get("quarter"),
+                    "rationale": rc.get("verdict_rationale"),
+                    "dividend_note": rc.get("dividend_note"),
+                }
+        except Exception:
+            pass
+
+        compact_positions.append({
+            "id": pos_id,
+            "ticker": ticker,
+            "symbol": clean_sym,
+            "strategy": pos.get("strategy_name", "Momentum"),
+            "quantity": qty,
+            "entry_price": entry_p,
+            "current_price": curr_p,
+            "stop_price": stop_p,
+            "target_1": t1,
+            "target_2": t2,
+            "market_value": pos_val,
+            "portfolio_weight_pct": pos_pct,
+            "unrealized_pnl": pnl,
+            "unrealized_pnl_pct": pnl_pct,
+            "r_multiple": r_mult,
+            "target_1_hit": pos.get("target_1_hit", False),
+            "target_2_hit": pos.get("target_2_hit", False),
+            "holding_sessions": pos.get("holding_sessions", 0),
+            "dma_50": pos.get("dma_50"),
+            "dma_50_slope": pos.get("dma_50_slope"),
+            "consecutive_closes_below_50dma": pos.get("consecutive_closes_below_50dma", 0),
+            "exit_alert": pos.get("exit_alert"),
+            "catalyst": catalyst_info,
+            "earnings_review": earnings_review,
+        })
+
+    # Sector summary
+    sector_breakdown = [
+        {"sector": s["sector"], "amount": s["amount"], "pct": s["percentage"], "count": s["positions_count"]}
+        for s in sector_risk.get("sectors", [])
+    ]
+
+    return {
+        "portfolio": {
+            "total_equity": total_equity,
+            "available_cash": available_cash,
+            "cash_reserve_pct": cash_reserve_pct,
+            "starting_capital": starting_capital,
+            "total_unrealized_pnl": total_unrealized_pnl,
+            "total_realized_net": total_realized_net,
+            "all_time_combined_pnl": all_time_combined_pnl,
+            "all_time_return_pct": all_time_return_pct,
+            "total_statutory_charges": account.get("total_charges_paid", 0.0),
+            "win_rate_pct": account.get("win_rate_pct", 0.0),
+            "profit_factor": account.get("profit_factor", 1.0),
+            "open_positions_count": len(open_positions),
+            "closed_positions_count": len(closed_positions),
+            "total_capital_at_risk": total_risk_at_stop,
+            "total_capital_at_risk_pct": total_risk_pct,
+        },
+        "regime": regime_summary,
+        "sectors": sector_breakdown,
+        "positions": compact_positions,
     }
 

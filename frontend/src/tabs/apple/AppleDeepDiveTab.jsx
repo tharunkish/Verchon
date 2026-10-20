@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
   Shield, 
@@ -30,8 +31,6 @@ import {
   MessageSquare, 
   Send, 
   Zap, 
-  Eye, 
-  EyeOff,
   Copy,
   Check,
   Building,
@@ -39,20 +38,18 @@ import {
   BarChart2,
   FileText,
   FileCheck,
-  Hash,
-  Stamp,
-  Receipt,
-  Radio,
-  Sliders,
-  Award,
   Terminal,
-  X
+  X,
+  ChevronDown,
+  ChevronUp,
+  BookOpen
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import CanvasChart from '../../components/CanvasChart';
 import { normalizeTicker } from '../../App';
 
-// Curated Bluechip benchmark pool for the rapid ticker tape
-const BENCHMARK_SPECIMENS = [
+// Quick Bluechip Watchlist
+const QUICK_WATCHLIST = [
   { ticker: 'ICICIBANK.NS', name: 'ICICI Bank', sector: 'Financials' },
   { ticker: 'TCS.NS', name: 'Tata Consultancy', sector: 'IT Services' },
   { ticker: 'RELIANCE.NS', name: 'Reliance Ind.', sector: 'Energy & Retail' },
@@ -79,11 +76,22 @@ export default function AppleDeepDiveTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // AI Dossier streaming state
+  // AI Research streaming state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiStreamingText, setAiStreamingText] = useState('');
+  const [showRawReport, setShowRawReport] = useState(false);
   const abortControllerRef = useRef(null);
+
+  // Text sanitizer for CP1252 / mojibake rupee artifacts
+  const cleanText = (str) => {
+    if (!str || typeof str !== 'string') return str || '';
+    return str
+      .replace(/\u00e2\u0082\u00b9|\u00e2\u201a\u00b9|â¹|â‚¹/g, '₹')
+      .replace(/â€™/g, "'")
+      .replace(/â€œ|â€\x9d/g, '"')
+      .replace(/â€”/g, '—');
+  };
 
   // Interactive AI stock chat state
   const [chatMessage, setChatMessage] = useState('');
@@ -96,6 +104,7 @@ export default function AppleDeepDiveTab({
 
   // Interactive UI state
   const [copiedTicker, setCopiedTicker] = useState(false);
+  const [acknowledgedLockout, setAcknowledgedLockout] = useState(false);
 
   const fetchPortfolioImpact = async (sym) => {
     if (!sym) return;
@@ -123,10 +132,11 @@ export default function AppleDeepDiveTab({
     setAiStreamingText('');
     setPortfolioImpact(null);
     setChatHistory([]);
+    setAcknowledgedLockout(false);
     try {
       const res = await fetch(`/api/stocks/${encodeURIComponent(cleanSym)}`);
       if (!res.ok) {
-        throw new Error(`Failed to load stock dossier (${res.statusText})`);
+        throw new Error(`Failed to load stock data (${res.statusText})`);
       }
       const json = await res.json();
       setData(json);
@@ -159,14 +169,14 @@ export default function AppleDeepDiveTab({
     abortControllerRef.current = controller;
 
     try {
-      const res = await fetch(`/api/ai-dossier/${encodeURIComponent(data.ticker)}/stream`, {
+      const res = await fetch(`/api/ai-dossier/${encodeURIComponent(data.ticker)}/stream?force=true`, {
         method: 'POST',
         signal: controller.signal,
       });
 
       if (!res.ok) {
         const errDetail = await res.text();
-        throw new Error(`AI Dossier generation failed (${res.status}: ${errDetail || res.statusText})`);
+        throw new Error(`AI Research generation failed (${res.status}: ${errDetail || res.statusText})`);
       }
 
       const reader = res.body.getReader();
@@ -188,7 +198,7 @@ export default function AppleDeepDiveTab({
             try {
               const payload = JSON.parse(trimmed.slice(6));
               if (payload.type === 'token') {
-                accumulatedTokens += payload.content;
+                accumulatedTokens += cleanText(payload.content);
                 setAiStreamingText(accumulatedTokens);
               } else if (payload.type === 'done') {
                 setData((prev) => ({
@@ -240,11 +250,11 @@ export default function AppleDeepDiveTab({
         })
       });
 
-      if (!res.ok) throw new Error('Failed to query stock underwriter');
+      if (!res.ok) throw new Error('Failed to query analyst');
       const json = await res.json();
-      setChatHistory([...newHistory, { role: 'assistant', content: json.reply || 'Underwriter analysis complete.' }]);
+      setChatHistory([...newHistory, { role: 'assistant', content: json.reply || 'Analysis complete.' }]);
     } catch (err) {
-      setChatHistory([...newHistory, { role: 'assistant', content: `[!] Dispatch Error: ${err.message}` }]);
+      setChatHistory([...newHistory, { role: 'assistant', content: `[!] Error: ${err.message}` }]);
     } finally {
       setChatLoading(false);
     }
@@ -267,7 +277,7 @@ export default function AppleDeepDiveTab({
     }
   };
 
-  const handleSwitchSpecimen = (sym) => {
+  const handleSelectSymbol = (sym) => {
     const clean = normalizeTicker(sym);
     setTickerInput(clean);
     onSelectTicker(clean);
@@ -284,6 +294,7 @@ export default function AppleDeepDiveTab({
   // Data domain extraction
   const dossier = data?.dossier || {};
   const f = dossier.fundamentals || {};
+  const dq = f.data_quality || {};
   const t = dossier.technicals || {};
   const val = f.valuation || {};
   const comps = f.components || {};
@@ -321,14 +332,14 @@ export default function AppleDeepDiveTab({
   const estGST = Math.round((estExchange + 20) * 0.18);
   const estTotalCharges = estSTT + estExchange + estStampDuty + estGST + 40;
 
-  // 52-week vertical altitude calculation
+  // 52-week horizontal range calculation (Google Finance style)
   const candles = data?.chart?.candles || [];
   const candleHighs = candles.map(c => c.high);
   const candleLows = candles.map(c => c.low);
   const yearHigh = candleHighs.length > 0 ? Math.max(...candleHighs) : (currentPrice * 1.25);
   const yearLow = candleLows.length > 0 ? Math.min(...candleLows) : (currentPrice * 0.75);
   const rangeSpan = yearHigh - yearLow;
-  const altitudePct = rangeSpan > 0 ? Math.min(100, Math.max(0, ((currentPrice - yearLow) / rangeSpan) * 100)) : 50;
+  const rangePct = rangeSpan > 0 ? Math.min(100, Math.max(0, ((currentPrice - yearLow) / rangeSpan) * 100)) : 50;
 
   // Priority classification
   const priority = dossier.priority || 'EVALUATING';
@@ -336,96 +347,84 @@ export default function AppleDeepDiveTab({
   const isAvoid = priority === 'AVOID / FILTERED OUT' || dossier.overall_score < 40;
   const priorityReason = dossier.priority_reason || activeStrat.reason || 'Underwriting multi-factor review in progress.';
 
-  // Institutional letter grade helper
   const getLetterGrade = (score) => {
-    if (score >= 90) return { grade: 'A+', color: 'text-emerald-500 border-emerald-500/40 bg-emerald-500/10' };
-    if (score >= 80) return { grade: 'A', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5' };
-    if (score >= 70) return { grade: 'B+', color: 'text-blue-500 border-blue-500/30 bg-blue-500/5' };
-    if (score >= 60) return { grade: 'B', color: 'text-amber-500 border-amber-500/30 bg-amber-500/5' };
-    if (score >= 50) return { grade: 'C', color: 'text-orange-500 border-orange-500/30 bg-orange-500/5' };
-    return { grade: 'D-', color: 'text-rose-500 border-rose-500/40 bg-rose-500/10' };
+    if (score >= 90) return { grade: 'A+', color: 'text-emerald-700 bg-emerald-600/10 border-emerald-600/30 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/30' };
+    if (score >= 80) return { grade: 'A', color: 'text-emerald-700 bg-emerald-600/10 border-emerald-600/20 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20' };
+    if (score >= 70) return { grade: 'B+', color: 'text-blue-700 bg-blue-600/10 border-blue-600/20 dark:text-blue-400 dark:bg-blue-500/10 dark:border-blue-500/20' };
+    if (score >= 60) return { grade: 'B', color: 'text-amber-700 bg-amber-600/10 border-amber-600/20 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20' };
+    if (score >= 50) return { grade: 'C', color: 'text-orange-700 bg-orange-600/10 border-orange-600/20 dark:text-orange-400 dark:bg-orange-500/10 dark:border-orange-500/20' };
+    return { grade: 'D', color: 'text-[#8b0909] bg-[#8b0909]/10 border-[#8b0909]/30 dark:text-rose-400 dark:bg-rose-500/10 dark:border-rose-500/30' };
   };
 
-  const voucherId = useMemo(() => {
-    const raw = (data?.ticker || 'SPEC').replace('.NS', '');
-    return `VR-${raw.slice(0, 4)}-${Math.floor(Math.random() * 899 + 100)}`;
-  }, [data?.ticker]);
-
   return (
-    <div className="min-h-[calc(100vh-100px)] p-3 sm:p-5 lg:p-6 space-y-5">
+    <div className="min-h-[calc(100vh-100px)] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 text-[#2d1f17] dark:text-[#e0d1b9]">
       
-      {/* =========================================================================
-          TOP: TICKER TAPE RIBBON & CASE FILE SWITCHER
-         ========================================================================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-black/[0.08] dark:border-white/[0.08] pb-3">
-        
-        {/* Case Search Input */}
+      {/* 1. Header Toolbar & Quick Watchlist */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#b8a597] dark:border-[#363c44] pb-4">
+        {/* Search Input */}
         <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 shrink-0">
-          <div className="relative group">
-            <Search className="absolute top-2.5 left-3 h-3.5 w-3.5 text-zinc-400 group-focus-within:text-zinc-900 dark:group-focus-within:text-white transition-colors" />
+          <div className="relative">
+            <Search className="absolute top-2.5 left-3 h-3.5 w-3.5 text-[#806350] dark:text-[#958a7a]" />
             <input
               type="text"
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
-              placeholder="Search case: e.g. TCS, SBIN..."
-              className="w-52 sm:w-64 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.04] py-1.5 pr-3 pl-8 text-xs font-semibold text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-zinc-900 dark:focus:border-white focus:bg-white dark:focus:bg-black/50"
+              placeholder="Search ticker: e.g. TCS, SBIN..."
+              className="w-56 sm:w-64 rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] py-1.5 pr-3 pl-8 text-xs font-semibold text-[#2d1f17] dark:text-[#e0d1b9] outline-none transition focus:border-[#806350] dark:focus:border-[#e0d1b9] placeholder-[#806350]/60 dark:placeholder-[#958a7a]/60"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="rounded-xl bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-bold text-white dark:text-zinc-900 transition hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d] px-3.5 py-1.5 text-xs font-bold transition disabled:opacity-50"
           >
-            {loading ? 'Examining...' : 'Examine'}
+            {loading ? 'Analyzing...' : 'Analyze'}
           </button>
         </form>
 
-        {/* Ticker Tape Ribbon */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 shrink-0 mr-1 flex items-center">
-            <Compass className="h-3 w-3 mr-1" /> Dossier Index:
+        {/* Quick Symbol Pills */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#806350] dark:text-[#958a7a] shrink-0 mr-1">
+            Quick Watchlist:
           </span>
 
           {candidates && candidates.length > 0 ? (
-            candidates.slice(0, 9).map((cand) => {
+            candidates.slice(0, 8).map((cand) => {
               const sym = cand.ticker || cand.name;
               const isSelected = normalizeTicker(sym) === normalizeTicker(data?.ticker || selectedTicker);
               return (
                 <button
                   key={sym}
-                  onClick={() => handleSwitchSpecimen(sym)}
-                  className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap transition-all border ${
+                  onClick={() => handleSelectSymbol(sym)}
+                  className={`flex items-center space-x-1 rounded-md px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition border ${
                     isSelected
-                      ? 'border-zinc-900 dark:border-white bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/20 dark:hover:border-white/20'
+                      ? 'border-[#806350] bg-[#edd9cc] text-[#2d1f17] dark:border-[#e0d1b9] dark:bg-[#222b37] dark:text-[#e0d1b9]'
+                      : 'border-[#b8a597] bg-[#f7ede5] text-[#806350] hover:text-[#2d1f17] dark:border-[#363c44] dark:bg-[#1c232d] dark:text-[#958a7a] hover:dark:text-[#e0d1b9]'
                   }`}
                 >
                   <span>{sym.replace('.NS', '')}</span>
                   {cand.overall_score && (
-                    <span className={`text-[10px] px-1 rounded ${
-                      cand.overall_score >= 75 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'
-                    }`}>
-                      {cand.overall_score}
+                    <span className="text-[10px] text-[#806350] dark:text-[#958a7a]">
+                      · {cand.overall_score}
                     </span>
                   )}
                 </button>
               );
             })
           ) : (
-            BENCHMARK_SPECIMENS.map((spec) => {
+            QUICK_WATCHLIST.map((spec) => {
               const isSelected = normalizeTicker(spec.ticker) === normalizeTicker(data?.ticker || selectedTicker);
               return (
                 <button
                   key={spec.ticker}
-                  onClick={() => handleSwitchSpecimen(spec.ticker)}
-                  className={`flex items-center space-x-1.5 rounded-lg px-2.5 py-1 text-xs font-bold whitespace-nowrap transition-all border ${
+                  onClick={() => handleSelectSymbol(spec.ticker)}
+                  className={`flex items-center space-x-1 rounded-md px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition border ${
                     isSelected
-                      ? 'border-zinc-900 dark:border-white bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm'
-                      : 'border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] text-zinc-600 dark:text-zinc-400 hover:border-black/20 dark:hover:border-white/20'
+                      ? 'border-[#806350] bg-[#edd9cc] text-[#2d1f17] dark:border-[#e0d1b9] dark:bg-[#222b37] dark:text-[#e0d1b9]'
+                      : 'border-[#b8a597] bg-[#f7ede5] text-[#806350] hover:text-[#2d1f17] dark:border-[#363c44] dark:bg-[#1c232d] dark:text-[#958a7a] hover:dark:text-[#e0d1b9]'
                   }`}
                 >
                   <span>{spec.ticker.replace('.NS', '')}</span>
-                  <span className="text-[10px] text-zinc-400">· {spec.sector}</span>
                 </button>
               );
             })
@@ -435,14 +434,14 @@ export default function AppleDeepDiveTab({
 
       {/* Error state */}
       {error && (
-        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-700 dark:text-rose-300 flex items-center justify-between">
+        <div className="rounded-lg border border-[#b20808]/30 bg-[#b20808]/10 p-4 text-xs font-medium text-[#8b0909] dark:text-rose-300 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
-            <span>Investigation Error: {error}</span>
+            <AlertTriangle className="h-4 w-4 text-[#b20808] dark:text-rose-400 shrink-0" />
+            <span>Analysis Error: {error}</span>
           </div>
           <button
             onClick={() => fetchDossier(tickerInput)}
-            className="rounded-lg bg-rose-500 text-white px-2.5 py-1 font-bold hover:bg-rose-600 transition"
+            className="rounded bg-[#8b0909] text-white px-2.5 py-1 font-bold hover:bg-[#8b0909]/90 transition"
           >
             Retry
           </button>
@@ -451,285 +450,257 @@ export default function AppleDeepDiveTab({
 
       {/* Loading Skeleton */}
       {loading && !data && (
-        <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-[#0c0d12]/50 p-16 text-center animate-pulse space-y-3">
-          <div className="h-7 w-48 bg-zinc-200 dark:bg-zinc-800 rounded-lg mx-auto" />
-          <div className="h-4 w-80 bg-zinc-200 dark:bg-zinc-800 rounded mx-auto" />
-          <p className="text-xs text-zinc-400">Unfolding forensic case file...</p>
+        <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-16 text-center animate-pulse space-y-3">
+          <div className="h-7 w-48 bg-[#edd9cc] dark:bg-[#222b37] rounded-md mx-auto" />
+          <div className="h-4 w-72 bg-[#edd9cc] dark:bg-[#222b37] rounded mx-auto" />
+          <p className="text-xs text-[#806350] dark:text-[#958a7a]">Loading equity telemetry and valuation models...</p>
         </div>
       )}
 
       {data && (
         <div className="space-y-6">
           
-          {/* =========================================================================
-              THE ASYMMETRIC 3-COLUMN FORENSIC BROADSHEET
-             ========================================================================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 border border-black/10 dark:border-white/10 rounded-3xl overflow-hidden bg-white/70 dark:bg-[#0b0c10]/90 backdrop-blur-3xl shadow-2xl divide-y lg:divide-y-0 lg:divide-x divide-black/10 dark:divide-white/10">
-            
-            {/* ---------------------------------------------------------------------
-                COLUMN 1: THE MARGINALIA (LEFT FORENSIC COLUMN - 3 COLS)
-               --------------------------------------------------------------------- */}
-            <div className="lg:col-span-3 p-5 sm:p-6 space-y-6 bg-black/[0.01] dark:bg-white/[0.01]">
+          {/* 2. Stock Overview Hero Header (Google Finance style) */}
+          <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-6 shadow-md">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               
-              {/* Rubber-stamped Verdict Header */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
-                    Exhibit: {data.ticker.replace('.NS', '')}
+              {/* Left: Ticker, Name, Sector & Badges */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#222b37] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#806350] dark:text-[#958a7a]">
+                    NSE
                   </span>
+                  <span className="text-[#b8a597] dark:text-[#363c44]">·</span>
+                  <span className="text-xs text-[#806350] dark:text-[#958a7a] font-medium">
+                    {f.company_type || 'Core Equities'}
+                  </span>
+                  <span className="text-[#b8a597] dark:text-[#363c44]">·</span>
                   <button
                     onClick={handleCopyTicker}
-                    className="text-[11px] font-mono text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center space-x-1"
+                    className="text-xs font-mono text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] flex items-center space-x-1"
                   >
-                    {copiedTicker ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    {copiedTicker ? <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-3 w-3" />}
                     <span>{copiedTicker ? 'Copied' : 'Copy'}</span>
                   </button>
-                </div>
-
-                {/* Stamped Verdict Badge */}
-                <div className={`inline-block px-3 py-1 rounded border-2 text-[11px] font-black uppercase tracking-widest ${
-                  isTriggered
-                    ? 'border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rotate-[-1.5deg] shadow-sm'
-                    : isAvoid
-                    ? 'border-rose-600 bg-rose-500/10 text-rose-700 dark:text-rose-400 rotate-[1.5deg] shadow-sm'
-                    : 'border-zinc-500 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300'
-                }`}>
-                  {priority}
-                </div>
-
-                <div>
-                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
-                    {data.ticker.replace('.NS', '')}
-                  </h2>
-                  <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 line-clamp-1">
-                    {dossier.name || 'NSE Equities Market'}
-                  </p>
-                  <p className="text-[11px] text-zinc-400">
-                    {f.company_type || 'Industrial / Commercial'}
-                  </p>
-                </div>
-
-                {/* Live Price Altitude */}
-                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-3">
-                  <div className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white font-mono">
-                    ₹{currentPrice > 0 ? currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '---'}
-                  </div>
-                  <div className="flex items-center space-x-2 text-xs font-bold pt-0.5">
-                    <span className={trend['Dist_50_DMA_%'] >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                      {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%'] > 0 ? '+' : ''}${trend['Dist_50_DMA_%']}%` : '---'}
+                  <span className="text-[#b8a597] dark:text-[#363c44]">·</span>
+                  {/* Data Telemetry Indicator */}
+                  <span 
+                    title={dq.is_fallback ? 'Live screener.in timed out; safely using last cached fundamental snapshot.' : dq.scraped_at ? `Scraped: ${new Date(dq.scraped_at).toLocaleDateString()}` : 'Live Scrape Telemetry'}
+                    className={`inline-flex items-center space-x-1 font-mono text-[10px] px-2 py-0.5 rounded border ${
+                      dq.is_fallback
+                        ? 'border-amber-600/30 bg-amber-600/10 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
+                        : dq.cached
+                        ? 'border-[#b8a597]/60 bg-[#edd9cc]/60 text-[#806350] dark:border-[#363c44] dark:bg-[#222b37] dark:text-[#958a7a]'
+                        : 'border-emerald-600/30 bg-emerald-600/10 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      dq.is_fallback ? 'bg-amber-600 dark:bg-amber-400 animate-pulse' : dq.cached ? 'bg-[#806350] dark:bg-[#958a7a]' : 'bg-emerald-600 dark:bg-emerald-400'
+                    }`} />
+                    <span>
+                      {dq.is_fallback
+                        ? 'Fallback Cache'
+                        : dq.cached
+                        ? `Cached (${dq.cache_age_seconds ? `${Math.round(dq.cache_age_seconds / 3600)}h` : 'Snapshot'})`
+                        : 'Live Scraped'}
                     </span>
-                    <span className="text-zinc-400">vs 50 DMA</span>
-                  </div>
+                  </span>
                 </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#2d1f17] dark:text-[#e0d1b9]">
+                    {data.ticker.replace('.NS', '')}
+                  </h1>
+                  <span className={`px-2.5 py-0.5 rounded text-xs font-semibold border ${
+                    isTriggered
+                      ? 'border-emerald-600/30 bg-emerald-600/10 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                      : isAvoid
+                      ? 'border-[#b20808]/30 bg-[#b20808]/10 text-[#8b0909] dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400'
+                      : 'border-[#b8a597] bg-[#edd9cc] text-[#806350] dark:border-[#363c44] dark:bg-[#222b37] dark:text-[#958a7a]'
+                  }`}>
+                    {priority}
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#806350] dark:text-[#958a7a] font-medium">
+                  {dossier.name || 'National Stock Exchange of India'}
+                </p>
               </div>
 
-              {/* BESPOKE ELEMENT: THE VERTICAL 52-WEEK ALTITUDE BAROMETER */}
-              <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-zinc-400 uppercase tracking-wider text-[10px] font-mono">52-Week Altitude</span>
-                  <span className="text-zinc-800 dark:text-zinc-200 font-mono font-bold">{altitudePct.toFixed(0)}%</span>
+              {/* Center/Right: Price & 52-Week Range Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6 lg:gap-10">
+                {/* Live Price */}
+                <div>
+                  <div className="text-[11px] font-mono text-[#806350] dark:text-[#958a7a] uppercase tracking-wider">Market Price</div>
+                  <div className="text-3xl font-bold text-[#2d1f17] dark:text-[#e0d1b9] font-mono mt-0.5">
+                    ₹{currentPrice > 0 ? currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs font-semibold pt-0.5 font-mono">
+                    <span className={trend['Dist_50_DMA_%'] >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}>
+                      {trend['Dist_50_DMA_%'] != null ? `${trend['Dist_50_DMA_%'] > 0 ? '+' : ''}${trend['Dist_50_DMA_%']}%` : '—'}
+                    </span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">vs 50 DMA</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-3 bg-black/[0.02] dark:bg-white/[0.02] p-3 rounded-2xl border border-black/[0.04] dark:border-white/[0.06]">
-                  {/* Thermometer Stem */}
-                  <div className="relative h-32 w-3.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden flex flex-col justify-end shrink-0">
+                {/* 52-Week Range Bar (Clean Google Finance style) */}
+                <div className="w-56 space-y-1.5 font-mono text-xs">
+                  <div className="flex justify-between text-[#806350] dark:text-[#958a7a] text-[10px]">
+                    <span>52W Low: ₹{yearLow.toFixed(0)}</span>
+                    <span>52W High: ₹{yearHigh.toFixed(0)}</span>
+                  </div>
+                  <div className="relative h-1.5 w-full rounded bg-[#edd9cc] dark:bg-[#222b37] overflow-hidden">
                     <div 
-                      className="w-full bg-gradient-to-t from-blue-500 via-indigo-500 to-rose-500 rounded-full transition-all duration-700"
-                      style={{ height: `${altitudePct}%` }}
+                      className="absolute top-0 bottom-0 left-0 bg-[#806350] dark:bg-[#e0d1b9]"
+                      style={{ width: `${rangePct}%` }}
                     />
                   </div>
-
-                  {/* Altimeter Scale Lines */}
-                  <div className="flex flex-col justify-between h-32 text-[10px] font-mono text-zinc-400 w-full pl-1">
-                    <div className="border-b border-black/[0.04] dark:border-white/[0.06] pb-0.5">
-                      <span className="text-zinc-500">Peak:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearHigh.toFixed(0)}</span>
-                    </div>
-                    <div>
-                      <span className="text-blue-500">50 DMA:</span> ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(0) : '---'}
-                    </div>
-                    <div>
-                      <span className="text-amber-500">200 DMA:</span> ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(0) : '---'}
-                    </div>
-                    <div className="border-t border-black/[0.04] dark:border-white/[0.06] pt-0.5">
-                      <span className="text-zinc-500">Trench:</span> <span className="font-bold text-zinc-800 dark:text-zinc-200">₹{yearLow.toFixed(0)}</span>
-                    </div>
+                  <div className="text-right text-[10px] text-[#806350] dark:text-[#958a7a]">
+                    Range Position: <span className="text-[#2d1f17] dark:text-[#e0d1b9] font-bold">{rangePct.toFixed(0)}%</span>
                   </div>
                 </div>
               </div>
-
-              {/* Speedometer Instrument Stack */}
-              <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2.5">
-                <span className="text-[10px] font-mono tracking-widest text-zinc-400">
-                  Technical Speedometers
-                </span>
-
-                <div className="space-y-2 text-xs font-medium">
-                  {/* RSI Momentum */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">RSI-14 (Momentum):</span>
-                    <span className={`font-mono tabular-nums font-bold ${
-                      (momo.RSI || 50) > 70 ? 'text-rose-600 dark:text-rose-400' :
-                      (momo.RSI || 50) < 30 ? 'text-emerald-600 dark:text-emerald-400' :
-                      'text-zinc-800 dark:text-zinc-200'
-                    }`}>
-                      {momo.RSI != null ? momo.RSI.toFixed(1) : (momo.RSI_14 != null ? momo.RSI_14.toFixed(1) : '54.0')}
-                    </span>
-                  </div>
-
-                  {/* 50-DMA Slope Velocity */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">50-DMA Velocity:</span>
-                    <span className={`font-mono tabular-nums font-bold ${trend['50_DMA_Slope_5d'] > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {trend['50_DMA_Slope_5d'] ? `${trend['50_DMA_Slope_5d'] > 0 ? '+' : ''}${trend['50_DMA_Slope_5d'].toFixed(2)}/day` : 'Flat'}
-                    </span>
-                  </div>
-
-                  {/* ATR-14 Buffer */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">ATR-14 Volatility:</span>
-                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">
-                      ₹{t.Volatility_Analysis?.ATR_14 ? t.Volatility_Analysis.ATR_14.toFixed(1) : (currentPrice * 0.02).toFixed(1)}
-                    </span>
-                  </div>
-
-                  {/* Volume Surge */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-500">Volume Surge:</span>
-                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">
-                      {vol.Volume_Expansion_Ratio ? `${vol.Volume_Expansion_Ratio}x` : '1.0x'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bespoke Element: Seismic Event Horizon Countdown */}
-              {data.corporate_radar && (
-                <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-2">
-                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
-                    Seismic Event Horizon
-                  </span>
-                  
-                  <div className={`rounded-2xl border p-3 space-y-1.5 ${
-                    data.corporate_radar.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 3
-                      ? 'border-rose-500/40 bg-rose-500/10'
-                      : data.corporate_radar.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 7
-                      ? 'border-amber-500/40 bg-amber-500/10'
-                      : 'border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02]'
-                  }`}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-zinc-800 dark:text-zinc-200">
-                        {data.corporate_radar.next_earnings_date || 'No Date Declared'}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold font-mono bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                        {data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings}d to earnings` : 'Schedule Pending'}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
-                      {data.corporate_radar.event_risk_reason || 'Volatility gate monitors quarterly releases to prevent earnings gap exposure.'}
-                    </p>
-                  </div>
-                </div>
-              )}
 
             </div>
+          </div>
 
-            {/* ---------------------------------------------------------------------
-                COLUMN 2: THE EXAMINATION THEATER (CENTER CANVAS - 6 COLS)
-               --------------------------------------------------------------------- */}
-            <div className="lg:col-span-6 p-5 sm:p-6 space-y-6">
+          {/* 3. Main Workstation (2-Column Financial Grid) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* =========================================================================
+                LEFT COLUMN: INTERACTIVE CHART & TECHNICAL AUDIT (8 COLS)
+               ========================================================================= */}
+            <div className="lg:col-span-8 space-y-6">
               
-              {/* Header Ribbon of Center Canvas */}
-              <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
-                <div className="flex items-center space-x-2">
-                  <Activity className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
-                  <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">
-                    Living Price Geometry & 1-Year Daily Canvas
-                  </span>
+              {/* Chart Card */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#b8a597] dark:border-[#2d3642] pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Activity className="h-4 w-4 text-[#806350] dark:text-[#e0d1b9]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#2d1f17] dark:text-[#e0d1b9]">
+                      Multi-Timeframe Technical & Volume Workstation
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-3 text-xs font-mono">
+                    <span className="text-amber-700 dark:text-amber-400 font-semibold">20 EMA: ₹{trend['20_EMA'] || (data.chart?.ema_20?.slice(-1)[0]?.value ? data.chart?.ema_20?.slice(-1)[0]?.value.toFixed(1) : '—')}</span>
+                    <span className="text-[#806350] dark:text-blue-400 font-semibold">50 DMA: ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(1) : '—'}</span>
+                    <span className="text-[#8b0909] dark:text-purple-400 font-semibold">200 DMA: ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(1) : '—'}</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-3 text-[11px] font-mono">
-                  <span className="text-blue-500">50D: ₹{trend['50_DMA'] ? trend['50_DMA'].toFixed(1) : '---'}</span>
-                  <span className="text-amber-500">200D: ₹{trend['200_DMA'] ? trend['200_DMA'].toFixed(1) : '---'}</span>
-                </div>
-              </div>
-
-              {/* Seamless Canvas Chart (Integrated directly, no bulky card border) */}
-              <div className="rounded-2xl overflow-hidden border border-black/[0.08] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.01]">
+                {/* Canvas Chart */}
                 <CanvasChart
                   candles={data.chart?.candles || []}
+                  ema20={data.chart?.ema_20 || []}
                   dma50={data.chart?.dma_50 || []}
                   dma200={data.chart?.dma_200 || []}
-                  stopPrice={activeStrat.stop_price}
+                  volMa={data.chart?.vol_ma_20 || []}
+                  weekly={data.chart?.weekly || null}
+                  entryPrice={currentPrice}
+                  stopPrice={stopPrice}
+                  target1={target1}
+                  target2={target2}
                   ticker={data.ticker}
                   markers={data.chart?.markers || []}
                 />
               </div>
 
-              {/* BESPOKE ELEMENT: THE 4-POINT TRADE SPECTRUM RULER */}
-              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-3">
+              {/* Trade Execution Matrix */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-[10px] font-mono tracking-wider text-zinc-400">
-                    Trade Spectrum (R-Multiple Horizon)
+                  <span className="text-[10px] font-mono tracking-wider text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+                    Execution Targets & Risk Sizing
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-500">
-                    Setup: {strat.primary_strategy || 'SYSTEM_DEFAULT'}
+                  <span className="font-mono text-xs text-[#806350] dark:text-[#958a7a]">
+                    Setup: <span className="text-[#2d1f17] dark:text-[#e0d1b9] font-bold">{strat.primary_strategy || 'SYSTEM_DEFAULT'}</span>
                   </span>
                 </div>
 
-                {/* Connecting Track */}
-                <div className="relative pt-2 pb-1">
-                  <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-rose-500 via-blue-500 to-emerald-500 opacity-40" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+                  {/* Stop */}
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b20808]/30 dark:border-rose-500/20">
+                    <div className="text-[10px] font-bold text-[#b20808] dark:text-rose-400 uppercase tracking-wider">Stop Loss (1R)</div>
+                    <div className="text-sm font-bold text-[#b20808] dark:text-rose-400 mt-0.5">₹{stopPrice.toFixed(1)}</div>
+                    <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">-{stopLossPct.toFixed(1)}%</div>
+                  </div>
 
-                  <div className="relative grid grid-cols-4 gap-2 text-center">
-                    
-                    {/* 1. Stop */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-rose-500/30 shadow-sm">
-                      <div className="text-[10px] font-bold tracking-wider text-rose-600 dark:text-rose-400">Stop (1R)</div>
-                      <div className="text-xs font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums">₹{stopPrice.toFixed(1)}</div>
-                      <div className="text-[10px] text-zinc-400 tabular-nums">-{stopLossPct.toFixed(1)}%</div>
-                    </div>
+                  {/* Entry */}
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                    <div className="text-[10px] font-bold text-[#2d1f17] dark:text-[#e0d1b9] uppercase tracking-wider">Observed Entry</div>
+                    <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">₹{currentPrice.toFixed(1)}</div>
+                    <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">Market Price</div>
+                  </div>
 
-                    {/* 2. Entry */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-blue-500/30 shadow-sm">
-                      <div className="text-[10px] font-bold tracking-wider text-blue-600 dark:text-blue-400">Entry</div>
-                      <div className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums">₹{currentPrice.toFixed(1)}</div>
-                      <div className="text-[10px] text-zinc-400">Market</div>
-                    </div>
+                  {/* Target 1 */}
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-emerald-600/30 dark:border-emerald-500/20">
+                    <div className="text-[10px] font-bold text-[#2d6a4f] dark:text-emerald-400 uppercase tracking-wider">Target 1 (2R)</div>
+                    <div className="text-sm font-bold text-[#2d6a4f] dark:text-emerald-400 mt-0.5">₹{target1.toFixed(1)}</div>
+                    <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">+{target1Pct.toFixed(1)}%</div>
+                  </div>
 
-                    {/* 3. Target 1 */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-emerald-500/30 shadow-sm">
-                      <div className="text-[10px] font-bold tracking-wider text-emerald-600 dark:text-emerald-400">Target 1 (2R)</div>
-                      <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">₹{target1.toFixed(1)}</div>
-                      <div className="text-[10px] text-emerald-600/80 tabular-nums">+{target1Pct.toFixed(1)}%</div>
-                    </div>
-
-                    {/* 4. Target 2 */}
-                    <div className="bg-white dark:bg-black/60 rounded-xl p-2.5 border border-purple-500/30 shadow-sm">
-                      <div className="text-[10px] font-bold tracking-wider text-purple-600 dark:text-purple-400">Target 2 (3R)</div>
-                      <div className="text-xs font-black text-purple-600 dark:text-purple-400 font-mono tabular-nums">₹{target2.toFixed(1)}</div>
-                      <div className="text-[10px] text-purple-600/80 tabular-nums">+{target2Pct.toFixed(1)}%</div>
-                    </div>
-
+                  {/* Target 2 */}
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-indigo-600/30 dark:border-indigo-500/20">
+                    <div className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">Target 2 (3R)</div>
+                    <div className="text-sm font-bold text-indigo-700 dark:text-indigo-400 mt-0.5">₹{target2.toFixed(1)}</div>
+                    <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">+{target2Pct.toFixed(1)}%</div>
                   </div>
                 </div>
               </div>
 
-              {/* Multi-Horizon Relative Strength Alpha Matrix vs Nifty 50 */}
-              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-bold text-zinc-500">
-                  <span className="text-[10px] font-mono tracking-wider text-zinc-400">Relative Strength Alpha (vs Nifty 50)</span>
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              {/* Key Technical & Volume Indicators */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-3 shadow-sm">
+                <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+                  Key Technical & Volume Indicators
+                </span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-center">
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                    <div className="text-[9px] text-[#806350] dark:text-[#958a7a] uppercase font-bold">RSI (14)</div>
+                    <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
+                      {momo.RSI != null ? momo.RSI.toFixed(1) : (momo.RSI_14 != null ? momo.RSI_14.toFixed(1) : '54.0')}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2.5 border border-[#b8a597] dark:border-[#2d3642]">
+                    <div className="text-[9px] text-[#806350] dark:text-[#958a7a] uppercase font-bold">50-DMA Velocity</div>
+                    <div className={`text-sm font-bold mt-0.5 ${trend['50_DMA_Slope_5d'] > 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}`}>
+                      {trend['50_DMA_Slope_5d'] ? `${trend['50_DMA_Slope_5d'] > 0 ? '+' : ''}${trend['50_DMA_Slope_5d'].toFixed(2)}/d` : 'Flat'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#222b37] p-2.5 border border-[#b8a597] dark:border-[#363c44]">
+                    <div className="text-[9px] text-[#806350] dark:text-[#958a7a] uppercase">ATR (14)</div>
+                    <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
+                      ₹{t.Volatility_Analysis?.ATR_14 ? t.Volatility_Analysis.ATR_14.toFixed(1) : (currentPrice * 0.02).toFixed(1)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-[#edd9cc] dark:bg-[#222b37] p-2.5 border border-[#b8a597] dark:border-[#363c44]">
+                    <div className="text-[9px] text-[#806350] dark:text-[#958a7a] uppercase">RVOL Expansion</div>
+                    <div className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9] mt-0.5">
+                      {vol.Volume_Expansion_Ratio ? `${vol.Volume_Expansion_Ratio}x` : '1.0x'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Relative Strength Alpha vs Nifty 50 */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-3 shadow-md">
+                <div className="flex items-center justify-between text-xs font-bold text-[#806350] dark:text-[#958a7a]">
+                  <span className="text-[10px] font-mono tracking-wider uppercase">Relative Strength Alpha (vs Nifty 50)</span>
+                  <TrendingUp className="h-3.5 w-3.5 text-[#2d6a4f] dark:text-emerald-400" />
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="grid grid-cols-4 gap-2 text-center font-mono">
                   {['1M', '3M', '6M', '1Y'].map((h) => {
                     const alpha = momo['Relative_Strength_Alpha_%']?.[h];
                     const isPos = alpha != null && alpha > 0;
                     return (
-                      <div key={h} className="rounded-xl bg-white dark:bg-black/40 border border-black/[0.04] dark:border-white/[0.06] p-2">
-                        <div className="text-[10px] font-mono text-zinc-400">{h} Alpha</div>
-                        <div className={`text-xs font-black font-mono tabular-nums ${isPos ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {alpha != null ? `${alpha > 0 ? '+' : ''}${alpha.toFixed(1)}%` : '---'}
+                      <div key={h} className="rounded-lg bg-[#edd9cc] dark:bg-[#222b37] border border-[#b8a597] dark:border-[#363c44] p-2">
+                        <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">{h} Alpha</div>
+                        <div className={`text-xs font-bold mt-0.5 ${isPos ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#b20808] dark:text-rose-400'}`}>
+                          {alpha != null ? `${alpha > 0 ? '+' : ''}${alpha.toFixed(1)}%` : '—'}
                         </div>
                       </div>
                     );
@@ -737,13 +708,13 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
-              {/* Pre-Flight Safety Checklist (High-Density Audit Table) */}
-              <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-white dark:bg-[#0f1626] p-4 space-y-3 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] dark:border-white/[0.06] pb-3">
+              {/* Pre-Flight Algorithmic Verification Checklist */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-3 shadow-md">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#b8a597] dark:border-[#363c44] pb-3">
                   <div className="flex items-center space-x-2">
-                    <FileCheck className="h-4 w-4 text-blue-500" />
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Pre-Flight Safety Checklist
+                    <FileCheck className="h-4 w-4 text-[#806350] dark:text-[#e0d1b9]" />
+                    <span className="text-xs font-bold text-[#2d1f17] dark:text-[#e0d1b9]">
+                      Algorithmic Setup Verification Checklist
                     </span>
                   </div>
                   {(() => {
@@ -751,13 +722,13 @@ export default function AppleDeepDiveTab({
                     const total = data.rule_breakdown?.length || 0;
                     const isBullish = cleared >= 4;
                     return (
-                      <span className={`inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-mono font-bold border ${
+                      <span className={`inline-flex items-center space-x-1.5 rounded px-2.5 py-0.5 text-xs font-mono font-bold border ${
                         isBullish
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                          : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                          ? 'border-emerald-600/30 bg-emerald-600/10 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                          : 'border-amber-600/30 bg-amber-600/10 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
                       }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${isBullish ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                        <span>{cleared} / {total} Gates Cleared ({isBullish ? 'Bullish Alignment' : 'Risk Blocked'})</span>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isBullish ? 'bg-emerald-600 dark:bg-emerald-400' : 'bg-amber-600 dark:bg-amber-400'}`} />
+                        <span>{cleared} / {total} Gates Passed</span>
                       </span>
                     );
                   })()}
@@ -766,38 +737,29 @@ export default function AppleDeepDiveTab({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-black/[0.04] dark:border-white/[0.05] text-[10px] uppercase font-bold text-zinc-400">
-                        <th className="py-1.5 px-2">Condition / Rule</th>
-                        <th className="py-1.5 px-2 text-right">Verification Telemetry</th>
+                      <tr className="border-b border-[#b8a597] dark:border-[#363c44] text-[10px] uppercase font-bold text-[#806350] dark:text-[#958a7a]">
+                        <th className="py-2 px-2">Condition / Rule</th>
+                        <th className="py-2 px-2 text-right">Verification Telemetry</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-black/[0.03] dark:divide-white/[0.04]">
+                    <tbody className="divide-y divide-[#b8a597]/60 dark:divide-[#363c44]">
                       {(data.rule_breakdown || []).map((rule, idx) => (
-                        <tr
-                          key={idx}
-                          className={`transition ${
-                            rule.passed
-                              ? 'hover:bg-black/[0.015] dark:hover:bg-white/[0.02]'
-                              : 'bg-rose-500/[0.04] dark:bg-rose-500/[0.06] hover:bg-rose-500/[0.07]'
-                          }`}
-                        >
+                        <tr key={idx} className="hover:bg-[#edd9cc]/60 dark:hover:bg-[#222b37]/40 transition">
                           <td className="py-2.5 px-2">
                             <div className="flex items-center space-x-2">
-                              <span
-                                className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold border ${
-                                  rule.passed
-                                    ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                    : 'border-rose-500/30 bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                                }`}
-                              >
+                              <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 text-[10px] font-bold border ${
+                                rule.passed
+                                  ? 'border-emerald-600/30 bg-emerald-600/15 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-400'
+                                  : 'border-[#b20808]/30 bg-[#b20808]/15 text-[#8b0909] dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-400'
+                              }`}>
                                 {rule.passed ? '✓' : '✗'}
                               </span>
-                              <span className={`font-semibold ${rule.passed ? 'text-zinc-800 dark:text-zinc-200' : 'text-rose-700 dark:text-rose-300'}`}>
+                              <span className="font-medium text-[#2d1f17] dark:text-[#e0d1b9]">
                                 {rule.rule}
                               </span>
                             </div>
                           </td>
-                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-[11px] text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                          <td className="py-2.5 px-2 text-right font-mono text-xs text-[#806350] dark:text-[#958a7a]">
                             {rule.detail || '—'}
                           </td>
                         </tr>
@@ -807,60 +769,216 @@ export default function AppleDeepDiveTab({
                 </div>
               </div>
 
+              {/* Corporate Radar & Earnings Outcome Analyzer */}
+              {data.corporate_radar && (
+                <div className="rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] p-5 space-y-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#b8a597] dark:border-[#2d3642] pb-3">
+                    <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+                      Corporate Radar & Earnings Horizon
+                    </span>
+
+                    {/* Event Risk Lockout Badge */}
+                    {(() => {
+                      const days = data.corporate_radar.days_to_earnings;
+                      if (days != null && days <= 5) {
+                        return (
+                          <span className="inline-flex items-center space-x-1.5 rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping" />
+                            <span>BINARY LOCKOUT · D-{days}</span>
+                          </span>
+                        );
+                      }
+                      if (days != null && days <= 14) {
+                        return (
+                          <span className="inline-flex items-center space-x-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                            <span>PRE-EARNINGS RADAR · D-{days}</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center space-x-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          <span>CLEAR WINDOW (SAFE)</span>
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Date & Reason Pod */}
+                  <div className="rounded-xl bg-[#edd9cc] dark:bg-[#13171e] border border-[#b8a597] dark:border-[#2d3642] p-3 text-xs space-y-1.5 font-mono">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#806350] dark:text-[#958a7a]">Next Earnings Release:</span>
+                      <span className="font-bold text-[#2d1f17] dark:text-[#e0d1b9]">
+                        {data.corporate_radar.next_earnings_date
+                          ? `${data.corporate_radar.next_earnings_date} (${data.corporate_radar.days_to_earnings != null ? `${data.corporate_radar.days_to_earnings} days away` : 'Date set'})`
+                          : 'No Date Declared (Safe Window)'}
+                      </span>
+                    </div>
+                    {data.corporate_radar.ex_dividend_date && (
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-[#806350] dark:text-[#958a7a]">Ex-Dividend Date:</span>
+                        <span className="text-[#2d1f17] dark:text-[#e0d1b9]">{data.corporate_radar.ex_dividend_date}</span>
+                      </div>
+                    )}
+                    <div className="text-[11px] text-[#806350] dark:text-[#958a7a] font-sans pt-1 border-t border-[#b8a597]/40 dark:border-[#2d3642]">
+                      {data.corporate_radar.event_risk_reason}
+                    </div>
+                  </div>
+
+                  {/* Historical Day-1 Gap Reaction Matrix */}
+                  {data.corporate_radar.gap_reactions && data.corporate_radar.gap_reactions.length > 0 && (
+                    <div className="space-y-2.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-[#806350] dark:text-[#958a7a]">
+                          Historical Day-1 Post-Earnings Reactions
+                        </span>
+                        <span className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a]">
+                          {data.corporate_radar.gap_stats?.summary || `${data.corporate_radar.gap_reactions.length} Quarters Analyzed`}
+                        </span>
+                      </div>
+
+                      {/* 3 Metric Stat Pods */}
+                      <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] uppercase font-bold text-[#806350] dark:text-[#958a7a]">Downside Gaps</div>
+                          <div className="text-xs font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                            {data.corporate_radar.gap_stats?.gap_down_count ?? 0} / {data.corporate_radar.gap_stats?.quarters_analyzed ?? data.corporate_radar.gap_reactions.length}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] uppercase font-bold text-[#806350] dark:text-[#958a7a]">Average Gap</div>
+                          <div className={`text-xs font-bold mt-0.5 ${(data.corporate_radar.gap_stats?.avg_gap_pct ?? 0) >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {(data.corporate_radar.gap_stats?.avg_gap_pct ?? 0) > 0 ? '+' : ''}{data.corporate_radar.gap_stats?.avg_gap_pct ?? 0}%
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-[#edd9cc] dark:bg-[#13171e] p-2 border border-[#b8a597] dark:border-[#2d3642]">
+                          <div className="text-[9px] uppercase font-bold text-[#806350] dark:text-[#958a7a]">Worst Gap Down</div>
+                          <div className="text-xs font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                            {data.corporate_radar.gap_stats?.worst_gap_pct ?? 0}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quarters Strip */}
+                      <div className="space-y-1.5">
+                        {data.corporate_radar.gap_reactions.slice(0, 4).map((q, idx) => {
+                          const isDown = q.gap_pct < -0.3;
+                          const isUp = q.gap_pct > 0.3;
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-2 rounded-lg bg-[#edd9cc] dark:bg-[#13171e] border border-[#b8a597] dark:border-[#2d3642] text-xs font-mono"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="font-semibold text-[#2d1f17] dark:text-[#e0d1b9]">
+                                  {q.announcement_date}
+                                </span>
+                                {q.surprise_pct != null && (
+                                  <span className={`text-[10px] px-1 rounded ${q.surprise_pct >= 0 ? 'bg-emerald-500/10 text-[#2d6a4f] dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
+                                    {q.surprise_pct > 0 ? '+' : ''}{q.surprise_pct}% EPS
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center space-x-3 text-right">
+                                <div>
+                                  <span className="text-[10px] text-[#806350] dark:text-[#958a7a] mr-1">Gap:</span>
+                                  <span className={`font-bold ${isDown ? 'text-rose-600 dark:text-rose-400' : isUp ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-[#806350] dark:text-[#958a7a]'}`}>
+                                    {q.gap_pct > 0 ? '+' : ''}{q.gap_pct}%
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-[#806350] dark:text-[#958a7a]">
+                                  Day-1: <span className={q.day1_pct >= 0 ? 'text-[#2d6a4f] dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>{q.day1_pct > 0 ? '+' : ''}{q.day1_pct}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
 
-            {/* ---------------------------------------------------------------------
-                COLUMN 3: THE PHYSICAL TRADING TICKET & SOLVENCY LEDGER (3 COLS)
-               --------------------------------------------------------------------- */}
-            <div className="lg:col-span-3 p-5 sm:p-6 space-y-6 bg-black/[0.01] dark:bg-white/[0.01]">
+            {/* =========================================================================
+                RIGHT COLUMN: ORDER PAD, 7-PILLARS AUDIT & FORENSIC RISKS (4 COLS)
+               ========================================================================= */}
+            <div className="lg:col-span-4 space-y-6">
               
-              {/* BESPOKE ELEMENT: THE AUTHENTIC PHYSICAL PERFORATED TRADING TICKET */}
-              <div className="relative rounded-2xl border-2 border-dashed border-zinc-400/40 dark:border-zinc-700/60 bg-white dark:bg-black/90 p-5 shadow-2xl space-y-4">
-                
-                {/* Perforated Top Header */}
-                <div className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-3 text-zinc-800 dark:text-zinc-200">
+              {/* Order Execution Pad */}
+              <div className="relative rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] p-5 space-y-4 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[#b8a597] dark:border-[#2d3642] pb-3">
                   <div className="flex items-center space-x-2">
-                    <Receipt className="h-4 w-4 text-blue-500" />
-                    <span className="text-xs font-mono font-bold tracking-wider">
-                      Exchange Ticket
+                    <Briefcase className="h-4 w-4 text-[#806350] dark:text-[#e0d1b9]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#2d1f17] dark:text-[#e0d1b9]">
+                      Order Execution & Sizing
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    {voucherId}
+                  <span className="text-[10px] font-mono text-[#806350] dark:text-[#958a7a]">
+                    1.0% Risk Model
                   </span>
                 </div>
 
-                {/* Sizing Slip Calculation */}
-                <div className="space-y-2 text-xs font-medium">
+                {/* Pre-Earnings Binary Risk Gate inside Order Pad */}
+                {data.corporate_radar?.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 5 && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/[0.08] dark:bg-rose-500/[0.06] p-3 space-y-2 text-xs">
+                    <div className="flex items-center space-x-2 text-rose-700 dark:text-rose-400 font-bold font-mono text-[11px] uppercase tracking-wider">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>Pre-Earnings Lockout Active</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                      Quarterly results scheduled in {data.corporate_radar.days_to_earnings} days ({data.corporate_radar.next_earnings_date}).
+                      {data.corporate_radar.gap_stats?.worst_gap_pct != null && (
+                        <span> Historical worst downside gap: <strong>{data.corporate_radar.gap_stats.worst_gap_pct}%</strong>.</span>
+                      )}
+                    </p>
+                    <label className="flex items-center space-x-2 pt-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={acknowledgedLockout}
+                        onChange={(e) => setAcknowledgedLockout(e.target.checked)}
+                        className="rounded border-[#b8a597] dark:border-[#2d3642] text-rose-600 focus:ring-rose-500"
+                      />
+                      <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-400 select-none">
+                        Acknowledge binary overnight gap risk before deploy
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="space-y-2.5 text-xs font-medium">
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Order Action:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">Delivery Buy</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">Order Action:</span>
+                    <span className="font-bold text-[#2d6a4f] dark:text-emerald-400">Delivery Buy (CNC)</span>
                   </div>
 
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Calculated Shares:</span>
-                    <span className="font-mono tabular-nums font-bold text-zinc-900 dark:text-white">{recommendedShares} Qty</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">Calculated Quantity:</span>
+                    <span className="font-mono font-bold text-[#2d1f17] dark:text-[#e0d1b9]">{recommendedShares} Qty</span>
                   </div>
 
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Total Capital:</span>
-                    <span className="font-mono tabular-nums font-bold text-zinc-800 dark:text-zinc-200">₹{positionCapital.toLocaleString('en-IN')}</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">Total Capital:</span>
+                    <span className="font-mono font-bold text-[#2d1f17] dark:text-[#e0d1b9]">₹{positionCapital.toLocaleString('en-IN')}</span>
                   </div>
 
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Risk at Stop:</span>
-                    <span className="font-mono tabular-nums font-bold text-rose-600 dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')} (1%)</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">Capital at Stop Loss:</span>
+                    <span className="font-mono font-bold text-[#b20808] dark:text-rose-400">₹{capitalAtRisk.toLocaleString('en-IN')} (1.0%)</span>
                   </div>
                 </div>
 
-                {/* Statutory Friction Tear-Off */}
-                <div className="border-t border-dashed border-black/10 dark:border-white/10 pt-3 space-y-1.5 text-[11px]">
-                  <div className="flex justify-between font-mono text-zinc-400">
-                    <span>Friction (Round Trip):</span>
-                    <span className="font-bold font-mono tabular-nums text-zinc-700 dark:text-zinc-300">₹{estTotalCharges}</span>
+                {/* Statutory Friction */}
+                <div className="border-t border-[#b8a597] dark:border-[#2d3642] pt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-[#806350] dark:text-[#958a7a] font-mono">
+                    <span>Estimated Friction (Round Trip):</span>
+                    <span className="font-bold text-[#2d1f17] dark:text-[#e0d1b9]">₹{estTotalCharges}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1 text-[10px] text-zinc-400 font-mono tabular-nums">
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-[#806350] dark:text-[#958a7a] font-mono">
                     <div>STT: ₹{estSTT}</div>
                     <div>Exchange: ₹{estExchange}</div>
                     <div>Stamp: ₹{estStampDuty}</div>
@@ -868,9 +986,13 @@ export default function AppleDeepDiveTab({
                   </div>
                 </div>
 
-                {/* Tactile Stamp & Deploy Button */}
+                {/* Deploy Button */}
                 <button
+                  disabled={data.corporate_radar?.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 5 && !acknowledgedLockout}
                   onClick={() => {
+                    if (data.corporate_radar?.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 5 && !acknowledgedLockout) {
+                      return;
+                    }
                     if (onOpenTradeModal) {
                       onOpenTradeModal(data.ticker, strat.primary_strategy || 'MANUAL_ENTRY');
                     } else if (onLogPaperTrade) {
@@ -883,20 +1005,28 @@ export default function AppleDeepDiveTab({
                       });
                     }
                   }}
-                  className="w-full flex items-center justify-center space-x-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 text-xs font-bold tracking-wider shadow-lg transition hover:opacity-90 active:scale-95"
+                  className={`w-full flex items-center justify-center space-x-2 rounded-lg py-3 text-xs font-bold tracking-wider shadow transition active:scale-95 ${
+                    data.corporate_radar?.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 5 && !acknowledgedLockout
+                      ? 'bg-zinc-400/50 dark:bg-zinc-700/50 text-zinc-200 dark:text-zinc-400 cursor-not-allowed'
+                      : 'bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d]'
+                  }`}
                 >
                   <Briefcase className="h-4 w-4" />
-                  <span>Execute Paper Order</span>
+                  <span>
+                    {data.corporate_radar?.days_to_earnings != null && data.corporate_radar.days_to_earnings <= 5 && !acknowledgedLockout
+                      ? 'Acknowledge Risk to Place Order'
+                      : 'Place Paper Order'}
+                  </span>
                 </button>
               </div>
 
-              {/* Bespoke Element: The 7-Pillars Forensic Audit Ledger */}
-              <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono tracking-widest text-zinc-400">
-                    7-Pillars Audit Ledger
+              {/* 7-Pillars Fundamental Scorecard */}
+              <div className="relative rounded-2xl border border-[#b8a597] dark:border-[#2d3642] bg-[#f7ede5] dark:bg-[#1a222c] p-5 space-y-3 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[#b8a597] dark:border-[#2d3642] pb-3">
+                  <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+                    7-Pillars Fundamental Health
                   </span>
-                  <span className="text-xs font-bold font-mono tabular-nums text-zinc-900 dark:text-white">
+                  <span className="text-sm font-bold font-mono text-[#2d1f17] dark:text-[#e0d1b9]">
                     {f.fundamental_score || 0}/100
                   </span>
                 </div>
@@ -906,12 +1036,12 @@ export default function AppleDeepDiveTab({
                     const score = comp.score != null ? comp.score : 70;
                     const { grade, color } = getLetterGrade(score);
                     return (
-                      <div key={name} className="flex items-center justify-between p-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/[0.04] dark:border-white/[0.04] text-xs">
+                      <div key={name} className="flex items-center justify-between p-2.5 rounded-xl bg-[#edd9cc] dark:bg-[#13171e] border border-[#b8a597] dark:border-[#2d3642] text-xs">
                         <div className="space-y-0.5 max-w-[70%]">
-                          <span className="font-semibold text-zinc-800 dark:text-zinc-200 block truncate">{name}</span>
-                          <span className="text-[10px] text-zinc-400 block truncate">{comp.assessment || 'Underwriting clearance.'}</span>
+                          <span className="font-semibold text-[#2d1f17] dark:text-[#e0d1b9] block truncate">{name}</span>
+                          <span className="text-[10px] text-[#806350] dark:text-[#958a7a] block truncate">{comp.assessment || 'Underwriting clearance.'}</span>
                         </div>
-                        <div className={`px-2 py-0.5 rounded border font-mono font-black text-xs ${color}`}>
+                        <div className={`px-2.5 py-0.5 rounded-md border font-mono font-bold text-xs ${color} shadow-xs`}>
                           {grade}
                         </div>
                       </div>
@@ -920,60 +1050,60 @@ export default function AppleDeepDiveTab({
                 </div>
 
                 {/* Valuation vs Median Band */}
-                <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-2.5 text-[11px] font-medium space-y-1">
+                <div className="rounded-xl border border-[#b8a597] dark:border-[#2d3642] bg-[#edd9cc] dark:bg-[#13171e] p-3 text-xs font-medium space-y-1 font-mono">
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">P/E Multiple:</span>
-                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">{val.pe ? `${val.pe}x` : 'N/A'}</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">P/E Multiple:</span>
+                    <span className="font-bold text-[#2d1f17] dark:text-[#e0d1b9]">{val.pe ? `${val.pe}x` : 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">5Y Historical Median:</span>
-                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">{val.historical_pe_median_5y ? `${val.historical_pe_median_5y}x` : 'N/A'}</span>
+                    <span className="text-[#806350] dark:text-[#958a7a]">5Y Historical Median:</span>
+                    <span className="font-bold text-[#2d1f17] dark:text-[#e0d1b9]">{val.historical_pe_median_5y ? `${val.historical_pe_median_5y}x` : 'N/A'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Forensic Evidence Log (Strengths vs Audit Warnings) */}
-              <div className="space-y-3 border-t border-black/[0.06] dark:border-white/[0.06] pt-4">
-                <span className="text-[10px] font-mono tracking-widest text-zinc-400">
-                  Forensic Evidence Log
+              {/* Forensic Evidence & Key Risks */}
+              <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-5 space-y-3 shadow-md">
+                <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold">
+                  Fundamental Drivers & Risks
                 </span>
 
                 {/* Strengths */}
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                  <div className="text-[10px] font-bold text-[#2d6a4f] dark:text-emerald-400 uppercase tracking-wider">
                     Verified Drivers
                   </div>
-                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                  <ul className="text-xs text-[#806350] dark:text-[#958a7a] space-y-1">
                     {f.positives && f.positives.length > 0 ? (
                       f.positives.slice(0, 2).map((pos, idx) => (
                         <li key={idx} className="flex items-start space-x-1.5 text-[11px]">
-                          <span className="text-emerald-500 font-bold">•</span>
-                          <span className="line-clamp-2">{pos}</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">•</span>
+                          <span className="line-clamp-2 text-[#2d1f17] dark:text-[#e0d1b9]">{pos}</span>
                         </li>
                       ))
                     ) : (
-                      <li className="text-[11px] text-zinc-400">No notable moat flagged.</li>
+                      <li className="text-[11px] text-[#806350] dark:text-[#958a7a]">No notable driver flagged.</li>
                     )}
                   </ul>
                 </div>
 
                 {/* Audit Red Flags */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 tracking-wider">
-                    Audit Red Flags
+                <div className="space-y-1.5 pt-2 border-t border-[#b8a597] dark:border-[#363c44]">
+                  <div className="text-[10px] font-bold text-[#b20808] dark:text-rose-400 uppercase tracking-wider">
+                    Key Risks & Red Flags
                   </div>
-                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                  <ul className="text-xs text-[#806350] dark:text-[#958a7a] space-y-1">
                     {f.red_flags && f.red_flags.length > 0 ? (
                       f.red_flags.slice(0, 2).map((flag, idx) => (
                         <li key={idx} className="flex items-start space-x-1.5 text-[11px]">
-                          <span className="text-rose-500 font-bold">•</span>
-                          <span className="line-clamp-2">
+                          <span className="text-[#b20808] dark:text-rose-400 font-bold">•</span>
+                          <span className="line-clamp-2 text-[#8b0909] dark:text-rose-300">
                             <strong>[{flag.severity}]</strong> {flag.explanation}
                           </span>
                         </li>
                       ))
                     ) : (
-                      <li className="text-[11px] text-zinc-400">Zero critical red flags found.</li>
+                      <li className="text-[11px] text-[#806350] dark:text-[#958a7a]">Zero critical red flags found.</li>
                     )}
                   </ul>
                 </div>
@@ -984,23 +1114,19 @@ export default function AppleDeepDiveTab({
 
           </div>
 
-          {/* =========================================================================
-              Bespoke Element: The Confidential Intelligence Dispatch & Stock Chat Lab
-             ========================================================================= */}
-          <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-[#0f1626] backdrop-blur-3xl p-5 sm:p-6 shadow-xl space-y-5">
-            
-            {/* Header Stamp */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.06] pb-4">
+          {/* 4. Institutional AI Research Analysis & Chat */}
+          <div className="rounded-2xl border border-[#b8a597] dark:border-[#363c44] bg-[#f7ede5] dark:bg-[#1c232d] p-6 shadow-md space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#b8a597] dark:border-[#363c44] pb-4">
               <div className="flex items-center space-x-3">
-                <div className="h-9 w-9 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                <div className="h-8 w-8 rounded-lg bg-[#edd9cc] dark:bg-[#222b37] border border-[#b8a597] dark:border-[#363c44] text-[#806350] dark:text-[#e0d1b9] flex items-center justify-center font-bold">
                   <Terminal className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono">
-                    Confidential Research Dispatch · Subject: {data.ticker.replace('.NS', '')}
+                  <h3 className="text-sm font-bold text-[#2d1f17] dark:text-[#e0d1b9]">
+                    AI Equity Research & Qualitative Synthesis
                   </h3>
-                  <p className="text-xs text-zinc-500">
-                    Qualitative Underwriting Cable · Synthesized by Qwen 2.5 Coder & Google Gemini
+                  <p className="text-xs text-[#806350] dark:text-[#958a7a]">
+                    Synthesized quantitative underwriter for {data.ticker.replace('.NS', '')}
                   </p>
                 </div>
               </div>
@@ -1009,104 +1135,249 @@ export default function AppleDeepDiveTab({
                 {aiLoading && (
                   <button
                     onClick={handleCancelDossier}
-                    className="flex items-center space-x-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-1.5 text-xs font-bold hover:bg-rose-500/20 transition"
+                    className="flex items-center space-x-1.5 rounded-lg border border-[#b20808]/30 bg-[#b20808]/10 text-[#8b0909] dark:text-rose-400 px-3 py-1.5 text-xs font-bold hover:bg-[#b20808]/20 transition"
                   >
                     <X className="h-3.5 w-3.5" />
-                    <span>Halt Cable</span>
+                    <span>Cancel</span>
                   </button>
                 )}
 
                 <button
                   onClick={handleGenerateStockDossier}
                   disabled={aiLoading}
-                  className="flex items-center space-x-2 rounded-xl bg-purple-600 text-white px-4 py-2 text-xs font-bold hover:bg-purple-700 shadow-md transition disabled:opacity-50"
+                  className="flex items-center space-x-2 rounded-lg bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d] px-4 py-2 text-xs font-bold shadow transition disabled:opacity-50"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>{aiLoading ? 'Streaming Cable...' : 'Transmit Intelligence Cable'}</span>
+                  <span>{aiLoading ? 'Synthesizing Analysis...' : 'Generate Research Analysis'}</span>
                 </button>
               </div>
             </div>
 
             {/* Error banner */}
             {aiError && (
-              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400 font-mono">
-                [!] Cable Interrupted: {aiError}
+              <div className="p-3 rounded-lg border border-[#b20808]/30 bg-[#b20808]/10 text-xs text-[#8b0909] dark:text-rose-400 font-mono">
+                [!] {aiError}
               </div>
             )}
 
             {/* Live Streaming or Parsed Dossier Content */}
             {aiStreamingText ? (
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 font-mono text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 space-y-2 whitespace-pre-wrap">
-                <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-bold">
-                  <span className="h-2 w-2 rounded-full bg-purple-500 animate-ping" />
-                  <span>Incoming Secure Transmission (Streaming)...</span>
+              <div className="rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#222b37] p-5 font-mono text-xs leading-relaxed text-[#2d1f17] dark:text-[#e0d1b9] space-y-2 whitespace-pre-wrap">
+                <div className="flex items-center space-x-2 text-blue-700 dark:text-blue-400 font-bold">
+                  <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping" />
+                  <span>Synthesizing Real-Time Research Analysis...</span>
                 </div>
                 <div>{aiStreamingText}</div>
               </div>
             ) : data.ai_dossier ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Core Thesis Card */}
-                <div className="rounded-2xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] p-4 space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800 dark:text-zinc-200 tracking-wider font-mono">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <span>Qualitative Investment Thesis</span>
-                  </div>
-                  <ul className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1.5 list-disc pl-4">
-                    {(data.ai_dossier.thesis || []).map((th, i) => (
-                      <li key={i}>{th}</li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="space-y-4">
+                {/* 1. Risk Judge Adjudication & Verdict Banner */}
+                {data.ai_dossier.risk_judge?.verdict && (
+                  <div className={`rounded-xl border p-4 space-y-3 ${
+                    data.ai_dossier.risk_judge?.rating === 'BEAR_FAVORED'
+                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-950 dark:text-rose-200'
+                      : data.ai_dossier.risk_judge?.rating === 'BULL_FAVORED'
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200'
+                      : 'border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-200'
+                  }`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] dark:border-white/[0.08] pb-2.5">
+                      <div className="flex items-center space-x-2">
+                        <Scale className="h-4 w-4" />
+                        <span className="text-[10px] font-mono tracking-wider uppercase font-bold">
+                          Risk Judge Adjudication &amp; Verification
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                        data.ai_dossier.risk_judge?.rating === 'BEAR_FAVORED'
+                          ? 'bg-rose-500/20 border-rose-500/40 text-rose-700 dark:text-rose-300'
+                          : data.ai_dossier.risk_judge?.rating === 'BULL_FAVORED'
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                      }`}>
+                        {data.ai_dossier.risk_judge?.rating === 'BEAR_FAVORED'
+                          ? '⚠️ SKEPTICAL / BEAR TRAP FAVORED'
+                          : data.ai_dossier.risk_judge?.rating === 'BULL_FAVORED'
+                          ? '✓ BULL ACCUMULATION FAVORED'
+                          : '⚖ INCONCLUSIVE / BALANCED'}
+                      </span>
+                    </div>
 
-                {/* Invalidation Boundary with Hazard Styling */}
-                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-amber-600 dark:text-amber-400 tracking-wider font-mono">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>Structural Invalidation Boundary</span>
-                  </div>
-                  <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-mono">
-                    {data.ai_dossier.risks?.setup_invalidation || data.ai_dossier.risks?.thesis_invalidation || 'Break below prior swing low invalidates the institutional structure.'}
-                  </p>
-                </div>
+                    <p className="text-xs font-semibold leading-relaxed">
+                      {cleanText(data.ai_dossier.risk_judge.verdict)}
+                    </p>
 
+                    {(data.ai_dossier.risk_judge.confirmed_facts || data.ai_dossier.risk_judge.unsupported_claims) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
+                        {data.ai_dossier.risk_judge.confirmed_facts && (
+                          <div className="rounded-lg bg-black/[0.02] dark:bg-white/[0.03] p-3 space-y-1 border border-black/[0.04] dark:border-white/[0.06]">
+                            <span className="text-[10px] font-mono uppercase font-bold text-emerald-700 dark:text-emerald-400 block">
+                              Confirmed Facts &amp; Empirical Data
+                            </span>
+                            <p className="text-[11px] leading-relaxed text-[#2d1f17] dark:text-[#e0d1b9] whitespace-pre-line">
+                              {cleanText(data.ai_dossier.risk_judge.confirmed_facts)}
+                            </p>
+                          </div>
+                        )}
+                        {data.ai_dossier.risk_judge.unsupported_claims && (
+                          <div className="rounded-lg bg-black/[0.02] dark:bg-white/[0.03] p-3 space-y-1 border border-black/[0.04] dark:border-white/[0.06]">
+                            <span className="text-[10px] font-mono uppercase font-bold text-rose-700 dark:text-rose-400 block">
+                              Unsupported Claims / Concerns
+                            </span>
+                            <p className="text-[11px] leading-relaxed text-[#2d1f17] dark:text-[#e0d1b9] whitespace-pre-line">
+                              {cleanText(data.ai_dossier.risk_judge.unsupported_claims)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(data.ai_dossier.risk_judge.invalidation_boundary || data.ai_dossier.risks?.setup_invalidation) && (
+                      <div className="flex items-start space-x-2 text-[11px] pt-1 border-t border-black/[0.04] dark:border-white/[0.05]">
+                        <span className="font-mono text-rose-600 dark:text-rose-400 font-bold shrink-0">Hard Invalidation:</span>
+                        <span className="text-zinc-700 dark:text-zinc-300">
+                          {cleanText(data.ai_dossier.risk_judge.invalidation_boundary || data.ai_dossier.risks?.setup_invalidation)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Comparative Audit: Bull Case vs Bear Case (2 Columns) */}
+                {((data.ai_dossier.bull_case && data.ai_dossier.bull_case.length > 0) || (data.ai_dossier.bear_case && data.ai_dossier.bear_case.length > 0)) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Left: Bull Case */}
+                    <div className="rounded-xl border border-emerald-600/30 dark:border-emerald-500/30 bg-emerald-600/5 dark:bg-emerald-500/5 p-4 space-y-2.5">
+                      <div className="flex items-center space-x-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span>Bull Case (The Setup)</span>
+                      </div>
+                      <ul className="text-xs text-[#2d1f17] dark:text-[#e0d1b9] space-y-2">
+                        {(data.ai_dossier.bull_case || []).map((b, i) => (
+                          <li key={i} className="flex items-start space-x-2 text-[11px] leading-relaxed">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">•</span>
+                            <span>{cleanText(b)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Right: Bear Case */}
+                    <div className="rounded-xl border border-rose-600/30 dark:border-rose-500/30 bg-rose-600/5 dark:bg-rose-500/5 p-4 space-y-2.5">
+                      <div className="flex items-center space-x-2 text-xs font-bold text-rose-800 dark:text-rose-300">
+                        <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                        <span>Bear Case (The Trap &amp; Counterevidence)</span>
+                      </div>
+                      <ul className="text-xs text-[#2d1f17] dark:text-[#e0d1b9] space-y-2">
+                        {(data.ai_dossier.bear_case || []).map((b, i) => (
+                          <li key={i} className="flex items-start space-x-2 text-[11px] leading-relaxed">
+                            <span className="text-rose-600 dark:text-rose-400 font-bold mt-0.5">•</span>
+                            <span>{cleanText(b)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Core Qualitative Thesis */}
+                {data.ai_dossier.thesis && data.ai_dossier.thesis.length > 0 && (
+                  <div className="rounded-xl border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc]/50 dark:bg-[#222b37]/50 p-4 space-y-2">
+                    <span className="text-[10px] font-mono tracking-wider uppercase font-bold text-[#806350] dark:text-[#958a7a]">
+                      Qualitative Investment Thesis
+                    </span>
+                    <ul className="text-xs text-[#2d1f17] dark:text-[#e0d1b9] space-y-1.5 list-disc pl-4 leading-relaxed">
+                      {data.ai_dossier.thesis.map((th, i) => (
+                        <li key={i}>{cleanText(th)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 4. Observable Confirmation Conditions */}
+                {((data.ai_dossier.strengthen_conditions && data.ai_dossier.strengthen_conditions.length > 0) ||
+                  (data.ai_dossier.weaken_conditions && data.ai_dossier.weaken_conditions.length > 0)) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    {data.ai_dossier.strengthen_conditions && data.ai_dossier.strengthen_conditions.length > 0 && (
+                      <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 block uppercase">
+                          What Strengthens Thesis
+                        </span>
+                        <ul className="text-[11px] text-[#2d1f17] dark:text-[#e0d1b9] space-y-1">
+                          {data.ai_dossier.strengthen_conditions.map((sc, i) => (
+                            <li key={i}>• {cleanText(sc)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {data.ai_dossier.weaken_conditions && data.ai_dossier.weaken_conditions.length > 0 && (
+                      <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-rose-700 dark:text-rose-400 block uppercase">
+                          What Weakens Thesis
+                        </span>
+                        <ul className="text-[11px] text-[#2d1f17] dark:text-[#e0d1b9] space-y-1">
+                          {data.ai_dossier.weaken_conditions.map((wc, i) => (
+                            <li key={i}>• {cleanText(wc)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. Unabridged Full Report Markdown Toggle */}
+                {(data.ai_dossier.raw_markdown || data.ai_dossier.raw_section) && (
+                  <div className="border-t border-[#b8a597]/40 dark:border-[#363c44] pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRawReport(!showRawReport)}
+                      className="flex items-center space-x-1.5 text-xs font-semibold text-[#806350] dark:text-[#958a7a] hover:text-[#2d1f17] dark:hover:text-[#e0d1b9] transition"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      <span>{showRawReport ? 'Hide Unabridged Research Report' : 'View Full Unabridged Markdown Report'}</span>
+                      {showRawReport ? <ChevronUp className="h-3.5 w-3.5 ml-1" /> : <ChevronDown className="h-3.5 w-3.5 ml-1" />}
+                    </button>
+
+                    {showRawReport && (
+                      <div className="mt-3 rounded-xl border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc]/40 dark:bg-[#13171e] p-5 text-xs font-mono leading-relaxed space-y-3 prose dark:prose-invert max-w-none text-[#2d1f17] dark:text-[#e0d1b9]">
+                        <ReactMarkdown>{cleanText(data.ai_dossier.raw_markdown || data.ai_dossier.raw_section)}</ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-black/10 dark:border-white/10 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400 font-mono">
-                <div className="flex items-center space-x-2.5">
-                  <Radio className="h-4 w-4 text-purple-500 shrink-0 opacity-80" />
-                  <span>Intelligence dispatch ready for synthesis on deterministic price & solvency telemetry.</span>
-                </div>
+              <div className="rounded-lg border border-dashed border-[#b8a597] dark:border-[#363c44] p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#806350] dark:text-[#958a7a]">
+                <span>Research analysis ready for synthesis on deterministic price &amp; solvency telemetry.</span>
                 <button
                   onClick={handleGenerateStockDossier}
                   disabled={aiLoading}
-                  className="rounded-xl border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold px-3 py-1.5 text-xs transition shrink-0"
+                  className="rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#222b37] hover:border-[#806350] dark:hover:border-[#e0d1b9] text-[#2d1f17] dark:text-[#e0d1b9] font-bold px-3.5 py-1.5 text-xs transition shrink-0"
                 >
-                  Generate Cable
+                  Generate Analysis
                 </button>
               </div>
             )}
 
-            {/* Interactive Stock Chat Memo Pad */}
-            <div className="border-t border-black/[0.06] dark:border-white/[0.06] pt-4 space-y-3">
-              <span className="text-[10px] font-mono tracking-widest text-zinc-400 flex items-center">
-                <MessageSquare className="h-3 w-3 mr-1" /> Interrogate Stock Underwriter
+            {/* Interactive Stock Analyst Chat */}
+            <div className="border-t border-[#b8a597] dark:border-[#363c44] pt-4 space-y-3">
+              <span className="text-[10px] font-mono tracking-widest text-[#806350] dark:text-[#958a7a] uppercase font-bold flex items-center">
+                <MessageSquare className="h-3 w-3 mr-1" /> Direct Analyst Chat
               </span>
 
               {/* Chat Thread */}
               {chatHistory.length > 0 && (
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 text-xs font-mono">
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 text-xs">
                   {chatHistory.map((msg, i) => (
                     <div 
                       key={i}
-                      className={`p-2.5 rounded-xl ${
+                      className={`p-3 rounded-lg ${
                         msg.role === 'user'
-                          ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 ml-8'
-                          : 'bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.06] text-zinc-800 dark:text-zinc-200 mr-8'
+                          ? 'bg-[#806350] text-[#edd9cc] ml-8 font-semibold dark:bg-[#e0d1b9] dark:text-[#1c232d]'
+                          : 'bg-[#edd9cc] border border-[#b8a597] text-[#2d1f17] mr-8 dark:bg-[#222b37] dark:border-[#363c44] dark:text-[#e0d1b9]'
                       }`}
                     >
-                      <span className="text-[10px] opacity-60 block uppercase font-bold mb-0.5">
-                        {msg.role === 'user' ? 'YOU' : 'UNDERWRITER'}
+                      <span className="text-[10px] opacity-70 block uppercase font-bold mb-0.5">
+                        {msg.role === 'user' ? 'YOU' : 'ANALYST'}
                       </span>
                       {msg.content}
                     </div>
@@ -1114,21 +1385,21 @@ export default function AppleDeepDiveTab({
                 </div>
               )}
 
-              {/* Input row */}
+              {/* Chat Input */}
               <form onSubmit={handleSendStockChat} className="flex items-center space-x-2">
                 <input
                   type="text"
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
                   placeholder={`Ask anything regarding ${data.ticker}'s margins, debt, or setup...`}
-                  className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] px-3.5 py-2 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-white font-mono"
+                  className="flex-1 rounded-lg border border-[#b8a597] dark:border-[#363c44] bg-[#edd9cc] dark:bg-[#222b37] px-3.5 py-2 text-xs text-[#2d1f17] dark:text-[#e0d1b9] outline-none focus:border-[#806350] dark:focus:border-[#e0d1b9] transition placeholder-[#806350]/60 dark:placeholder-[#958a7a]/60"
                 />
                 <button
                   type="submit"
                   disabled={chatLoading || !chatMessage.trim()}
-                  className="rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 text-xs font-bold transition hover:opacity-90 disabled:opacity-40"
+                  className="rounded-lg bg-[#806350] hover:bg-[#6c5342] text-[#edd9cc] dark:bg-[#e0d1b9] dark:hover:bg-[#e0d1b9]/90 dark:text-[#1c232d] px-4 py-2 text-xs font-bold transition disabled:opacity-40"
                 >
-                  {chatLoading ? 'Inquiring...' : 'Transmit Inquiry'}
+                  {chatLoading ? 'Analyzing...' : 'Ask'}
                 </button>
               </form>
             </div>

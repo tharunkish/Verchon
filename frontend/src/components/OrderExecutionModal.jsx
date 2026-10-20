@@ -41,12 +41,12 @@ export default function OrderExecutionModal({
 
   // Sync initial ticker if modal opened with a specific stock
   useEffect(() => {
-    if (initialTicker) {
+    if (isOpen && initialTicker) {
       const clean = normalizeTicker(initialTicker);
       setTicker(clean);
       fetchQuote(clean);
     }
-  }, [initialTicker]);
+  }, [isOpen, initialTicker]);
 
   useEffect(() => {
     if (isOpen && !quoteData && ticker) {
